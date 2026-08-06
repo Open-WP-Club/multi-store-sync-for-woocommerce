@@ -516,9 +516,13 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
 
         $wpdb->shouldReceive('prepare')
-            ->once()
+            ->twice()
             ->with(\Mockery::type('string'), 90)
             ->andReturn('DELETE ...');
+
+        $wpdb->shouldReceive('get_results')
+            ->once()
+            ->andReturn([]);
 
         $wpdb->shouldReceive('query')
             ->once()
@@ -536,9 +540,13 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
 
         $wpdb->shouldReceive('prepare')
-            ->once()
+            ->twice()
             ->with(\Mockery::type('string'), 30)
             ->andReturn('DELETE ...');
+
+        $wpdb->shouldReceive('get_results')
+            ->once()
+            ->andReturn([]);
 
         $wpdb->shouldReceive('query')
             ->once()
@@ -547,5 +555,47 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $deleted = WC_Multi_Store_API_Usage_Tracker::cleanup_old_data(30);
 
         $this->assertEquals(5, $deleted);
+    }
+
+    public function test_cleanup_old_data_archives_records_before_deleting(): void
+    {
+        global $wpdb;
+
+        $temp_dir = sys_get_temp_dir() . '/wc-mss-test-' . uniqid();
+        mkdir($temp_dir . '/wc-mss-logs', 0777, true);
+
+        Functions\when('wp_upload_dir')->justReturn([
+            'basedir' => $temp_dir,
+            'baseurl' => 'http://example.com/wp-content/uploads',
+        ]);
+
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $records = [
+            ['id' => 1, 'created_at' => '2024-01-01 00:00:00', 'store_url' => 'https://store1.com'],
+            ['id' => 2, 'created_at' => '2024-01-05 00:00:00', 'store_url' => 'https://store2.com'],
+        ];
+
+        $wpdb->shouldReceive('prepare')->andReturn('SQL');
+        $wpdb->shouldReceive('get_results')->once()->andReturn($records);
+        $wpdb->shouldReceive('query')->once()->andReturn(2);
+
+        try {
+            $deleted = WC_Multi_Store_API_Usage_Tracker::cleanup_old_data(90);
+
+            $this->assertEquals(2, $deleted);
+
+            $archive_files = glob($temp_dir . '/wc-mss-logs/api-usage-archive-*.json');
+            $this->assertCount(1, $archive_files);
+
+            $archived = json_decode(file_get_contents($archive_files[0]), true);
+            $this->assertEquals(2, $archived['total_records']);
+            $this->assertEquals($records, $archived['records']);
+        } finally {
+            array_map('unlink', glob($temp_dir . '/wc-mss-logs/*') ?: []);
+            @rmdir($temp_dir . '/wc-mss-logs');
+            @rmdir($temp_dir);
+        }
     }
 }

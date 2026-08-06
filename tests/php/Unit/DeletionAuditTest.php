@@ -329,6 +329,7 @@ class DeletionAuditTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('query')->andReturn(12);
 
         $result = WC_Multi_Store_Deletion_Audit::cleanup_old_logs(90);
@@ -342,12 +343,55 @@ class DeletionAuditTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->shouldReceive('prepare')
-            ->once()
+            ->twice()
             ->andReturn('');
+        $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('query')->andReturn(5);
 
         $result = WC_Multi_Store_Deletion_Audit::cleanup_old_logs();
 
         $this->assertEquals(5, $result);
+    }
+
+    public function test_cleanup_old_logs_archives_records_before_deleting(): void
+    {
+        global $wpdb;
+
+        $temp_dir = sys_get_temp_dir() . '/wc-mss-test-' . uniqid();
+        mkdir($temp_dir . '/wc-mss-logs', 0777, true);
+
+        Functions\when('wp_upload_dir')->justReturn([
+            'basedir' => $temp_dir,
+            'baseurl' => 'http://example.com/wp-content/uploads',
+        ]);
+
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $records = [
+            ['id' => 1, 'deleted_at' => '2024-01-01 00:00:00', 'product_id' => 10],
+            ['id' => 2, 'deleted_at' => '2024-01-05 00:00:00', 'product_id' => 20],
+        ];
+
+        $wpdb->shouldReceive('prepare')->andReturn('SQL');
+        $wpdb->shouldReceive('get_results')->once()->andReturn($records);
+        $wpdb->shouldReceive('query')->once()->andReturn(2);
+
+        try {
+            $result = WC_Multi_Store_Deletion_Audit::cleanup_old_logs(90);
+
+            $this->assertEquals(2, $result);
+
+            $archive_files = glob($temp_dir . '/wc-mss-logs/deletion-audit-archive-*.json');
+            $this->assertCount(1, $archive_files);
+
+            $archived = json_decode(file_get_contents($archive_files[0]), true);
+            $this->assertEquals(2, $archived['total_records']);
+            $this->assertEquals($records, $archived['records']);
+        } finally {
+            array_map('unlink', glob($temp_dir . '/wc-mss-logs/*') ?: []);
+            @rmdir($temp_dir . '/wc-mss-logs');
+            @rmdir($temp_dir);
+        }
     }
 }

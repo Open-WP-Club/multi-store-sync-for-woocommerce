@@ -439,8 +439,12 @@ class WebhookLoggerTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
 
         $wpdb->shouldReceive('prepare')
-            ->once()
+            ->twice()
             ->andReturn('DELETE FROM wp_wc_mss_webhook_logs WHERE created_at < ...');
+
+        $wpdb->shouldReceive('get_results')
+            ->once()
+            ->andReturn([]);
 
         $wpdb->shouldReceive('query')
             ->once()
@@ -459,8 +463,12 @@ class WebhookLoggerTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
 
         $wpdb->shouldReceive('prepare')
-            ->once()
+            ->twice()
             ->andReturn('DELETE ...');
+
+        $wpdb->shouldReceive('get_results')
+            ->once()
+            ->andReturn([]);
 
         $wpdb->shouldReceive('query')
             ->once()
@@ -469,6 +477,48 @@ class WebhookLoggerTest extends WC_Multi_Store_TestCase
         $deleted = WC_Multi_Store_Webhook_Logger::cleanup_old_logs(30);
 
         $this->assertEquals(10, $deleted);
+    }
+
+    public function test_cleanup_old_logs_archives_records_before_deleting(): void
+    {
+        global $wpdb;
+
+        $temp_dir = sys_get_temp_dir() . '/wc-mss-test-' . uniqid();
+        mkdir($temp_dir . '/wc-mss-logs', 0777, true);
+
+        Functions\when('wp_upload_dir')->justReturn([
+            'basedir' => $temp_dir,
+            'baseurl' => 'http://example.com/wp-content/uploads',
+        ]);
+
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $records = [
+            ['id' => 1, 'created_at' => '2024-01-01 00:00:00', 'log_type' => 'order_received'],
+            ['id' => 2, 'created_at' => '2024-01-05 00:00:00', 'log_type' => 'stock_synced'],
+        ];
+
+        $wpdb->shouldReceive('prepare')->andReturn('SQL');
+        $wpdb->shouldReceive('get_results')->once()->andReturn($records);
+        $wpdb->shouldReceive('query')->once()->andReturn(2);
+
+        try {
+            $deleted = WC_Multi_Store_Webhook_Logger::cleanup_old_logs(7);
+
+            $this->assertEquals(2, $deleted);
+
+            $archive_files = glob($temp_dir . '/wc-mss-logs/webhook-logs-archive-*.json');
+            $this->assertCount(1, $archive_files);
+
+            $archived = json_decode(file_get_contents($archive_files[0]), true);
+            $this->assertEquals(2, $archived['total_records']);
+            $this->assertEquals($records, $archived['records']);
+        } finally {
+            array_map('unlink', glob($temp_dir . '/wc-mss-logs/*') ?: []);
+            @rmdir($temp_dir . '/wc-mss-logs');
+            @rmdir($temp_dir);
+        }
     }
 
     // ─── get_count ─────────────────────────────────

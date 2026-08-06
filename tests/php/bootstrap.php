@@ -373,6 +373,7 @@ require_once $plugin_root . '/includes/circuit-breaker.php';
 require_once $plugin_root . '/includes/queue-table.php';
 require_once $plugin_root . '/includes/sync-history.php';
 require_once $plugin_root . '/includes/csv-sanitize-trait.php';
+require_once $plugin_root . '/includes/archive-before-delete-trait.php';
 require_once $plugin_root . '/includes/webhook-log-type.php';
 require_once $plugin_root . '/includes/webhook-logger.php';
 require_once $plugin_root . '/includes/webhook-receiver.php';

@@ -12,6 +12,8 @@ if (!defined('ABSPATH')) {
 
 class WC_Multi_Store_Deletion_Audit {
 
+    use WC_Multi_Store_Archive_Before_Delete;
+
     /**
      * Database table name
      *
@@ -424,6 +426,18 @@ class WC_Multi_Store_Deletion_Audit {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+
+        $records = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE deleted_at < %s ORDER BY deleted_at ASC",
+                $cutoff_date
+            ),
+            ARRAY_A
+        );
+
+        if (!empty($records)) {
+            self::archive_records_to_json('deletion-audit', $records, 'deleted_at');
+        }
 
         $result = $wpdb->query(
             $wpdb->prepare(

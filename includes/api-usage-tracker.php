@@ -18,6 +18,7 @@ if (!defined('ABSPATH')) {
 class WC_Multi_Store_API_Usage_Tracker {
 
     use WC_Multi_Store_Csv_Sanitizer;
+    use WC_Multi_Store_Archive_Before_Delete;
 
     /**
      * Database table name
@@ -517,6 +518,17 @@ class WC_Multi_Store_API_Usage_Tracker {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+
+        $records = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name}
+            WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)
+            ORDER BY created_at ASC",
+            $days
+        ), ARRAY_A);
+
+        if (!empty($records)) {
+            self::archive_records_to_json('api-usage', $records, 'created_at');
+        }
 
         return $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name}

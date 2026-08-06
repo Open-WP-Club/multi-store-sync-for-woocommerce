@@ -13,6 +13,7 @@ if (!defined('ABSPATH')) {
 class WC_Multi_Store_Webhook_Logger {
 
     use WC_Multi_Store_Csv_Sanitizer;
+    use WC_Multi_Store_Archive_Before_Delete;
 
     /**
      * Database table name (without prefix)
@@ -551,6 +552,15 @@ class WC_Multi_Store_Webhook_Logger {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+
+        $records = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE created_at < %s ORDER BY created_at ASC",
+            $cutoff_date
+        ), ARRAY_A);
+
+        if (!empty($records)) {
+            self::archive_records_to_json('webhook-logs', $records, 'created_at');
+        }
 
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name} WHERE created_at < %s",
