@@ -1,0 +1,306 @@
+/**
+ * WooCommerce Multi-Store Remote Orders - Admin Styles
+ * Matches WooCommerce admin design
+ * All measurements in rems (1rem = 16px)
+ */
+
+/* Statistics Boxes */
+.wc-mss-stats-boxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+    gap: 1.25rem;
+    margin: 1.25rem 0;
+}
+
+.wc-mss-stat-box {
+    background: #fff;
+    border: 0.0625rem solid #c3c4c7;
+    border-radius: 0.25rem;
+    padding: 1.25rem;
+    text-align: center;
+    box-shadow: 0 0.0625rem 0.0625rem rgba(0, 0, 0, 0.04);
+}
+
+.wc-mss-stat-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #646970;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.wc-mss-stat-value {
+    display: block;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+/* Order Status Badges */
+mark.order-status {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.1875rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    text-align: center;
+    min-width: 5rem;
+}
+
+mark.order-status.status-pending {
+    background: #ffba00;
+    color: #000;
+}
+
+mark.order-status.status-processing {
+    background: #c6e1c6;
+    color: #000;
+}
+
+mark.order-status.status-on-hold {
+    background: #f8dda7;
+    color: #000;
+}
+
+mark.order-status.status-completed {
+    background: #c8d7e1;
+    color: #000;
+}
+
+mark.order-status.status-cancelled {
+    background: #e5e5e5;
+    color: #000;
+}
+
+mark.order-status.status-refunded {
+    background: #c8d7e1;
+    color: #000;
+}
+
+mark.order-status.status-failed {
+    background: #eba3a3;
+    color: #000;
+}
+
+/* Order Details Page */
+#poststuff .inside {
+    padding: 0.75rem;
+}
+
+.order_data {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.order_data li {
+    padding: 0.5rem 0;
+    border-bottom: 0.0625rem solid #f0f0f1;
+}
+
+.order_data li:last-child {
+    border-bottom: none;
+}
+
+.order_data strong {
+    display: inline-block;
+    min-width: 8.75rem;
+    color: #50575e;
+}
+
+/* Address Display */
+.address {
+    line-height: 1.8;
+}
+
+/* Order Items Table */
+.woocommerce_order_items_wrapper {
+    margin: 0;
+}
+
+table.woocommerce_order_items {
+    width: 100%;
+    background: #fff;
+    border-collapse: collapse;
+}
+
+table.woocommerce_order_items thead th {
+    text-align: left;
+    padding: 0.6875rem;
+    background: #f9f9f9;
+    border-bottom: 0.0625rem solid #e5e5e5;
+    font-weight: 600;
+}
+
+table.woocommerce_order_items tbody tr.item {
+    border-bottom: 0.0625rem solid #e5e5e5;
+}
+
+table.woocommerce_order_items tbody td {
+    padding: 0.6875rem;
+    vertical-align: top;
+}
+
+table.woocommerce_order_items tbody td.thumb {
+    width: 2.375rem;
+    padding-right: 0;
+}
+
+table.woocommerce_order_items tbody td.name {
+    width: auto;
+}
+
+table.woocommerce_order_items tbody td.item_cost,
+table.woocommerce_order_items tbody td.quantity,
+table.woocommerce_order_items tbody td.line_cost {
+    text-align: right;
+    width: 10%;
+}
+
+table.woocommerce_order_items .wc-order-item-sku {
+    color: #646970;
+    margin-top: 0.25rem;
+}
+
+table.woocommerce_order_items .wc-order-item-meta {
+    color: #646970;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+}
+
+table.woocommerce_order_items tfoot tr {
+    border-top: 0.0625rem solid #e5e5e5;
+}
+
+table.woocommerce_order_items tfoot td {
+    padding: 0.6875rem;
+}
+
+table.woocommerce_order_items tfoot td.label {
+    text-align: right;
+    padding-right: 1.25rem;
+}
+
+table.woocommerce_order_items tfoot td.total {
+    text-align: right;
+    width: 10%;
+    font-weight: 600;
+}
+
+/* Order Item Thumbnail Placeholder */
+.wc-order-item-thumbnail {
+    width: 2.375rem;
+    height: 2.375rem;
+    background: #f0f0f1;
+    border-radius: 0.1875rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wc-order-item-thumbnail:before {
+    content: "\f128";
+    font-family: dashicons;
+    font-size: 1.25rem;
+    color: #a7aaad;
+}
+
+/* Filters */
+.tablenav .actions select {
+    max-width: 12.5rem;
+}
+
+/* Customer Email */
+small.meta.email {
+    color: #646970;
+    font-size: 0.75rem;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 782px) {
+    .wc-mss-stats-boxes {
+        grid-template-columns: 1fr;
+    }
+
+    .order_data strong {
+        display: block;
+        min-width: auto;
+        margin-bottom: 0.25rem;
+    }
+
+    table.woocommerce_order_items thead {
+        display: none;
+    }
+
+    table.woocommerce_order_items tbody td {
+        display: block;
+        text-align: left !important;
+        width: 100% !important;
+        padding: 0.5rem 0.6875rem;
+    }
+
+    table.woocommerce_order_items tbody td:before {
+        content: attr(data-title) ": ";
+        font-weight: 600;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+
+    table.woocommerce_order_items tfoot td.label {
+        text-align: left;
+    }
+}
+
+/* WooCommerce Color Scheme Compatibility */
+.woocommerce .postbox {
+    border: 0.0625rem solid #c3c4c7;
+}
+
+.woocommerce .postbox-header {
+    border-bottom: 0.0625rem solid #c3c4c7;
+}
+
+.woocommerce .postbox-header h2 {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Action Buttons */
+.woocommerce a.delete-order {
+    color: #b32d2e;
+}
+
+.woocommerce a.delete-order:hover {
+    color: #8a2424;
+}
+
+/* Empty State */
+.wc-mss-empty-state {
+    text-align: center;
+    padding: 3.75rem 1.25rem;
+    color: #646970;
+}
+
+.wc-mss-empty-state .dashicons {
+    font-size: 3.75rem;
+    width: 3.75rem;
+    height: 3.75rem;
+    color: #a7aaad;
+    margin-bottom: 1.25rem;
+}
+
+.wc-mss-empty-state h3 {
+    font-size: 1.125rem;
+    margin-bottom: 0.625rem;
+    color: #1d2327;
+}
+
+.wc-mss-empty-state p {
+    font-size: 0.875rem;
+    max-width: 31.25rem;
+    margin: 0 auto;
+}

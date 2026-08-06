@@ -1,0 +1,61 @@
+/* Product Edit Page - Multi-Store Sync metabox. All measurements in rems (1rem = 16px) */
+
+.wc-mss-sync-actions .wc-mss-sync-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.wc-mss-sync-actions .wc-mss-sync-btn,
+.wc-mss-sync-actions .wc-mss-preview-btn {
+    width: 100%;
+    text-align: center;
+}
+.wc-mss-preview {
+    border: 0.0625rem solid #ddd;
+    padding: 0.9375rem;
+    margin-bottom: 0.9375rem;
+    background: #fff;
+    border-radius: 0.25rem;
+}
+.wc-mss-preview h3 {
+    margin: 0 0 0.625rem 0;
+    padding: 0;
+    font-size: 0.875rem;
+    border-bottom: 0.0625rem solid #eee;
+    padding-bottom: 0.5rem;
+}
+.wc-mss-preview-conflicts {
+    background: #fff3cd;
+    border-left: 0.1875rem solid #ffc107;
+    padding: 0.625rem;
+    margin: 0.625rem 0;
+}
+.wc-mss-conflict {
+    padding: 0.3125rem 0;
+    font-size: 0.75rem;
+}
+.wc-mss-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.625rem 0;
+    font-size: 0.75rem;
+}
+.wc-mss-preview-table th,
+.wc-mss-preview-table td {
+    padding: 0.5rem;
+    border: 0.0625rem solid #ddd;
+    text-align: left;
+}
+.wc-mss-preview-table thead th {
+    background: #f5f5f5;
+    font-weight: bold;
+}
+.wc-mss-preview-table tbody tr:nth-child(even) {
+    background: #fafafa;
+}
+.wc-mss-no-changes {
+    color: #666;
+    font-style: italic;
+    padding: 0.625rem;
+    text-align: center;
+}

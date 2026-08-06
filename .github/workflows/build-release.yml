@@ -1,0 +1,112 @@
+name: Build & Release
+
+# Trigger: push a plain semver tag, e.g.  git tag 1.2.3 && git push origin 1.2.3
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - name: Install production dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      # Stamp the tag version into the plugin file so the ZIP is always
+      # consistent with the release tag, regardless of what the file says.
+      - name: Stamp version into plugin header
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          sed -i "s/^ \* Version:.*/ * Version:           $TAG/" wc-multi-store-sync.php
+          sed -i "s/define('WC_MSS_VERSION'.*/define('WC_MSS_VERSION', '$TAG');/" wc-multi-store-sync.php
+
+      - name: Build archive
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          SLUG="wc-multi-store-sync"
+          mkdir -p /tmp/build/"$SLUG"
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='.claude.md' \
+            --exclude='.phpunit.cache' \
+            --exclude='.gitignore' \
+            --exclude='.DS_Store' \
+            --exclude='tests' \
+            --exclude='documentation' \
+            --exclude='phpunit.xml.dist' \
+            --exclude='composer.json' \
+            --exclude='composer.lock' \
+            --exclude='coverage' \
+            ./ /tmp/build/"$SLUG"/
+
+          cd /tmp/build
+          zip -r "$SLUG-$TAG.zip" "$SLUG"
+          mv "$SLUG-$TAG.zip" "$GITHUB_WORKSPACE"/
+
+      # Diff against the previous semver tag (or the very first commit if
+      # this is the first release) to build the changelog automatically.
+      - name: Generate changelog
+        id: changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          PREV=$(git tag --sort=-version:refname \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sed -n '2p')
+
+          if [ -n "$PREV" ]; then
+            RANGE="$PREV..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          CHANGES=$(git log --pretty=format:'- %s' "$RANGE" \
+            -- . ':!.github' ':!tests' ':!documentation')
+
+          # Store multiline output safely
+          {
+            echo 'changes<<CHANGELOG_EOF'
+            echo "$CHANGES"
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          CHANGES: ${{ steps.changelog.outputs.changes }}
+        run: |
+          cat > /tmp/release-notes.md << 'NOTES_EOF'
+          ## WooCommerce Multi-Store Sync
+          NOTES_EOF
+
+          printf "## WooCommerce Multi-Store Sync v%s\n\n%s\n\n### Installation\nDownload \`wc-multi-store-sync-%s.zip\` and upload via **Plugins → Add New → Upload Plugin**.\n" \
+            "$TAG" "$CHANGES" "$TAG" > /tmp/release-notes.md
+
+          gh release delete "$TAG" --yes 2>/dev/null || true
+
+          gh release create "$TAG" \
+            "wc-multi-store-sync-$TAG.zip" \
+            --title "v$TAG" \
+            --notes-file /tmp/release-notes.md

@@ -1,0 +1,811 @@
+/**
+ * WooCommerce Multi-Store Sync - Admin Styles
+ * All measurements in rems (1rem = 16px)
+ */
+
+/* Hide WooCommerce default save button - we use custom forms */
+#mainform > p.submit {
+    display: none !important;
+}
+
+/* Dashboard Grid */
+.wc-mss-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+    margin-top: 1.25rem;
+}
+
+/* Cards */
+.wc-mss-card {
+    background: #fff;
+    border: 0.0625rem solid #ccd0d4;
+    box-shadow: 0 0.0625rem 0.0625rem rgba(0, 0, 0, 0.04);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.wc-mss-card h2,
+.wc-mss-card h3 {
+    margin-top: 0;
+    padding-bottom: 0.625rem;
+    border-bottom: 0.0625rem solid #eee;
+}
+
+.wc-mss-full-width {
+    grid-column: 1 / -1;
+}
+
+/* Status Badges */
+.status-active {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.1875rem 0.5rem;
+    background: #46b450;
+    color: #fff;
+    border-radius: 0.1875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-inactive {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.1875rem 0.5rem;
+    background: #dc3232;
+    color: #fff;
+    border-radius: 0.1875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Status Indicator Dots */
+.wc-mss-status-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.wc-mss-status-dot.active {
+    background: #46b450;
+    box-shadow: 0 0 0 0 rgba(70, 180, 80, 0.7);
+}
+
+.wc-mss-status-dot.inactive {
+    background: #dc3232;
+    box-shadow: 0 0 0 0 rgba(220, 50, 50, 0.7);
+}
+
+.wc-mss-status-dot.testing {
+    background: #ffb900;
+    box-shadow: 0 0 0 0 rgba(255, 185, 0, 0.7);
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(70, 180, 80, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 0.375rem rgba(70, 180, 80, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(70, 180, 80, 0);
+    }
+}
+
+/* Quick Actions */
+.wc-mss-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.wc-mss-actions .button {
+    text-align: center;
+}
+
+/* Empty State */
+.wc-mss-empty-state {
+    text-align: center;
+    padding: 2.5rem 1.25rem;
+}
+
+.wc-mss-empty-state p {
+    font-size: 1rem;
+    color: #666;
+    margin-bottom: 1.25rem;
+}
+
+/* Stores Page */
+.wc-mss-stores .form-table th {
+    width: 12.5rem;
+}
+
+.wc-mss-stores .required {
+    color: #dc3232;
+}
+
+/* Settings Page */
+.wc-mss-settings .form-table th {
+    width: 15.625rem;
+}
+
+/* Settings Page Two-Column Layout */
+.wc-mss-settings-layout {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+}
+
+.wc-mss-settings-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.wc-mss-settings-sidebar {
+    width: 18.75rem;
+    flex-shrink: 0;
+    position: sticky;
+    top: 2rem;
+}
+
+.wc-mss-settings-sidebar .wc-mss-card {
+    margin-bottom: 0.9375rem;
+    padding: 0.9375rem;
+    font-size: 0.8125rem;
+}
+
+.wc-mss-settings-sidebar .wc-mss-card h3 {
+    font-size: 0.875rem;
+    margin: 0 0 0.625rem 0;
+    padding-bottom: 0.5rem;
+}
+
+.wc-mss-settings-sidebar .wc-mss-card ul {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+.wc-mss-settings-sidebar .wc-mss-card li {
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.wc-mss-settings-sidebar .wc-mss-card ol {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.wc-mss-settings-sidebar .wc-mss-card ol li {
+    margin-bottom: 0.375rem;
+}
+
+.wc-mss-settings-sidebar .wc-mss-card p {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.75rem;
+}
+
+.wc-mss-settings-sidebar .wc-mss-webhook-note {
+    background: #fff3cd;
+    border-left: 0.1875rem solid #ffc107;
+    padding: 0.5rem;
+    margin-top: 0.625rem;
+    font-size: 0.6875rem;
+}
+
+@media (max-width: 1200px) {
+    .wc-mss-settings-layout {
+        flex-direction: column;
+    }
+
+    .wc-mss-settings-sidebar {
+        width: 100%;
+        position: static;
+    }
+}
+
+/* Logs Page */
+.wc-mss-log-viewer {
+    max-height: 37.5rem;
+    overflow-y: auto;
+    background: #f6f7f7;
+    border: 0.0625rem solid #c3c4c7;
+    border-radius: 0.25rem;
+    position: relative;
+}
+
+.wc-mss-log-content {
+    margin: 0;
+    padding: 0.9375rem;
+    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #1d2327;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.wc-mss-log-toolbar {
+    display: flex;
+    gap: 0.625rem;
+    align-items: center;
+    margin-bottom: 0.625rem;
+    flex-wrap: wrap;
+}
+
+.wc-mss-log-toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 0.3125rem;
+    cursor: pointer;
+}
+
+.wc-mss-log-search {
+    flex: 1;
+    min-width: 12.5rem;
+}
+
+.wc-mss-log-search input {
+    width: 100%;
+}
+
+.wc-mss-log-actions {
+    margin-top: 0.9375rem;
+}
+
+/* Responsive */
+@media (max-width: 782px) {
+    .wc-mss-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .wc-mss-full-width {
+        grid-column: 1;
+    }
+}
+
+/* Tables */
+.wc-mss-card table.wp-list-table {
+    margin-top: 0.9375rem;
+}
+
+.wc-mss-card table.wp-list-table th,
+.wc-mss-card table.wp-list-table td {
+    padding: 0.75rem;
+}
+
+/* Keyboard Shortcut Feedback */
+.wc-mss-save-feedback {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    background: #2271b1;
+    color: #fff;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.2);
+    z-index: 999999;
+    opacity: 0;
+    transform: translateY(1.25rem);
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.wc-mss-save-feedback.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Progress Bar */
+.wc-mss-progress-container {
+    width: 100%;
+    height: 1.5rem;
+    background: #f0f0f0;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    margin: 0.625rem 0;
+    position: relative;
+}
+
+.wc-mss-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2271b1 0%, #0d5bc6 100%);
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    position: relative;
+}
+
+.wc-mss-progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent
+    );
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* System Status Table (Dashboard) */
+.wc-mss-status-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.wc-mss-status-table td {
+    padding: 0.375rem 0;
+    border-bottom: 0.0625rem solid #f0f0f1;
+}
+
+.wc-mss-status-table tr:last-child td {
+    border-bottom: none;
+}
+
+.wc-mss-status-table td:first-child {
+    color: #646970;
+    width: 45%;
+}
+
+/* Queue Stats */
+.wc-mss-queue-stats {
+    display: flex;
+    gap: 0.9375rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.wc-mss-stat-box {
+    padding: 0.9375rem 1.25rem;
+    border-radius: 0.25rem;
+    min-width: 6.25rem;
+    text-align: center;
+}
+
+.wc-mss-stat-box .stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.wc-mss-stat-box .stat-label {
+    font-size: 0.75rem;
+}
+
+.wc-mss-stat-box.pending {
+    background: #f0f0f1;
+}
+
+.wc-mss-stat-box.pending .stat-value { color: #2271b1; }
+.wc-mss-stat-box.pending .stat-label { color: #646970; }
+
+.wc-mss-stat-box.processing {
+    background: #fff3cd;
+}
+
+.wc-mss-stat-box.processing .stat-value,
+.wc-mss-stat-box.processing .stat-label { color: #856404; }
+
+.wc-mss-stat-box.completed {
+    background: #d4edda;
+}
+
+.wc-mss-stat-box.completed .stat-value,
+.wc-mss-stat-box.completed .stat-label { color: #155724; }
+
+.wc-mss-stat-box.failed {
+    background: #f8d7da;
+}
+
+.wc-mss-stat-box.failed .stat-value,
+.wc-mss-stat-box.failed .stat-label { color: #721c24; }
+
+.wc-mss-stat-box.total {
+    background: #e2e3e5;
+}
+
+.wc-mss-stat-box.total .stat-value,
+.wc-mss-stat-box.total .stat-label { color: #383d41; }
+
+/* Deletion Audit Styles */
+.audit-details {
+    display: none;
+}
+
+.audit-details td {
+    background: #f9f9f9;
+    padding: 0.9375rem;
+}
+
+/* Chart Container */
+.wc-mss-chart-container {
+    height: 18.75rem;
+    position: relative;
+}
+
+/* API Usage - HTTP Methods */
+.wc-mss-method-get {
+    background: #46b450;
+    color: #fff;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.1875rem;
+    font-size: 0.6875rem;
+    font-weight: bold;
+}
+
+.wc-mss-method-post {
+    background: #2271b1;
+    color: #fff;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.1875rem;
+    font-size: 0.6875rem;
+    font-weight: bold;
+}
+
+.wc-mss-method-put {
+    background: #ffb900;
+    color: #fff;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.1875rem;
+    font-size: 0.6875rem;
+    font-weight: bold;
+}
+
+.wc-mss-method-delete {
+    background: #dc3545;
+    color: #fff;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.1875rem;
+    font-size: 0.6875rem;
+    font-weight: bold;
+}
+
+/* Deletion Audit Page */
+.wc-mss-deletion-audit .status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.1875rem;
+    font-weight: bold;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+}
+
+.wc-mss-deletion-audit .status-completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.wc-mss-deletion-audit .status-failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.wc-mss-deletion-audit .status-pending {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.wc-mss-deletion-audit .deletion-type {
+    padding: 0.125rem 0.375rem;
+    background: #f0f0f0;
+    border-radius: 0.1875rem;
+    font-size: 0.75rem;
+}
+
+.wc-mss-deletion-audit .audit-details-content {
+    padding: 1.25rem;
+    background: #f9f9f9;
+    border-left: 0.25rem solid #2271b1;
+}
+
+.wc-mss-deletion-audit .details-section {
+    margin-bottom: 1.25rem;
+}
+
+.wc-mss-deletion-audit .details-section h4 {
+    margin-top: 0;
+}
+
+.wc-mss-deletion-audit .details-section pre {
+    background: #fff;
+    padding: 0.625rem;
+    border: 0.0625rem solid #ddd;
+    overflow-x: auto;
+    max-height: 25rem;
+}
+
+.wc-mss-deletion-audit .error-message {
+    border-left: 0.25rem solid #dc3545;
+    padding-left: 0.9375rem;
+}
+
+/* Stores Page - Checkbox Grid */
+.wc-mss-checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+    gap: 0.5rem;
+    max-height: 15.625rem;
+    overflow-y: auto;
+    padding: 0.9375rem;
+    background: #f9f9f9;
+    border: 0.0625rem solid #ddd;
+    border-radius: 0.25rem;
+}
+
+.wc-mss-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3125rem 0.5rem;
+    background: #fff;
+    border: 0.0625rem solid #e0e0e0;
+    border-radius: 0.1875rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.wc-mss-checkbox-item:hover {
+    border-color: #2271b1;
+    background: #f0f7fc;
+}
+
+.wc-mss-checkbox-item.selected {
+    border-color: #d63638;
+    background: #fcf0f1;
+}
+
+.wc-mss-checkbox-item input[type="checkbox"] {
+    margin: 0;
+}
+
+.wc-mss-checkbox-item .count {
+    color: #666;
+    font-size: 0.6875rem;
+    margin-left: auto;
+}
+
+.wc-mss-select-actions {
+    margin-bottom: 0.625rem;
+}
+
+.wc-mss-select-actions button {
+    margin-right: 0.3125rem;
+}
+
+.wc-mss-selected-count {
+    color: #666;
+    font-size: 0.75rem;
+    margin-left: 0.625rem;
+}
+
+/* Stores Page - Store Form */
+.wc-mss-store-form {
+    background: #fff;
+    border: 0.0625rem solid #c3c4c7;
+    border-radius: 0.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.wc-mss-store-form-header {
+    background: #f0f0f1;
+    padding: 0.75rem 0.9375rem;
+    border-bottom: 0.0625rem solid #c3c4c7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.wc-mss-store-form-header h2 {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.wc-mss-store-form-body {
+    padding: 1.25rem;
+}
+
+/* Stores Page - Exclusions Section */
+.wc-mss-exclusions-section {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 0.0625rem solid #ddd;
+}
+
+.wc-mss-exclusions-section h4 {
+    margin: 0 0 0.9375rem 0;
+    color: #1d2327;
+}
+
+.wc-mss-exclusions-section.wc-mss-exclusions-first {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+/* Stores Page - Sync Preview */
+.wc-mss-sync-preview {
+    background: #f0f6fc;
+    border: 0.0625rem solid #c3c4c7;
+    border-left: 0.25rem solid #2271b1;
+    padding: 0.9375rem;
+    margin-bottom: 1.25rem;
+    border-radius: 0.25rem;
+}
+
+.wc-mss-sync-preview strong {
+    color: #2271b1;
+    font-size: 1rem;
+}
+
+/* Modal Styles */
+.wc-mss-modal {
+    display: none;
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    overflow: auto;
+}
+
+.wc-mss-modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 0.25rem;
+    width: 50%;
+    max-width: 37.5rem;
+    box-shadow: 0 0.25rem 1.25rem rgba(0, 0, 0, 0.3);
+}
+
+.wc-mss-modal-large {
+    width: 90%;
+    max-width: 75rem;
+}
+
+.wc-mss-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.9375rem 1.25rem;
+    border-bottom: 0.0625rem solid #dcdcdc;
+    background: #f0f0f1;
+}
+
+.wc-mss-modal-header h2 {
+    margin: 0;
+    font-size: 1.125rem;
+}
+
+.wc-mss-modal-close {
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: #666;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.wc-mss-modal-close:hover {
+    color: #000;
+}
+
+.wc-mss-modal-body {
+    padding: 1.25rem;
+}
+
+/* Webhook Log Badges */
+.wc-mss-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.1875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.wc-mss-badge-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.wc-mss-badge-error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Webhook Logs Table */
+#webhook-logs-container table {
+    font-size: 0.8125rem;
+}
+
+#webhook-logs-container th,
+#webhook-logs-container td {
+    padding: 0.5rem 0.625rem;
+}
+
+/* History Page Pagination */
+.wc-mss-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+    padding: 15px 20px;
+    margin-top: 20px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.wc-mss-pagination .pagination-info {
+    color: #666;
+    font-size: 13px;
+}
+.wc-mss-pagination .pagination-info strong {
+    color: #333;
+}
+.wc-mss-pagination .pagination-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.wc-mss-pagination .page-numbers {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    color: #333;
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+.wc-mss-pagination .page-numbers:hover {
+    background: #f0f0f1;
+    border-color: #999;
+    color: #000;
+}
+.wc-mss-pagination .page-numbers.current {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+    font-weight: 600;
+}
+.wc-mss-pagination .page-numbers.prev,
+.wc-mss-pagination .page-numbers.next {
+    padding: 0 14px;
+    font-weight: 600;
+}
+.wc-mss-pagination .page-numbers.dots {
+    border: none;
+    background: none;
+    min-width: auto;
+    padding: 0 6px;
+    color: #999;
+}
+.wc-mss-pagination .page-numbers.dots:hover {
+    background: none;
+}
+
