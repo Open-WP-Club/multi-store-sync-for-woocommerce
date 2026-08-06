@@ -53,198 +53,45 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
                 <input type="hidden" name="original_store_url" value="<?php echo esc_attr($editing_store_url); ?>">
 
                 <table class="form-table">
-                    <tr>
-                        <th scope="row">
-                            <label for="edit_store_url"><?php _e('Store URL', 'wc-multi-store-sync'); ?></label>
-                        </th>
-                        <td>
-                            <input type="url" name="store_url" id="edit_store_url" class="regular-text"
-                                   value="<?php echo esc_attr($editing_store_url); ?>" required>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="edit_consumer_key"><?php _e('Consumer Key', 'wc-multi-store-sync'); ?></label>
-                        </th>
-                        <td>
-                            <input type="password" name="consumer_key" id="edit_consumer_key" class="regular-text"
-                                   placeholder="<?php echo !empty($editing_store['consumer_key'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'wc-multi-store-sync') : ''; ?>"
-                                   autocomplete="off">
-                            <button type="button" class="button button-small wc-mss-toggle-password">
-                                <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
-                            </button>
-                            <p class="description"><?php _e('Leave blank to keep the saved key, or enter a new one to replace it.', 'wc-multi-store-sync'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="edit_consumer_secret"><?php _e('Consumer Secret', 'wc-multi-store-sync'); ?></label>
-                        </th>
-                        <td>
-                            <input type="password" name="consumer_secret" id="edit_consumer_secret" class="regular-text"
-                                   placeholder="<?php echo !empty($editing_store['consumer_secret'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'wc-multi-store-sync') : ''; ?>"
-                                   autocomplete="off">
-                            <button type="button" class="button button-small wc-mss-toggle-password">
-                                <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
-                            </button>
-                            <p class="description"><?php _e('Leave blank to keep the saved secret, or enter a new one to replace it.', 'wc-multi-store-sync'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="edit_status"><?php _e('Status', 'wc-multi-store-sync'); ?></label>
-                        </th>
-                        <td>
-                            <select name="status" id="edit_status">
-                                <option value="active" <?php selected($editing_store['status'] ?? '', 'active'); ?>><?php _e('Active', 'wc-multi-store-sync'); ?></option>
-                                <option value="inactive" <?php selected($editing_store['status'] ?? '', 'inactive'); ?>><?php _e('Inactive', 'wc-multi-store-sync'); ?></option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row" colspan="2">
-                            <h3 style="margin:0;"><?php _e('Image Upload Credentials (Application Password)', 'wc-multi-store-sync'); ?></h3>
-                            <p class="description" style="font-weight:normal;"><?php _e('Required for image sync when Image Proxy is enabled. WooCommerce API keys cannot upload media — use a WordPress Application Password instead. In the remote store: Users → Edit Admin → Application Passwords → create new.', 'wc-multi-store-sync'); ?></p>
-                        </th>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="edit_wp_username"><?php _e('WordPress Username', 'wc-multi-store-sync'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text" name="wp_username" id="edit_wp_username" class="regular-text"
-                                   value="<?php echo esc_attr($editing_store['wp_username'] ?? ''); ?>"
-                                   autocomplete="off">
-                            <p class="description"><?php _e('Admin username on the remote store', 'wc-multi-store-sync'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="edit_wp_app_password"><?php _e('Application Password', 'wc-multi-store-sync'); ?></label>
-                        </th>
-                        <td>
-                            <input type="password" name="wp_app_password" id="edit_wp_app_password" class="regular-text"
-                                   placeholder="<?php echo !empty($editing_store['wp_app_password'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'wc-multi-store-sync') : ''; ?>"
-                                   autocomplete="off">
-                            <button type="button" class="button button-small wc-mss-toggle-password">
-                                <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
-                            </button>
-                            <button type="button" class="button button-small" id="wc-mss-test-app-password-edit"
-                                    data-store-url="<?php echo esc_attr($editing_store_url); ?>"
-                                    data-username-field="edit_wp_username"
-                                    data-password-field="edit_wp_app_password"
-                                    data-saved-username="<?php echo esc_attr($editing_store['wp_username'] ?? ''); ?>"
-                                    data-has-saved-password="<?php echo !empty($editing_store['wp_app_password'] ?? '') ? '1' : '0'; ?>">
-                                <?php _e('Test App Password', 'wc-multi-store-sync'); ?>
-                            </button>
-                            <span id="wc-mss-test-app-password-edit-result" style="margin-left: 8px;"></span>
-                            <p class="description"><?php _e('The generated Application Password (spaces are OK)', 'wc-multi-store-sync'); ?></p>
-                        </td>
-                    </tr>
+                    <?php
+                    WC_Multi_Store_Store_Form_Renderer::render_core_fields('edit', $editing_store, $editing_store_url);
+                    WC_Multi_Store_Store_Form_Renderer::render_app_password_fields('edit', $editing_store, $editing_store_url);
+                    ?>
                 </table>
 
-                <!-- Cache Purge -->
-                <div class="wc-mss-exclusions-section" style="margin-bottom:16px;">
-                    <h4><?php _e('Cache Purge', 'wc-multi-store-sync'); ?></h4>
-                    <p class="description">
-                        <?php _e('After each successful sync, the plugin sends a request to this URL to clear the page cache on the remote store. Leave blank to disable.', 'wc-multi-store-sync'); ?>
-                        <br>
-                        <?php _e('Placeholders: <code>{product_id}</code>, <code>{sku}</code>, <code>{remote_id}</code>', 'wc-multi-store-sync'); ?>
-                        <br>
-                        <?php _e('Examples: WP Rocket — <code>https://remote.com/?action=rocket_clear_cache&nonce=KEY&post_id={remote_id}</code> &nbsp;|&nbsp; LiteSpeed — <code>https://remote.com/wp-json/litespeed/v1/purge</code> (POST)', 'wc-multi-store-sync'); ?>
-                    </p>
-                    <table class="form-table" style="margin-top:8px;">
-                        <tr>
-                            <th scope="row" style="width:140px;"><label for="edit_cache_purge_url"><?php _e('Purge URL', 'wc-multi-store-sync'); ?></label></th>
-                            <td>
-                                <input type="url" name="cache_purge_url" id="edit_cache_purge_url" class="large-text"
-                                       value="<?php echo esc_attr($editing_store['cache_purge_url'] ?? ''); ?>"
-                                       placeholder="https://remote-store.com/cache-purge?secret=KEY&url={product_id}">
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><label for="edit_cache_purge_method"><?php _e('Method', 'wc-multi-store-sync'); ?></label></th>
-                            <td>
-                                <select name="cache_purge_method" id="edit_cache_purge_method">
-                                    <option value="GET"  <?php selected($editing_store['cache_purge_method'] ?? 'GET', 'GET'); ?>>GET</option>
-                                    <option value="POST" <?php selected($editing_store['cache_purge_method'] ?? 'GET', 'POST'); ?>>POST</option>
-                                </select>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
+                <?php WC_Multi_Store_Store_Form_Renderer::render_cache_purge_fields('edit', $editing_store); ?>
 
-                <!-- Sync Preview Box -->
-                <div class="wc-mss-sync-preview">
-                    <strong><?php _e('Sync Preview:', 'wc-multi-store-sync'); ?></strong>
-                    <span id="edit_sync_preview">
-                        <?php
-                        $edit_exc_cats = $editing_store['exclude_categories'] ?? [];
-                        $edit_exc_tags = $editing_store['exclude_tags'] ?? [];
-                        $edit_sync_count = WC_Multi_Store_Settings::get_sync_product_count($edit_exc_cats, $edit_exc_tags);
-                        printf(
-                            __('<strong style="color:#2271b1; font-size: 16px;">%d</strong> of %d products will be synced', 'wc-multi-store-sync'),
-                            $edit_sync_count,
-                            $total_products
-                        );
-                        ?>
-                    </span>
-                </div>
+                <?php
+                $edit_exc_cats = $editing_store['exclude_categories'] ?? [];
+                $edit_exc_tags = $editing_store['exclude_tags'] ?? [];
+                $edit_sync_count = WC_Multi_Store_Settings::get_sync_product_count($edit_exc_cats, $edit_exc_tags);
+                WC_Multi_Store_Store_Form_Renderer::render_sync_preview('edit_', $edit_sync_count, $total_products);
+                ?>
 
                 <div class="wc-mss-exclusions-section wc-mss-exclusions-first">
-                    <h4><?php _e('Exclude Categories', 'wc-multi-store-sync'); ?></h4>
-                    <p class="description"><?php _e('Products in selected categories will NOT be synced to this store.', 'wc-multi-store-sync'); ?></p>
-
-                    <div class="wc-mss-select-actions">
-                        <button type="button" class="button button-small" onclick="wcMssSelectAll('edit_exclude_categories')"><?php _e('Select All', 'wc-multi-store-sync'); ?></button>
-                        <button type="button" class="button button-small" onclick="wcMssDeselectAll('edit_exclude_categories')"><?php _e('Deselect All', 'wc-multi-store-sync'); ?></button>
-                        <span class="wc-mss-selected-count" data-target="edit_exclude_categories">
-                            <?php echo count($editing_store['exclude_categories'] ?? []); ?> selected
-                        </span>
-                    </div>
-
-                    <div class="wc-mss-checkbox-grid" id="edit_exclude_categories">
-                        <?php
-                        $excluded_cats = $editing_store['exclude_categories'] ?? [];
-                        foreach ($categories as $category):
-                            $is_checked = in_array($category->term_id, $excluded_cats);
-                        ?>
-                        <label class="wc-mss-checkbox-item <?php echo $is_checked ? 'selected' : ''; ?>">
-                            <input type="checkbox" name="exclude_categories[]" value="<?php echo esc_attr($category->term_id); ?>"
-                                   <?php checked($is_checked); ?>>
-                            <span><?php echo esc_html($category->name); ?></span>
-                            <span class="count">(<?php echo esc_html($category->count); ?>)</span>
-                        </label>
-                        <?php endforeach; ?>
-                    </div>
+                    <?php
+                    WC_Multi_Store_Store_Form_Renderer::render_exclusion_grid(
+                        'edit_',
+                        'categories',
+                        $categories,
+                        $edit_exc_cats,
+                        __('Exclude Categories', 'wc-multi-store-sync'),
+                        __('Products in selected categories will NOT be synced to this store.', 'wc-multi-store-sync')
+                    );
+                    ?>
                 </div>
 
                 <div class="wc-mss-exclusions-section">
-                    <h4><?php _e('Exclude Tags', 'wc-multi-store-sync'); ?></h4>
-                    <p class="description"><?php _e('Products with selected tags will NOT be synced to this store.', 'wc-multi-store-sync'); ?></p>
-
-                    <div class="wc-mss-select-actions">
-                        <button type="button" class="button button-small" onclick="wcMssSelectAll('edit_exclude_tags')"><?php _e('Select All', 'wc-multi-store-sync'); ?></button>
-                        <button type="button" class="button button-small" onclick="wcMssDeselectAll('edit_exclude_tags')"><?php _e('Deselect All', 'wc-multi-store-sync'); ?></button>
-                        <span class="wc-mss-selected-count" data-target="edit_exclude_tags">
-                            <?php echo count($editing_store['exclude_tags'] ?? []); ?> selected
-                        </span>
-                    </div>
-
-                    <div class="wc-mss-checkbox-grid" id="edit_exclude_tags">
-                        <?php
-                        $excluded_tags = $editing_store['exclude_tags'] ?? [];
-                        foreach ($tags as $tag):
-                            $is_checked = in_array($tag->term_id, $excluded_tags);
-                        ?>
-                        <label class="wc-mss-checkbox-item <?php echo $is_checked ? 'selected' : ''; ?>">
-                            <input type="checkbox" name="exclude_tags[]" value="<?php echo esc_attr($tag->term_id); ?>"
-                                   <?php checked($is_checked); ?>>
-                            <span><?php echo esc_html($tag->name); ?></span>
-                            <span class="count">(<?php echo esc_html($tag->count); ?>)</span>
-                        </label>
-                        <?php endforeach; ?>
-                    </div>
+                    <?php
+                    WC_Multi_Store_Store_Form_Renderer::render_exclusion_grid(
+                        'edit_',
+                        'tags',
+                        $tags,
+                        $edit_exc_tags,
+                        __('Exclude Tags', 'wc-multi-store-sync'),
+                        __('Products with selected tags will NOT be synced to this store.', 'wc-multi-store-sync')
+                    );
+                    ?>
                 </div>
 
                 <p class="submit">
@@ -277,169 +124,40 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
             <?php wp_nonce_field('wc_mss_add_store'); ?>
 
             <table class="form-table">
-                <tr>
-                    <th scope="row">
-                        <label for="store_url"><?php _e('Store URL', 'wc-multi-store-sync'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="url" name="store_url" id="store_url" class="regular-text" required
-                               placeholder="https://example.com">
-                        <p class="description"><?php _e('Enter the full URL of your WooCommerce store', 'wc-multi-store-sync'); ?></p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="consumer_key"><?php _e('Consumer Key', 'wc-multi-store-sync'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="password" name="consumer_key" id="consumer_key" class="regular-text" required autocomplete="off">
-                        <button type="button" class="button button-small wc-mss-toggle-password">
-                            <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
-                        </button>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="consumer_secret"><?php _e('Consumer Secret', 'wc-multi-store-sync'); ?> <span class="required">*</span></label>
-                    </th>
-                    <td>
-                        <input type="password" name="consumer_secret" id="consumer_secret" class="regular-text" required autocomplete="off">
-                        <button type="button" class="button button-small wc-mss-toggle-password">
-                            <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
-                        </button>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="status"><?php _e('Status', 'wc-multi-store-sync'); ?></label>
-                    </th>
-                    <td>
-                        <select name="status" id="status">
-                            <option value="active"><?php _e('Active', 'wc-multi-store-sync'); ?></option>
-                            <option value="inactive"><?php _e('Inactive', 'wc-multi-store-sync'); ?></option>
-                        </select>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row" colspan="2">
-                        <h3 style="margin:0;"><?php _e('Image Upload Credentials (Application Password)', 'wc-multi-store-sync'); ?></h3>
-                        <p class="description" style="font-weight:normal;"><?php _e('Required for image sync when Image Proxy is enabled. WooCommerce API keys cannot upload media — use a WordPress Application Password instead. In the remote store: Users → Edit Admin → Application Passwords → create new.', 'wc-multi-store-sync'); ?></p>
-                    </th>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="wp_username"><?php _e('WordPress Username', 'wc-multi-store-sync'); ?></label>
-                    </th>
-                    <td>
-                        <input type="text" name="wp_username" id="wp_username" class="regular-text" autocomplete="off">
-                        <p class="description"><?php _e('Admin username on the remote store', 'wc-multi-store-sync'); ?></p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="wp_app_password"><?php _e('Application Password', 'wc-multi-store-sync'); ?></label>
-                    </th>
-                    <td>
-                        <input type="password" name="wp_app_password" id="wp_app_password" class="regular-text" autocomplete="off">
-                        <button type="button" class="button button-small wc-mss-toggle-password">
-                            <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
-                        </button>
-                        <button type="button" class="button button-small" id="wc-mss-test-app-password"
-                                data-store-url-field="store_url"
-                                data-username-field="wp_username"
-                                data-password-field="wp_app_password">
-                            <?php _e('Test App Password', 'wc-multi-store-sync'); ?>
-                        </button>
-                        <span id="wc-mss-test-app-password-result" style="margin-left: 8px;"></span>
-                        <p class="description"><?php _e('The generated Application Password (spaces are OK)', 'wc-multi-store-sync'); ?></p>
-                    </td>
-                </tr>
+                <?php
+                WC_Multi_Store_Store_Form_Renderer::render_core_fields('add', [], '');
+                WC_Multi_Store_Store_Form_Renderer::render_app_password_fields('add', [], '');
+                ?>
             </table>
 
-            <!-- Cache Purge -->
-            <div class="wc-mss-exclusions-section" style="margin-bottom:16px;">
-                <h4><?php _e('Cache Purge', 'wc-multi-store-sync'); ?></h4>
-                <p class="description">
-                    <?php _e('After each successful sync, the plugin sends a request to this URL to clear the page cache on the remote store. Leave blank to disable.', 'wc-multi-store-sync'); ?>
-                    <br>
-                    <?php _e('Placeholders: <code>{product_id}</code>, <code>{sku}</code>, <code>{remote_id}</code>', 'wc-multi-store-sync'); ?>
-                    <br>
-                    <?php _e('Examples: WP Rocket — <code>https://remote.com/?action=rocket_clear_cache&nonce=KEY&post_id={remote_id}</code> &nbsp;|&nbsp; LiteSpeed — <code>https://remote.com/wp-json/litespeed/v1/purge</code> (POST)', 'wc-multi-store-sync'); ?>
-                </p>
-                <table class="form-table" style="margin-top:8px;">
-                    <tr>
-                        <th scope="row" style="width:140px;"><label for="add_cache_purge_url"><?php _e('Purge URL', 'wc-multi-store-sync'); ?></label></th>
-                        <td>
-                            <input type="url" name="cache_purge_url" id="add_cache_purge_url" class="large-text"
-                                   placeholder="https://remote-store.com/cache-purge?secret=KEY&url={product_id}">
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="add_cache_purge_method"><?php _e('Method', 'wc-multi-store-sync'); ?></label></th>
-                        <td>
-                            <select name="cache_purge_method" id="add_cache_purge_method">
-                                <option value="GET">GET</option>
-                                <option value="POST">POST</option>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
-            </div>
+            <?php WC_Multi_Store_Store_Form_Renderer::render_cache_purge_fields('add', []); ?>
 
-            <!-- Sync Preview Box -->
-            <div class="wc-mss-sync-preview">
-                <strong><?php _e('Sync Preview:', 'wc-multi-store-sync'); ?></strong>
-                <span id="add_sync_preview">
-                    <?php
-                    printf(
-                        __('<strong style="color:#2271b1; font-size: 16px;">%d</strong> of %d products will be synced', 'wc-multi-store-sync'),
-                        $total_products,
-                        $total_products
-                    );
-                    ?>
-                </span>
-            </div>
+            <?php WC_Multi_Store_Store_Form_Renderer::render_sync_preview('add_', $total_products, $total_products); ?>
 
             <div class="wc-mss-exclusions-section wc-mss-exclusions-first">
-                <h4><?php _e('Exclude Categories', 'wc-multi-store-sync'); ?></h4>
-                <p class="description"><?php _e('Products in selected categories will NOT be synced to this store.', 'wc-multi-store-sync'); ?></p>
-
-                <div class="wc-mss-select-actions">
-                    <button type="button" class="button button-small" onclick="wcMssSelectAll('add_exclude_categories')"><?php _e('Select All', 'wc-multi-store-sync'); ?></button>
-                    <button type="button" class="button button-small" onclick="wcMssDeselectAll('add_exclude_categories')"><?php _e('Deselect All', 'wc-multi-store-sync'); ?></button>
-                    <span class="wc-mss-selected-count" data-target="add_exclude_categories">0 selected</span>
-                </div>
-
-                <div class="wc-mss-checkbox-grid" id="add_exclude_categories">
-                    <?php foreach ($categories as $category): ?>
-                    <label class="wc-mss-checkbox-item">
-                        <input type="checkbox" name="exclude_categories[]" value="<?php echo esc_attr($category->term_id); ?>">
-                        <span><?php echo esc_html($category->name); ?></span>
-                        <span class="count">(<?php echo esc_html($category->count); ?>)</span>
-                    </label>
-                    <?php endforeach; ?>
-                </div>
+                <?php
+                WC_Multi_Store_Store_Form_Renderer::render_exclusion_grid(
+                    'add_',
+                    'categories',
+                    $categories,
+                    [],
+                    __('Exclude Categories', 'wc-multi-store-sync'),
+                    __('Products in selected categories will NOT be synced to this store.', 'wc-multi-store-sync')
+                );
+                ?>
             </div>
 
             <div class="wc-mss-exclusions-section">
-                <h4><?php _e('Exclude Tags', 'wc-multi-store-sync'); ?></h4>
-                <p class="description"><?php _e('Products with selected tags will NOT be synced to this store.', 'wc-multi-store-sync'); ?></p>
-
-                <div class="wc-mss-select-actions">
-                    <button type="button" class="button button-small" onclick="wcMssSelectAll('add_exclude_tags')"><?php _e('Select All', 'wc-multi-store-sync'); ?></button>
-                    <button type="button" class="button button-small" onclick="wcMssDeselectAll('add_exclude_tags')"><?php _e('Deselect All', 'wc-multi-store-sync'); ?></button>
-                    <span class="wc-mss-selected-count" data-target="add_exclude_tags">0 selected</span>
-                </div>
-
-                <div class="wc-mss-checkbox-grid" id="add_exclude_tags">
-                    <?php foreach ($tags as $tag): ?>
-                    <label class="wc-mss-checkbox-item">
-                        <input type="checkbox" name="exclude_tags[]" value="<?php echo esc_attr($tag->term_id); ?>">
-                        <span><?php echo esc_html($tag->name); ?></span>
-                        <span class="count">(<?php echo esc_html($tag->count); ?>)</span>
-                    </label>
-                    <?php endforeach; ?>
-                </div>
+                <?php
+                WC_Multi_Store_Store_Form_Renderer::render_exclusion_grid(
+                    'add_',
+                    'tags',
+                    $tags,
+                    [],
+                    __('Exclude Tags', 'wc-multi-store-sync'),
+                    __('Products with selected tags will NOT be synced to this store.', 'wc-multi-store-sync')
+                );
+                ?>
             </div>
 
             <p class="submit">

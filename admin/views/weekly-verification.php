@@ -271,21 +271,15 @@ foreach ($active_stores as $store_url => $store_config) {
                     </th>
                     <td>
                         <select name="weekly_sync_type" id="weekly_sync_type">
-                            <option value="use_default" <?php selected($weekly_sync_type, 'use_default'); ?>>
-                                <?php _e('Use General Settings', 'wc-multi-store-sync'); ?>
-                            </option>
-                            <option value="full_product" <?php selected($weekly_sync_type, 'full_product'); ?>>
-                                <?php _e('Full Product (all data)', 'wc-multi-store-sync'); ?>
-                            </option>
-                            <option value="price_quantity_categories" <?php selected($weekly_sync_type, 'price_quantity_categories'); ?>>
-                                <?php _e('Price, Quantity & Categories', 'wc-multi-store-sync'); ?>
-                            </option>
-                            <option value="price_quantity" <?php selected($weekly_sync_type, 'price_quantity'); ?>>
-                                <?php _e('Price & Quantity', 'wc-multi-store-sync'); ?>
-                            </option>
-                            <option value="quantity" <?php selected($weekly_sync_type, 'quantity'); ?>>
-                                <?php _e('Quantity Only (fastest)', 'wc-multi-store-sync'); ?>
-                            </option>
+                            <?php
+                            WC_Multi_Store_Sync_Type_Options::render([
+                                'use_default' => __('Use General Settings', 'wc-multi-store-sync'),
+                                'full_product' => __('Full Product (all data)', 'wc-multi-store-sync'),
+                                'price_quantity_categories' => __('Price, Quantity & Categories', 'wc-multi-store-sync'),
+                                'price_quantity' => __('Price & Quantity', 'wc-multi-store-sync'),
+                                'quantity' => __('Quantity Only (fastest)', 'wc-multi-store-sync'),
+                            ], $weekly_sync_type);
+                            ?>
                         </select>
                         <p class="description">
                             <?php _e('What type of data to sync when auto-correcting discrepancies.', 'wc-multi-store-sync'); ?>

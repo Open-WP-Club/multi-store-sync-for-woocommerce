@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## 4.0.0
+
+- New: **Custom Field / ACF Mapper** — sync custom post meta and Advanced Custom Fields (including repeater fields) to child stores with per-field local-to-remote mapping
+- New: **Remote Orders** — pull orders from child stores back to the main store on a schedule and browse them (items, customer, billing, shipping) in a dedicated read-only viewer under WooCommerce > Remote Orders
+- Change: plugin admin UI moved from its own top-level menu into **WooCommerce > Settings > Multi-Store Sync**
+- Change: project renamed to **Multi-Store Sync for WooCommerce**, repository moved to [Open-WP-Club/multi-store-sync-for-woocommerce](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce)
+
 ## 3.8.0
 
 - Fix: several sync-accuracy issues where fields other than the configured match key (SKU/slug) could silently drift out of sync between stores
@@ -41,4 +48,4 @@ All notable changes to this project are documented in this file.
 - Fix: slug collision detection for categories and tags — parallel sync workers no longer create duplicate terms; duplicates are auto-deleted and the real existing term is used instead
 - New: Force Full Sync by Category — queue all published products in a category from the Logs page
 
-For older versions, see the [Git history](https://github.com/MrGKanev/WooCommerce-API-Product-Sync-with-Multiple-WooCommerce-Stores/commits/master).
+For older versions, see the [Git history](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/commits/master).

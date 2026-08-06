@@ -40,14 +40,15 @@ class WC_Multi_Store_Stock_Allocator {
             return $total_stock;
         }
 
-        $allocation_type = $allocation_rules['type'] ?? 'none';
+        $raw_type = $allocation_rules['type'] ?? 'none';
+        $allocation_type = is_string($raw_type) ? WC_Multi_Store_Stock_Allocation_Type::tryFrom($raw_type) : null;
 
         return match ($allocation_type) {
-            'percentage' => self::calculate_percentage_allocation($total_stock, $allocation_rules),
-            'fixed' => self::calculate_fixed_allocation($total_stock, $allocation_rules),
-            'priority' => self::calculate_priority_allocation($total_stock, $allocation_rules, $all_stores_rules),
-            'reserve' => self::calculate_reserve_allocation($total_stock, $allocation_rules),
-            'equal' => self::calculate_equal_allocation($total_stock, $all_stores_rules),
+            WC_Multi_Store_Stock_Allocation_Type::PERCENTAGE => self::calculate_percentage_allocation($total_stock, $allocation_rules),
+            WC_Multi_Store_Stock_Allocation_Type::FIXED => self::calculate_fixed_allocation($total_stock, $allocation_rules),
+            WC_Multi_Store_Stock_Allocation_Type::PRIORITY => self::calculate_priority_allocation($total_stock, $allocation_rules, $all_stores_rules),
+            WC_Multi_Store_Stock_Allocation_Type::RESERVE => self::calculate_reserve_allocation($total_stock, $allocation_rules),
+            WC_Multi_Store_Stock_Allocation_Type::EQUAL => self::calculate_equal_allocation($total_stock, $all_stores_rules),
             default => $total_stock,
         };
     }
@@ -215,7 +216,7 @@ class WC_Multi_Store_Stock_Allocator {
     public static function get_default_rules(): array {
         return [
             'enabled' => false,
-            'type' => 'none', // none, percentage, fixed, priority, reserve, equal
+            'type' => WC_Multi_Store_Stock_Allocation_Type::NONE->value,
             'percentage' => 100,
             'fixed_quantity' => 0,
             'priority' => 5,
@@ -239,10 +240,8 @@ class WC_Multi_Store_Stock_Allocator {
         $validated = wp_parse_args($rules, $defaults);
 
         // Validate type
-        $valid_types = ['none', 'percentage', 'fixed', 'priority', 'reserve', 'equal'];
-        if (!in_array($validated['type'], $valid_types)) {
-            $validated['type'] = 'none';
-        }
+        $type_value = is_string($validated['type'] ?? null) ? WC_Multi_Store_Stock_Allocation_Type::tryFrom($validated['type']) : null;
+        $validated['type'] = ($type_value ?? WC_Multi_Store_Stock_Allocation_Type::NONE)->value;
 
         // Validate numeric values
         $validated['percentage'] = max(0, min(100, floatval($validated['percentage'])));
@@ -260,14 +259,11 @@ class WC_Multi_Store_Stock_Allocator {
      * @return array Allocation types
      */
     public static function get_allocation_types(): array {
-        return [
-            'none' => __('No Allocation (Use Full Stock)', 'wc-multi-store-sync'),
-            'percentage' => __('Percentage (60%, 40%, etc.)', 'wc-multi-store-sync'),
-            'fixed' => __('Fixed Quantity (50 units)', 'wc-multi-store-sync'),
-            'priority' => __('Priority-Based (1-10)', 'wc-multi-store-sync'),
-            'reserve' => __('Reserve Stock for Main Store', 'wc-multi-store-sync'),
-            'equal' => __('Equal Distribution', 'wc-multi-store-sync'),
-        ];
+        $types = [];
+        foreach (WC_Multi_Store_Stock_Allocation_Type::cases() as $type) {
+            $types[$type->value] = $type->label();
+        }
+        return $types;
     }
 
     /**

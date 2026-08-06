@@ -355,7 +355,9 @@ if (!defined('WC_MSS_PLUGIN_DIR')) {
 }
 
 // Load classes that don't have WordPress dependencies first
+require_once $plugin_root . '/includes/pricing-rule-type.php';
 require_once $plugin_root . '/includes/pricing-rules.php';
+require_once $plugin_root . '/includes/stock-allocation-type.php';
 require_once $plugin_root . '/includes/stock-allocator.php';
 require_once $plugin_root . '/includes/product-exclusion-filter.php';
 require_once $plugin_root . '/includes/cache-manager.php';
@@ -371,6 +373,7 @@ require_once $plugin_root . '/includes/circuit-breaker.php';
 require_once $plugin_root . '/includes/queue-table.php';
 require_once $plugin_root . '/includes/sync-history.php';
 require_once $plugin_root . '/includes/csv-sanitize-trait.php';
+require_once $plugin_root . '/includes/webhook-log-type.php';
 require_once $plugin_root . '/includes/webhook-logger.php';
 require_once $plugin_root . '/includes/webhook-receiver.php';
 require_once $plugin_root . '/includes/remote-product-manager.php';

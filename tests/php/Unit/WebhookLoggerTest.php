@@ -23,13 +23,13 @@ class WebhookLoggerTest extends WC_Multi_Store_TestCase
 
     public function test_log_type_constants_defined(): void
     {
-        $this->assertEquals('order_received', WC_Multi_Store_Webhook_Logger::TYPE_ORDER_RECEIVED);
-        $this->assertEquals('stock_deducted', WC_Multi_Store_Webhook_Logger::TYPE_STOCK_DEDUCTED);
-        $this->assertEquals('stock_synced', WC_Multi_Store_Webhook_Logger::TYPE_STOCK_SYNCED);
-        $this->assertEquals('auth_failed', WC_Multi_Store_Webhook_Logger::TYPE_AUTH_FAILED);
-        $this->assertEquals('validation_error', WC_Multi_Store_Webhook_Logger::TYPE_VALIDATION_ERROR);
-        $this->assertEquals('product_not_found', WC_Multi_Store_Webhook_Logger::TYPE_PRODUCT_NOT_FOUND);
-        $this->assertEquals('rate_limited', WC_Multi_Store_Webhook_Logger::TYPE_RATE_LIMITED);
+        $this->assertEquals('order_received', WC_Multi_Store_Webhook_Log_Type::ORDER_RECEIVED->value);
+        $this->assertEquals('stock_deducted', WC_Multi_Store_Webhook_Log_Type::STOCK_DEDUCTED->value);
+        $this->assertEquals('stock_synced', WC_Multi_Store_Webhook_Log_Type::STOCK_SYNCED->value);
+        $this->assertEquals('auth_failed', WC_Multi_Store_Webhook_Log_Type::AUTH_FAILED->value);
+        $this->assertEquals('validation_error', WC_Multi_Store_Webhook_Log_Type::VALIDATION_ERROR->value);
+        $this->assertEquals('product_not_found', WC_Multi_Store_Webhook_Log_Type::PRODUCT_NOT_FOUND->value);
+        $this->assertEquals('rate_limited', WC_Multi_Store_Webhook_Log_Type::RATE_LIMITED->value);
     }
 
     public function test_default_retention_days(): void
@@ -47,13 +47,13 @@ class WebhookLoggerTest extends WC_Multi_Store_TestCase
     public function test_get_type_label_returns_label_for_known_types(): void
     {
         $known_types = [
-            WC_Multi_Store_Webhook_Logger::TYPE_ORDER_RECEIVED,
-            WC_Multi_Store_Webhook_Logger::TYPE_STOCK_DEDUCTED,
-            WC_Multi_Store_Webhook_Logger::TYPE_STOCK_SYNCED,
-            WC_Multi_Store_Webhook_Logger::TYPE_AUTH_FAILED,
-            WC_Multi_Store_Webhook_Logger::TYPE_VALIDATION_ERROR,
-            WC_Multi_Store_Webhook_Logger::TYPE_PRODUCT_NOT_FOUND,
-            WC_Multi_Store_Webhook_Logger::TYPE_RATE_LIMITED,
+            WC_Multi_Store_Webhook_Log_Type::ORDER_RECEIVED->value,
+            WC_Multi_Store_Webhook_Log_Type::STOCK_DEDUCTED->value,
+            WC_Multi_Store_Webhook_Log_Type::STOCK_SYNCED->value,
+            WC_Multi_Store_Webhook_Log_Type::AUTH_FAILED->value,
+            WC_Multi_Store_Webhook_Log_Type::VALIDATION_ERROR->value,
+            WC_Multi_Store_Webhook_Log_Type::PRODUCT_NOT_FOUND->value,
+            WC_Multi_Store_Webhook_Log_Type::RATE_LIMITED->value,
         ];
 
         foreach ($known_types as $type) {

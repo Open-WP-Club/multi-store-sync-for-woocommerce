@@ -1,4 +1,4 @@
-# WooCommerce Multi-Store Sync
+# Multi-Store Sync for WooCommerce
 
 **Professional multi-store product synchronization for WooCommerce**
 
@@ -6,7 +6,9 @@
 [![WordPress](https://img.shields.io/badge/wordpress-5.8%2B-blue.svg)](https://wordpress.org/)
 [![WooCommerce](https://img.shields.io/badge/woocommerce-6.0%2B-purple.svg)](https://woocommerce.com/)
 [![PHP](https://img.shields.io/badge/php-8.4%2B-blue.svg)](https://www.php.net/)
-[![Tests](https://github.com/MrGKanev/WooCommerce-API-Product-Sync-with-Multiple-WooCommerce-Stores/actions/workflows/functional-tests.yml/badge.svg)](https://github.com/MrGKanev/WooCommerce-API-Product-Sync-with-Multiple-WooCommerce-Stores/actions)
+[![Tests](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/actions/workflows/functional-tests.yml/badge.svg)](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/actions)
+
+> Formerly "WooCommerce API Product Sync with Multiple WooCommerce Stores". The project has moved to [Open-WP-Club/multi-store-sync-for-woocommerce](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce).
 
 Automatically synchronize products, stock levels, and inventory from your main WooCommerce store to multiple remote WooCommerce stores. Built from the ground up as a standalone solution with enterprise-grade features.
 
@@ -64,6 +66,12 @@ Automatically synchronize products, stock levels, and inventory from your main W
 - 🔧 **Coupon Sync**: Sync coupons to child stores
 - 🔧 **Shipping Class Sync**: Sync shipping classes to child stores
 - 🔧 **Downloadable Files Sync**: Sync downloadable product files
+- 🔧 **Custom Field / ACF Mapper**: Sync custom post meta and Advanced Custom Fields (including repeater fields) with per-field local-to-remote mapping
+
+### Remote Orders
+- 🛒 **Remote Order Aggregation**: Pull orders placed on child stores back to the main store on a scheduled basis (via WooCommerce > Remote Orders)
+- 🛒 **Remote Order Viewer**: Browse orders, line items, customer, billing, and shipping details from every child store in one place
+- 🛒 **Manual & Scheduled Sync**: Trigger an on-demand pull or let it run automatically (default: daily)
 
 ### Monitoring & Alerts
 - 📊 **Store Health Checks**: Scheduled connectivity and API version checks
@@ -100,14 +108,14 @@ wp plugin activate wc-multi-store-sync
 > **Why Administrator?** If you enable **API Image Transfer** (for sites behind Cloudflare/firewall), images are uploaded to the remote store via the WordPress media API. This requires the `upload_files` capability, which only Administrator users have. Shop Manager keys will work for product sync but image uploads will fail with 403.
 
 ### 3. Add Remote Store
-1. Navigate to **Multi-Store Sync > Stores**
+1. Navigate to **WooCommerce > Settings > Multi-Store Sync > Stores**
 2. Click **Add New Store**
 3. Enter store URL and API credentials
 4. Click **Test Connection**
 5. Click **Save Store**
 
 ### 4. Configure & Enable
-1. Navigate to **Multi-Store Sync > Settings**
+1. Navigate to **WooCommerce > Settings > Multi-Store Sync > Settings**
 2. Configure sync settings
 3. Toggle **Enable Sync** to ON
 4. Click **Save Settings**
@@ -123,7 +131,7 @@ wp plugin activate wc-multi-store-sync
 - Click Apply
 
 **Option C: Force by SKU or Category**
-- Navigate to **Multi-Store Sync > Logs**
+- Navigate to **WooCommerce > Settings > Multi-Store Sync > Logs**
 - Use **Force Full Sync by SKU** or **Force Full Sync by Category**
 - Products are queued immediately for background processing
 
@@ -169,7 +177,7 @@ wp plugin activate wc-multi-store-sync
 
 ```
 Main Store (Your Store)
-├── WooCommerce Multi-Store Sync Plugin ← Install here only
+├── Multi-Store Sync for WooCommerce Plugin ← Install here only
 ├── Products, Stock, Orders
 └── Syncs to ↓
 
@@ -181,8 +189,9 @@ Remote Store 1                Remote Store 2                Remote Store N
 ### Key Points
 - ✅ Install plugin **only on main store**
 - ✅ Remote stores **only need WooCommerce**
-- ✅ Sync is **one-way**: Main → Remote
-- ❌ Remote changes **do NOT sync back** to main
+- ✅ Product/stock sync is **one-way**: Main → Remote
+- ❌ Remote product/stock changes **do NOT sync back** to main
+- ℹ️ **Orders** are the one exception: they can be **pulled** from remote stores into a read-only viewer on the main store (see [Remote Orders](#remote-orders)) — this does not create real WooCommerce orders on the main store
 
 ---
 
@@ -407,7 +416,7 @@ When product images are synced, WooCommerce on the remote store normally downloa
 ### How to enable
 
 **On the main (parent) store:**
-1. Go to **Multi-Store Sync > Settings**
+1. Go to **WooCommerce > Settings > Multi-Store Sync > Settings**
 2. Check **API Image Transfer**
 3. Save
 
@@ -450,7 +459,7 @@ Main store                          Remote store
 - [Developer Documentation](documentation/DEVELOPER.md)
 
 ### Getting Help
-- **Issues**: [GitHub Issues](https://github.com/MrGKanev/WooCommerce-API-Product-Sync-with-Multiple-WooCommerce-Stores/issues)
+- **Issues**: [GitHub Issues](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/issues)
 - **Email**: support@gkanev.com
 - **Website**: [https://gkanev.com](https://gkanev.com)
 
@@ -489,10 +498,11 @@ See [Developer Documentation](documentation/DEVELOPER.md) for contribution guide
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-### Latest: 3.8.0
-- **Fix**: several sync-accuracy issues where fields other than the configured match key (SKU/slug) could silently drift out of sync between stores
-- **Fix**: name/slug drift handling during product matching
-- Improved matching logic for more reliable product sync
+### Latest: 4.0.0
+- **New**: Custom Field / ACF Mapper — sync custom post meta and ACF fields (including repeaters) with per-field mapping
+- **New**: Remote Orders — pull orders from child stores back to the main store and browse them in a dedicated viewer
+- **Change**: admin UI moved into **WooCommerce > Settings > Multi-Store Sync**
+- **Change**: project renamed to **Multi-Store Sync for WooCommerce**
 
 See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
@@ -503,7 +513,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 This plugin is licensed under the **GNU General Public License v3.0 or later**.
 
 ```
-WooCommerce Multi-Store Sync
+Multi-Store Sync for WooCommerce
 Copyright (C) 2024 Gkanev.com
 
 This program is free software: you can redistribute it and/or modify
@@ -518,7 +528,7 @@ the Free Software Foundation, either version 3 of the License, or
 
 - **Author**: Gkanev.com
 - **Website**: [https://gkanev.com](https://gkanev.com)
-- **GitHub**: [MrGKanev](https://github.com/MrGKanev)
+- **GitHub**: [Open-WP-Club](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce)
 
 ---
 

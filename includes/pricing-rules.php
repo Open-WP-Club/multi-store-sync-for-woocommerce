@@ -39,14 +39,15 @@ class WC_Multi_Store_Pricing_Rules {
             return $product_data;
         }
 
-        $rule_type = $pricing_rules['type'] ?? 'none';
+        $raw_type = $pricing_rules['type'] ?? 'none';
+        $rule_type = is_string($raw_type) ? WC_Multi_Store_Pricing_Rule_Type::tryFrom($raw_type) : null;
 
         $product_data = match ($rule_type) {
-            'fixed' => self::apply_fixed_adjustment($product_data, $pricing_rules),
-            'percentage' => self::apply_percentage_adjustment($product_data, $pricing_rules),
-            'multiplier' => self::apply_multiplier_adjustment($product_data, $pricing_rules),
-            'currency' => self::apply_currency_conversion($product_data, $pricing_rules),
-            'custom' => apply_filters('wc_mss_custom_pricing_rule', $product_data, $pricing_rules, $product),
+            WC_Multi_Store_Pricing_Rule_Type::FIXED => self::apply_fixed_adjustment($product_data, $pricing_rules),
+            WC_Multi_Store_Pricing_Rule_Type::PERCENTAGE => self::apply_percentage_adjustment($product_data, $pricing_rules),
+            WC_Multi_Store_Pricing_Rule_Type::MULTIPLIER => self::apply_multiplier_adjustment($product_data, $pricing_rules),
+            WC_Multi_Store_Pricing_Rule_Type::CURRENCY => self::apply_currency_conversion($product_data, $pricing_rules),
+            WC_Multi_Store_Pricing_Rule_Type::CUSTOM => apply_filters('wc_mss_custom_pricing_rule', $product_data, $pricing_rules, $product),
             default => $product_data,
         };
 
@@ -243,7 +244,7 @@ class WC_Multi_Store_Pricing_Rules {
     public static function get_default_rules(): array {
         return [
             'enabled' => false,
-            'type' => 'none', // none, fixed, percentage, multiplier, currency, custom
+            'type' => WC_Multi_Store_Pricing_Rule_Type::NONE->value,
             'fixed_amount' => 0,
             'percentage' => 0,
             'multiplier' => 1,
@@ -268,10 +269,8 @@ class WC_Multi_Store_Pricing_Rules {
         $validated = wp_parse_args($rules, $defaults);
 
         // Validate type
-        $valid_types = ['none', 'fixed', 'percentage', 'multiplier', 'currency', 'custom'];
-        if (!in_array($validated['type'], $valid_types)) {
-            $validated['type'] = 'none';
-        }
+        $type_value = is_string($validated['type'] ?? null) ? WC_Multi_Store_Pricing_Rule_Type::tryFrom($validated['type']) : null;
+        $validated['type'] = ($type_value ?? WC_Multi_Store_Pricing_Rule_Type::NONE)->value;
 
         // Validate numeric values
         $validated['fixed_amount'] = floatval($validated['fixed_amount']);
@@ -300,14 +299,11 @@ class WC_Multi_Store_Pricing_Rules {
      * @return array Rule types
      */
     public static function get_rule_types(): array {
-        return [
-            'none' => __('No Price Adjustment', 'wc-multi-store-sync'),
-            'fixed' => __('Fixed Amount (+$10, -$5)', 'wc-multi-store-sync'),
-            'percentage' => __('Percentage (+15%, -10%)', 'wc-multi-store-sync'),
-            'multiplier' => __('Multiplier (1.15x, 0.90x)', 'wc-multi-store-sync'),
-            'currency' => __('Currency Conversion', 'wc-multi-store-sync'),
-            'custom' => __('Custom (via filter)', 'wc-multi-store-sync'),
-        ];
+        $types = [];
+        foreach (WC_Multi_Store_Pricing_Rule_Type::cases() as $type) {
+            $types[$type->value] = $type->label();
+        }
+        return $types;
     }
 
     /**

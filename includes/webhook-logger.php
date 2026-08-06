@@ -25,17 +25,6 @@ class WC_Multi_Store_Webhook_Logger {
     const int DEFAULT_RETENTION_DAYS = 90;
 
     /**
-     * Log types
-     */
-    const string TYPE_ORDER_RECEIVED = 'order_received';
-    const string TYPE_STOCK_DEDUCTED = 'stock_deducted';
-    const string TYPE_STOCK_SYNCED = 'stock_synced';
-    const string TYPE_AUTH_FAILED = 'auth_failed';
-    const string TYPE_VALIDATION_ERROR = 'validation_error';
-    const string TYPE_PRODUCT_NOT_FOUND = 'product_not_found';
-    const string TYPE_RATE_LIMITED = 'rate_limited';
-
-    /**
      * Create the database table
      */
     public static function create_table(): void {
@@ -130,7 +119,7 @@ class WC_Multi_Store_Webhook_Logger {
      * @return int|false
      */
     public static function log_order_received(array $order_data, string $store_url, string $request_ip): int|false {
-        return self::log(self::TYPE_ORDER_RECEIVED, [
+        return self::log(WC_Multi_Store_Webhook_Log_Type::ORDER_RECEIVED->value, [
             'store_url' => $store_url,
             'remote_order_id' => $order_data['id'] ?? null,
             'request_ip' => $request_ip,
@@ -173,7 +162,7 @@ class WC_Multi_Store_Webhook_Logger {
         int $remote_order_id,
         string $store_url
     ): int|false {
-        return self::log(self::TYPE_STOCK_DEDUCTED, [
+        return self::log(WC_Multi_Store_Webhook_Log_Type::STOCK_DEDUCTED->value, [
             'store_url' => $store_url,
             'remote_order_id' => $remote_order_id,
             'product_id' => $product_id,
@@ -209,7 +198,7 @@ class WC_Multi_Store_Webhook_Logger {
         int $stock_quantity,
         string $originating_store
     ): int|false {
-        return self::log(self::TYPE_STOCK_SYNCED, [
+        return self::log(WC_Multi_Store_Webhook_Log_Type::STOCK_SYNCED->value, [
             'product_id' => $product_id,
             'product_sku' => $sku,
             'new_stock' => $stock_quantity,
@@ -232,7 +221,7 @@ class WC_Multi_Store_Webhook_Logger {
      * @return int|false
      */
     public static function log_auth_failed(string $reason, string $request_ip, ?array $request_data = null): int|false {
-        return self::log(self::TYPE_AUTH_FAILED, [
+        return self::log(WC_Multi_Store_Webhook_Log_Type::AUTH_FAILED->value, [
             'request_ip' => $request_ip,
             'request_data' => $request_data,
             'status' => 'failed',
@@ -250,7 +239,7 @@ class WC_Multi_Store_Webhook_Logger {
      * @return int|false
      */
     public static function log_validation_error(string $error, ?string $store_url = null, ?array $request_data = null): int|false {
-        return self::log(self::TYPE_VALIDATION_ERROR, [
+        return self::log(WC_Multi_Store_Webhook_Log_Type::VALIDATION_ERROR->value, [
             'store_url' => $store_url,
             'request_data' => $request_data,
             'status' => 'failed',
@@ -268,7 +257,7 @@ class WC_Multi_Store_Webhook_Logger {
      * @return int|false
      */
     public static function log_product_not_found(string $sku, int $remote_order_id, string $store_url): int|false {
-        return self::log(self::TYPE_PRODUCT_NOT_FOUND, [
+        return self::log(WC_Multi_Store_Webhook_Log_Type::PRODUCT_NOT_FOUND->value, [
             'store_url' => $store_url,
             'remote_order_id' => $remote_order_id,
             'product_sku' => $sku,
@@ -291,7 +280,7 @@ class WC_Multi_Store_Webhook_Logger {
      * @return int|false
      */
     public static function log_rate_limited(string $request_ip, int $request_count): int|false {
-        return self::log(self::TYPE_RATE_LIMITED, [
+        return self::log(WC_Multi_Store_Webhook_Log_Type::RATE_LIMITED->value, [
             'request_ip' => $request_ip,
             'status' => 'failed',
             'error_message' => "Rate limit exceeded: {$request_count} requests",
@@ -533,7 +522,7 @@ class WC_Multi_Store_Webhook_Logger {
              FROM {$table_name}
              WHERE created_at >= %s AND log_type = %s",
             $date_limit,
-            self::TYPE_STOCK_DEDUCTED
+            WC_Multi_Store_Webhook_Log_Type::STOCK_DEDUCTED->value
         ), ARRAY_A);
 
         return [
@@ -586,17 +575,7 @@ class WC_Multi_Store_Webhook_Logger {
      * @return string
      */
     public static function get_type_label(string $type): string {
-        $labels = [
-            self::TYPE_ORDER_RECEIVED => __('Order received', 'wc-multi-store-sync'),
-            self::TYPE_STOCK_DEDUCTED => __('Stock deducted', 'wc-multi-store-sync'),
-            self::TYPE_STOCK_SYNCED => __('Stock synced', 'wc-multi-store-sync'),
-            self::TYPE_AUTH_FAILED => __('Auth failed', 'wc-multi-store-sync'),
-            self::TYPE_VALIDATION_ERROR => __('Validation error', 'wc-multi-store-sync'),
-            self::TYPE_PRODUCT_NOT_FOUND => __('Product not found', 'wc-multi-store-sync'),
-            self::TYPE_RATE_LIMITED => __('Rate limited', 'wc-multi-store-sync'),
-        ];
-
-        return $labels[$type] ?? $type;
+        return WC_Multi_Store_Webhook_Log_Type::tryFrom($type)?->label() ?? $type;
     }
 
     /**

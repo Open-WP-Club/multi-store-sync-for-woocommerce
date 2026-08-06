@@ -46,18 +46,14 @@ if (!defined('ABSPATH')) {
                     </th>
                     <td>
                         <select name="sync_type_default" id="sync_type_default">
-                            <option value="full_product" <?php selected($settings['sync_type_default'], 'full_product'); ?>>
-                                <?php _e('Full Product (all data)', 'wc-multi-store-sync'); ?>
-                            </option>
-                            <option value="price_quantity_categories" <?php selected($settings['sync_type_default'], 'price_quantity_categories'); ?>>
-                                <?php _e('Price, Quantity & Categories', 'wc-multi-store-sync'); ?>
-                            </option>
-                            <option value="price_quantity" <?php selected($settings['sync_type_default'], 'price_quantity'); ?>>
-                                <?php _e('Price & Quantity', 'wc-multi-store-sync'); ?>
-                            </option>
-                            <option value="quantity" <?php selected($settings['sync_type_default'], 'quantity'); ?>>
-                                <?php _e('Quantity Only', 'wc-multi-store-sync'); ?>
-                            </option>
+                            <?php
+                            WC_Multi_Store_Sync_Type_Options::render([
+                                'full_product' => __('Full Product (all data)', 'wc-multi-store-sync'),
+                                'price_quantity_categories' => __('Price, Quantity & Categories', 'wc-multi-store-sync'),
+                                'price_quantity' => __('Price & Quantity', 'wc-multi-store-sync'),
+                                'quantity' => __('Quantity Only', 'wc-multi-store-sync'),
+                            ], $settings['sync_type_default']);
+                            ?>
                         </select>
                         <p class="description"><?php _e('What type of data to sync by default', 'wc-multi-store-sync'); ?></p>
                     </td>
@@ -478,10 +474,14 @@ if (!defined('ABSPATH')) {
                     <th scope="row"><label for="wc-mss-cat-sync-type"><?php _e('Sync Type', 'wc-multi-store-sync'); ?></label></th>
                     <td>
                         <select id="wc-mss-cat-sync-type">
-                            <option value="full_product"><?php _e('Full Product', 'wc-multi-store-sync'); ?></option>
-                            <option value="price_quantity"><?php _e('Price &amp; Quantity', 'wc-multi-store-sync'); ?></option>
-                            <option value="price_quantity_categories"><?php _e('Price, Quantity &amp; Categories', 'wc-multi-store-sync'); ?></option>
-                            <option value="quantity"><?php _e('Quantity only', 'wc-multi-store-sync'); ?></option>
+                            <?php
+                            WC_Multi_Store_Sync_Type_Options::render([
+                                'full_product' => __('Full Product', 'wc-multi-store-sync'),
+                                'price_quantity' => __('Price & Quantity', 'wc-multi-store-sync'),
+                                'price_quantity_categories' => __('Price, Quantity & Categories', 'wc-multi-store-sync'),
+                                'quantity' => __('Quantity only', 'wc-multi-store-sync'),
+                            ]);
+                            ?>
                         </select>
                     </td>
                 </tr>

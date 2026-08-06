@@ -793,7 +793,8 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         $script_deps = [];
 
-        if (isset($_GET['section']) && $_GET['section'] === 'api-usage') {
+        $chart_section = sanitize_text_field($_GET['section'] ?? '');
+        if (in_array($chart_section, ['api-usage', ''], true)) {
             wp_enqueue_script(
                 'wc-mss-chartjs',
                 WC_MSS_PLUGIN_URL . 'admin/js/vendor/chart.min.js',

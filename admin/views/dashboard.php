@@ -361,6 +361,7 @@ foreach ($stores as $store) {
         document.addEventListener('DOMContentLoaded', function() {
             var ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
             var nonce = '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>';
+            var syncChart = null;
 
             function loadChart(days) {
                 fetch(ajaxUrl, {
@@ -377,64 +378,40 @@ foreach ($stores as $store) {
 
             function renderChart(chartData) {
                 var canvas = document.getElementById('wc-mss-sync-chart');
-                var ctx = canvas.getContext('2d');
-                var container = document.getElementById('wc-mss-chart-container');
+                if (typeof Chart === 'undefined') return;
 
-                // Set canvas actual size
-                canvas.width = container.clientWidth - 20;
-                canvas.height = container.clientHeight - 20;
-
-                var w = canvas.width;
-                var h = canvas.height;
-                var labels = chartData.labels;
-                var success = chartData.success;
-                var failed = chartData.failed;
-                var maxVal = Math.max(1, Math.max.apply(null, success.concat(failed)));
-                var barWidth = Math.max(8, (w - 60) / (labels.length * 2.5));
-                var chartH = h - 40;
-
-                ctx.clearRect(0, 0, w, h);
-
-                // Draw bars
-                for (var i = 0; i < labels.length; i++) {
-                    var x = 50 + i * ((w - 60) / labels.length);
-
-                    // Success bar
-                    var sh = (success[i] / maxVal) * chartH;
-                    ctx.fillStyle = '#00a32a';
-                    ctx.fillRect(x, h - 25 - sh, barWidth, sh);
-
-                    // Failed bar
-                    var fh = (failed[i] / maxVal) * chartH;
-                    ctx.fillStyle = '#d63638';
-                    ctx.fillRect(x + barWidth + 2, h - 25 - fh, barWidth, fh);
-
-                    // Label
-                    ctx.fillStyle = '#646970';
-                    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(labels[i], x + barWidth, h - 8);
+                if (syncChart) {
+                    syncChart.data.labels = chartData.labels;
+                    syncChart.data.datasets[0].data = chartData.success;
+                    syncChart.data.datasets[1].data = chartData.failed;
+                    syncChart.update();
+                    return;
                 }
 
-                // Legend
-                ctx.fillStyle = '#00a32a';
-                ctx.fillRect(w - 150, 5, 10, 10);
-                ctx.fillStyle = '#333';
-                ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-                ctx.textAlign = 'left';
-                ctx.fillText('<?php echo esc_js(__('Success', 'wc-multi-store-sync')); ?>', w - 135, 14);
-
-                ctx.fillStyle = '#d63638';
-                ctx.fillRect(w - 75, 5, 10, 10);
-                ctx.fillStyle = '#333';
-                ctx.fillText('<?php echo esc_js(__('Failed', 'wc-multi-store-sync')); ?>', w - 60, 14);
-
-                // Y-axis labels
-                ctx.fillStyle = '#646970';
-                ctx.textAlign = 'right';
-                ctx.fillText('0', 40, h - 22);
-                ctx.fillText(Math.round(maxVal / 2).toString(), 40, h - 22 - chartH / 2);
-                ctx.fillText(maxVal.toString(), 40, h - 22 - chartH + 10);
+                syncChart = new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [
+                            {
+                                label: '<?php echo esc_js(__('Success', 'wc-multi-store-sync')); ?>',
+                                data: chartData.success,
+                                backgroundColor: '#00a32a'
+                            },
+                            {
+                                label: '<?php echo esc_js(__('Failed', 'wc-multi-store-sync')); ?>',
+                                data: chartData.failed,
+                                backgroundColor: '#d63638'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'top' } },
+                        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    }
+                });
             }
 
             // Initial load
