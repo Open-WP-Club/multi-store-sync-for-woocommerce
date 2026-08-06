@@ -341,7 +341,7 @@ class WC_Multi_Store_Queue_Table {
         } else {
             // Retry - keep as pending, schedule for later
             $retry_delay = pow(2, $attempts) * 5; // Exponential backoff: 10s, 20s, 40s
-            $scheduled_at = date('Y-m-d H:i:s', strtotime("+{$retry_delay} minutes"));
+            $scheduled_at = (new DateTimeImmutable())->add(new DateInterval("PT{$retry_delay}M"))->format('Y-m-d H:i:s');
 
             return $wpdb->update(
                 $table_name,
@@ -459,7 +459,7 @@ class WC_Multi_Store_Queue_Table {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+        $cutoff_date = (new DateTimeImmutable())->sub(new DateInterval('P' . (int) $days . 'D'))->format('Y-m-d H:i:s');
 
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name}
@@ -540,7 +540,7 @@ class WC_Multi_Store_Queue_Table {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $cutoff_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+        $cutoff_time = (new DateTimeImmutable())->sub(new DateInterval('PT' . (int) $minutes . 'M'))->format('Y-m-d H:i:s');
 
         $reset_count = $wpdb->query($wpdb->prepare(
             "UPDATE {$table_name}

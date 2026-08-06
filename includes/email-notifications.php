@@ -268,8 +268,9 @@ class WC_Multi_Store_Email_Notifications {
         global $wpdb;
 
         // Get yesterday's sync statistics
-        $yesterday = date('Y-m-d', strtotime('-1 day'));
-        $today = date('Y-m-d');
+        $yesterday_date = (new DateTimeImmutable())->sub(new DateInterval('P1D'));
+        $yesterday = $yesterday_date->format('Y-m-d');
+        $today = (new DateTimeImmutable())->format('Y-m-d');
 
         $table_name = $wpdb->prefix . 'wc_mss_sync_history';
 
@@ -308,11 +309,11 @@ class WC_Multi_Store_Email_Notifications {
         $subject = sprintf(
             __('[%s] Daily Sync Summary - %s', 'wc-multi-store-sync'),
             get_bloginfo('name'),
-            date('F j, Y', strtotime($yesterday))
+            $yesterday_date->format('F j, Y')
         );
 
         $data = [
-            'date'            => date('F j, Y', strtotime($yesterday)),
+            'date'            => $yesterday_date->format('F j, Y'),
             'total_syncs'     => $total_syncs,
             'successful_syncs' => $successful_syncs,
             'failed_syncs'    => $failed_syncs,
