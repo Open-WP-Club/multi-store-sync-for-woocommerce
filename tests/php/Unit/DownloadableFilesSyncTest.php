@@ -31,10 +31,9 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                'wc_mss_downloadable_files_sync_settings' => ['enabled' => true, 'transfer_mode' => 'url'],
-                'wc_multi_store_sync_settings'            => ['enabled' => true, 'auth_method' => 'basic_auth'],
-                'wc_multi_store_sync_stores'              => ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'store_url' => 'https://store1.com']],
-                default                                   => $default,
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'auth_method' => 'basic_auth', 'downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'url'],
+                'wc_multi_store_sync_stores'   => ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'store_url' => 'https://store1.com']],
+                default                        => $default,
             };
         });
         Functions\when('update_option')->justReturn(true);
@@ -114,7 +113,7 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
     {
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return $opt === 'wc_mss_downloadable_files_sync_settings' ? ['enabled' => false] : $default;
+            return $opt === 'wc_multi_store_sync_settings' ? ['downloadable_files_sync_enabled' => false] : $default;
         });
 
         $this->assertFalse(WC_Multi_Store_Downloadable_Files_Sync::is_enabled());
@@ -124,10 +123,59 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
     {
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return $opt === 'wc_mss_downloadable_files_sync_settings' ? ['enabled' => true] : $default;
+            return $opt === 'wc_multi_store_sync_settings' ? ['downloadable_files_sync_enabled' => true] : $default;
         });
 
         $this->assertTrue(WC_Multi_Store_Downloadable_Files_Sync::is_enabled());
+    }
+
+    // ─── migrate_settings_to_central_store() ────────────────────────────────
+
+    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        // Central option storage is stateful across the migration's per-key
+        // update() loop, mirroring real get_option()/update_option() persistence.
+        $central_option = [];
+        Functions\when('get_option')->alias(function ($opt, $default = null) use (&$central_option) {
+            if ($opt === WC_Multi_Store_Downloadable_Files_Sync::SETTINGS_KEY) {
+                return ['enabled' => true, 'transfer_mode' => 'api'];
+            }
+            if ($opt === 'wc_multi_store_sync_settings') {
+                return $central_option;
+            }
+            return $default;
+        });
+
+        Functions\when('update_option')->alias(function ($key, $value) use (&$central_option) {
+            if ($key === 'wc_multi_store_sync_settings') {
+                $central_option = $value;
+            }
+            return true;
+        });
+
+        Functions\expect('delete_option')
+            ->once()
+            ->with(WC_Multi_Store_Downloadable_Files_Sync::SETTINGS_KEY)
+            ->andReturn(true);
+
+        WC_Multi_Store_Downloadable_Files_Sync::migrate_settings_to_central_store();
+
+        $this->assertTrue($central_option['downloadable_files_sync_enabled']);
+        $this->assertEquals('api', $central_option['downloadable_files_sync_transfer_mode']);
+    }
+
+    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
+    {
+        Functions\when('get_option')->justReturn(false);
+
+        Functions\expect('delete_option')->never();
+        Functions\expect('update_option')->never();
+
+        WC_Multi_Store_Downloadable_Files_Sync::migrate_settings_to_central_store();
+
+        $this->addToAssertionCount(1);
     }
 
     // ─── extract_downloads() ──────────────────────────────────────────────────
@@ -136,7 +184,7 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
     {
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return $opt === 'wc_mss_downloadable_files_sync_settings' ? ['enabled' => false] : $default;
+            return $opt === 'wc_multi_store_sync_settings' ? ['downloadable_files_sync_enabled' => false] : $default;
         });
 
         $product = \Mockery::mock('WC_Product');
@@ -172,8 +220,8 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
     {
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return $opt === 'wc_mss_downloadable_files_sync_settings'
-                ? ['enabled' => true, 'transfer_mode' => 'url']
+            return $opt === 'wc_multi_store_sync_settings'
+                ? ['downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'url']
                 : $default;
         });
 
@@ -194,8 +242,8 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
     {
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return $opt === 'wc_mss_downloadable_files_sync_settings'
-                ? ['enabled' => true, 'transfer_mode' => 'api']
+            return $opt === 'wc_multi_store_sync_settings'
+                ? ['downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'api']
                 : $default;
         });
 
@@ -249,9 +297,8 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                'wc_mss_downloadable_files_sync_settings' => ['enabled' => true, 'transfer_mode' => 'url'],
-                'wc_multi_store_sync_settings'            => ['enabled' => true, 'auth_method' => 'basic_auth'],
-                default                                   => $default,
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'auth_method' => 'basic_auth', 'downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'url'],
+                default                         => $default,
             };
         });
 
@@ -280,10 +327,9 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                'wc_mss_downloadable_files_sync_settings' => ['enabled' => true, 'transfer_mode' => 'url'],
                 // download_files_transfer_enabled NOT present → transfer disabled
-                'wc_multi_store_sync_settings'            => ['enabled' => true, 'auth_method' => 'basic_auth'],
-                default                                   => $default,
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'auth_method' => 'basic_auth', 'downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'url'],
+                default                         => $default,
             };
         });
 
@@ -309,11 +355,10 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                'wc_mss_downloadable_files_sync_settings' => ['enabled' => true, 'transfer_mode' => 'api'],
                 // transfer enabled but upload_file_to_remote will effectively return null
                 // because _wc_mss_file_content won't be populated (file_exists = false)
-                'wc_multi_store_sync_settings'            => ['enabled' => true, 'auth_method' => 'basic_auth', 'download_files_transfer_enabled' => true],
-                default                                   => $default,
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'auth_method' => 'basic_auth', 'download_files_transfer_enabled' => true, 'downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'api'],
+                default                         => $default,
             };
         });
 
@@ -351,8 +396,8 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         $fileUrl       = $uploadBaseUrl . $relPath;
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($uploadBase, $uploadBaseUrl) {
-            return $opt === 'wc_mss_downloadable_files_sync_settings'
-                ? ['enabled' => true, 'transfer_mode' => 'api']
+            return $opt === 'wc_multi_store_sync_settings'
+                ? ['downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'api']
                 : $default;
         });
 

@@ -57,9 +57,55 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
 
     public function test_is_enabled_returns_true_when_enabled(): void
     {
-        Functions\when('get_option')->justReturn(['enabled' => true]);
+        Functions\when('get_option')->justReturn(['category_mapper_enabled' => true]);
 
         $this->assertTrue(WC_Multi_Store_Category_Mapper::is_enabled());
+    }
+
+    // -------------------------------------------------------------------------
+    // migrate_settings_to_central_store()
+    // -------------------------------------------------------------------------
+
+    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
+    {
+        Functions\when('get_option')->alias(function ($opt, $default = null) {
+            if ($opt === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
+                return ['enabled' => true];
+            }
+            if ($opt === 'wc_multi_store_sync_settings') {
+                return [];
+            }
+            return $default;
+        });
+
+        $saved = null;
+        Functions\when('update_option')->alias(function ($key, $value) use (&$saved) {
+            if ($key === 'wc_multi_store_sync_settings') {
+                $saved = $value;
+            }
+            return true;
+        });
+
+        Functions\expect('delete_option')
+            ->once()
+            ->with(WC_Multi_Store_Category_Mapper::SETTINGS_KEY)
+            ->andReturn(true);
+
+        WC_Multi_Store_Category_Mapper::migrate_settings_to_central_store();
+
+        $this->assertTrue($saved['category_mapper_enabled']);
+    }
+
+    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
+    {
+        Functions\when('get_option')->justReturn(false);
+
+        Functions\expect('delete_option')->never();
+        Functions\expect('update_option')->never();
+
+        WC_Multi_Store_Category_Mapper::migrate_settings_to_central_store();
+
+        $this->addToAssertionCount(1);
     }
 
     // -------------------------------------------------------------------------
@@ -190,6 +236,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
             }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
+            }
             return $default;
         });
 
@@ -204,6 +253,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->alias(function (string $option, mixed $default = []): mixed {
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
             }
             return $default;
         });
@@ -221,6 +273,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
             }
             if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
                 return [$key => ['clothing' => 'apparel']];
@@ -244,6 +299,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
             }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
+            }
             if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
                 return [$key => ['clothing' => '']];
             }
@@ -264,6 +322,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
             }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
+            }
             if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
                 return [$key => ['clothing' => '__skip__']];
             }
@@ -283,6 +344,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
             }
             if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
                 return [$key => ['clothing' => 'apparel']];
@@ -305,6 +369,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
             }
             if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
                 return [$key => ['clothing' => 'apparel', 'shoes' => '__skip__']];
@@ -355,6 +422,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
             }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
+            }
             if ($option === 'wc_mss_tag_mappings') {
                 return [$key => ['sale' => 'promo']];
             }
@@ -376,6 +446,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
             }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
+            }
             if ($option === 'wc_mss_tag_mappings') {
                 return [$key => ['sale' => '__skip__']];
             }
@@ -395,6 +468,9 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
             if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
                 return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['category_mapper_enabled' => true];
             }
             if ($option === 'wc_mss_tag_mappings') {
                 return [$key => ['sale' => 'promo']];

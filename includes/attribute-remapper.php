@@ -44,6 +44,13 @@ class WC_Multi_Store_Attribute_Remapper {
     }
 
     /**
+     * @return string
+     */
+    public static function central_settings_prefix(): string {
+        return 'attribute_remapping';
+    }
+
+    /**
      * Get attribute name mappings for a store
      * Example: ['цвят' => 'color', 'размер' => 'size']
      *

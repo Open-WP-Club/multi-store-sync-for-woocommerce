@@ -39,6 +39,13 @@ class WC_Multi_Store_Category_Mapper {
     }
 
     /**
+     * @return string
+     */
+    public static function central_settings_prefix(): string {
+        return 'category_mapper';
+    }
+
+    /**
      * Get all category mappings for a specific store
      *
      * @param string $store_url Remote store URL

@@ -93,6 +93,12 @@ class WC_Multi_Store_Settings {
             'cleanup_on_uninstall' => false,
             'circuit_breaker_threshold' => 10,
             'circuit_breaker_duration'  => 1800,
+            'category_mapper_enabled' => false,
+            'attribute_remapping_enabled' => false,
+            'shipping_class_sync_enabled' => false,
+            'shipping_class_sync_auto_sync_on_change' => true,
+            'downloadable_files_sync_enabled' => false,
+            'downloadable_files_sync_transfer_mode' => 'url',
         ];
 
         // In-memory static cache (per-request). No transient/object-cache layer

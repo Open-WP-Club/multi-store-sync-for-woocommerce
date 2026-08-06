@@ -131,8 +131,8 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
     public function test_is_enabled_returns_true_when_option_set(): void
     {
         Functions\when('get_option')->alias(function ($key, $default = false) {
-            if ($key === WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY) {
-                return ['enabled' => true];
+            if ($key === 'wc_multi_store_sync_settings') {
+                return ['shipping_class_sync_enabled' => true];
             }
             return $default;
         });
@@ -153,15 +153,19 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
     public function test_update_settings_merges_with_existing(): void
     {
         Functions\when('get_option')->alias(function ($key, $default = false) {
-            if ($key === WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY) {
-                return ['enabled' => false, 'auto_sync_on_change' => true];
+            if ($key === 'wc_multi_store_sync_settings') {
+                return [
+                    'shipping_class_sync_enabled' => false,
+                    'shipping_class_sync_auto_sync_on_change' => true,
+                    'unrelated_setting' => 'kept',
+                ];
             }
             return $default;
         });
 
         $saved = null;
         Functions\when('update_option')->alias(function ($key, $value) use (&$saved) {
-            if ($key === WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY) {
+            if ($key === 'wc_multi_store_sync_settings') {
                 $saved = $value;
             }
             return true;
@@ -169,8 +173,56 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
 
         WC_Multi_Store_Shipping_Class_Sync::update_settings(['enabled' => true]);
 
-        $this->assertTrue($saved['enabled']);
-        $this->assertTrue($saved['auto_sync_on_change'], 'Existing keys must be preserved on merge');
+        $this->assertTrue($saved['shipping_class_sync_enabled']);
+        $this->assertTrue($saved['shipping_class_sync_auto_sync_on_change'], 'Other feature settings must be preserved');
+        $this->assertEquals('kept', $saved['unrelated_setting'], 'Unrelated central-store keys must be preserved');
+    }
+
+    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        // Central option storage is stateful across the migration's per-key
+        // update() loop, mirroring real get_option()/update_option() persistence.
+        $central_option = [];
+        Functions\when('get_option')->alias(function ($key, $default = false) use (&$central_option) {
+            if ($key === WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY) {
+                return ['enabled' => true, 'auto_sync_on_change' => false];
+            }
+            if ($key === 'wc_multi_store_sync_settings') {
+                return $central_option;
+            }
+            return $default;
+        });
+
+        Functions\when('update_option')->alias(function ($key, $value) use (&$central_option) {
+            if ($key === 'wc_multi_store_sync_settings') {
+                $central_option = $value;
+            }
+            return true;
+        });
+
+        Functions\expect('delete_option')
+            ->once()
+            ->with(WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY)
+            ->andReturn(true);
+
+        WC_Multi_Store_Shipping_Class_Sync::migrate_settings_to_central_store();
+
+        $this->assertTrue($central_option['shipping_class_sync_enabled']);
+        $this->assertFalse($central_option['shipping_class_sync_auto_sync_on_change']);
+    }
+
+    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
+    {
+        Functions\when('get_option')->justReturn(false);
+
+        Functions\expect('delete_option')->never();
+        Functions\expect('update_option')->never();
+
+        WC_Multi_Store_Shipping_Class_Sync::migrate_settings_to_central_store();
+
+        $this->addToAssertionCount(1);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -328,10 +380,9 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
     {
         Functions\when('get_option')->alias(function ($key, $default = false) {
             return match ($key) {
-                WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY => ['enabled' => true, 'auto_sync_on_change' => true],
-                'wc_multi_store_sync_settings'                   => ['enabled' => true, 'auth_method' => 'basic_auth'],
-                'wc_multi_store_sync_stores'                     => ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'store_url' => 'https://store1.com']],
-                default                                           => $default,
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'auth_method' => 'basic_auth', 'shipping_class_sync_enabled' => true, 'shipping_class_sync_auto_sync_on_change' => true],
+                'wc_multi_store_sync_stores'   => ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'store_url' => 'https://store1.com']],
+                default                         => $default,
             };
         });
         WC_Multi_Store_Settings::clear_static_cache();
@@ -501,15 +552,15 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
         Functions\when('__')->alias(fn($t) => $t);
 
         Functions\when('get_option')->alias(function ($key, $default = false) {
-            if ($key === WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY) {
-                return ['enabled' => false, 'auto_sync_on_change' => true];
+            if ($key === 'wc_multi_store_sync_settings') {
+                return ['shipping_class_sync_enabled' => false, 'shipping_class_sync_auto_sync_on_change' => true];
             }
             return $default;
         });
 
         $saved_settings = null;
         Functions\when('update_option')->alias(function ($key, $value) use (&$saved_settings) {
-            if ($key === WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY) {
+            if ($key === 'wc_multi_store_sync_settings') {
                 $saved_settings = $value;
             }
             return true;
@@ -525,6 +576,6 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
 
         $this->assertTrue($success_sent);
         $this->assertNotNull($saved_settings);
-        $this->assertTrue($saved_settings['enabled']);
+        $this->assertTrue($saved_settings['shipping_class_sync_enabled']);
     }
 }

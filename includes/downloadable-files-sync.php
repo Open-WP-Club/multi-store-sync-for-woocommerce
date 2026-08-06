@@ -36,6 +36,13 @@ class WC_Multi_Store_Downloadable_Files_Sync {
     }
 
     /**
+     * @return string
+     */
+    public static function central_settings_prefix(): string {
+        return 'downloadable_files_sync';
+    }
+
+    /**
      * Extract downloadable file data from a product
      *
      * @param WC_Product $product Product object

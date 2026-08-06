@@ -53,6 +53,13 @@ class WC_Multi_Store_Shipping_Class_Sync {
     }
 
     /**
+     * @return string
+     */
+    public static function central_settings_prefix(): string {
+        return 'shipping_class_sync';
+    }
+
+    /**
      * Initialize hooks for auto-syncing shipping class changes
      */
     public function __construct() {
