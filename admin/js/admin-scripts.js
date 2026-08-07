@@ -940,6 +940,77 @@
         });
 
         /**
+         * Dead Letter Queue Actions
+         */
+        function wcMssDlqAction(action, data, callback) {
+            data.action = action;
+            data.nonce = wcMssAdmin.nonce;
+            fetch(wcMssAdmin.ajax_url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams(data).toString()
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(result) {
+                if (result.success) {
+                    callback(true, result.data.message);
+                } else {
+                    callback(false, result.data.message || 'Error');
+                }
+            })
+            .catch(function(err) {
+                callback(false, err.message);
+            });
+        }
+
+        document.querySelectorAll('.wc-mss-dlq-retry').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var id = this.dataset.id;
+                var row = document.getElementById('dlq-row-' + id);
+                this.disabled = true;
+                wcMssDlqAction('wc_mss_dlq_retry_item', {item_id: id}, function(ok, msg) {
+                    if (ok && row) row.style.opacity = '0.3';
+                    alert(msg);
+                });
+            });
+        });
+
+        document.querySelectorAll('.wc-mss-dlq-resolve').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var id = this.dataset.id;
+                var row = document.getElementById('dlq-row-' + id);
+                this.disabled = true;
+                wcMssDlqAction('wc_mss_dlq_resolve_item', {item_id: id}, function(ok, msg) {
+                    if (ok && row) row.style.opacity = '0.3';
+                });
+            });
+        });
+
+        var dlqRetryAllBtn = document.getElementById('wc-mss-dlq-retry-all');
+        if (dlqRetryAllBtn) {
+            dlqRetryAllBtn.addEventListener('click', function() {
+                if (!confirm(dlqRetryAllBtn.dataset.confirm)) return;
+                this.disabled = true;
+                wcMssDlqAction('wc_mss_dlq_retry_all', {}, function(ok, msg) {
+                    alert(msg);
+                    if (ok) location.reload();
+                });
+            });
+        }
+
+        var dlqClearAllBtn = document.getElementById('wc-mss-dlq-clear-all');
+        if (dlqClearAllBtn) {
+            dlqClearAllBtn.addEventListener('click', function() {
+                if (!confirm(dlqClearAllBtn.dataset.confirm)) return;
+                this.disabled = true;
+                wcMssDlqAction('wc_mss_dlq_clear_all', {}, function(ok, msg) {
+                    alert(msg);
+                    if (ok) location.reload();
+                });
+            });
+        }
+
+        /**
          * Log Viewer
          */
         var logViewer = document.getElementById('wc-mss-log-viewer');

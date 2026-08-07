@@ -44,8 +44,8 @@ $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
 
             <?php if ($dlq_stats['total_dead'] > 0): ?>
             <div style="margin-top: 10px;">
-                <button type="button" class="button" id="wc-mss-dlq-retry-all"><?php _e('Retry All', 'wc-multi-store-sync'); ?></button>
-                <button type="button" class="button" id="wc-mss-dlq-clear-all" style="color: #d63638;"><?php _e('Clear All', 'wc-multi-store-sync'); ?></button>
+                <button type="button" class="button" id="wc-mss-dlq-retry-all" data-confirm="<?php echo esc_attr__('Retry all failed items?', 'wc-multi-store-sync'); ?>"><?php _e('Retry All', 'wc-multi-store-sync'); ?></button>
+                <button type="button" class="button" id="wc-mss-dlq-clear-all" style="color: #d63638;" data-confirm="<?php echo esc_attr__('Clear all dead letter items? This cannot be undone.', 'wc-multi-store-sync'); ?>"><?php _e('Clear All', 'wc-multi-store-sync'); ?></button>
             </div>
             <?php endif; ?>
         </div>
@@ -117,82 +117,3 @@ $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
     </div>
     <?php endif; ?>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
-    var nonce = '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>';
-
-    function dlqAction(action, data, callback) {
-        data.action = action;
-        data.nonce = nonce;
-        fetch(ajaxUrl, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: new URLSearchParams(data).toString()
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(result) {
-            if (result.success) {
-                callback(true, result.data.message);
-            } else {
-                callback(false, result.data.message || 'Error');
-            }
-        })
-        .catch(function(err) {
-            callback(false, err.message);
-        });
-    }
-
-    // Retry single item
-    document.querySelectorAll('.wc-mss-dlq-retry').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var id = this.dataset.id;
-            var row = document.getElementById('dlq-row-' + id);
-            this.disabled = true;
-            dlqAction('wc_mss_dlq_retry_item', {item_id: id}, function(ok, msg) {
-                if (ok && row) row.style.opacity = '0.3';
-                alert(msg);
-            });
-        });
-    });
-
-    // Resolve single item
-    document.querySelectorAll('.wc-mss-dlq-resolve').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var id = this.dataset.id;
-            var row = document.getElementById('dlq-row-' + id);
-            this.disabled = true;
-            dlqAction('wc_mss_dlq_resolve_item', {item_id: id}, function(ok, msg) {
-                if (ok && row) row.style.opacity = '0.3';
-            });
-        });
-    });
-
-    // Retry all
-    var retryAllBtn = document.getElementById('wc-mss-dlq-retry-all');
-    if (retryAllBtn) {
-        retryAllBtn.addEventListener('click', function() {
-            if (!confirm('<?php echo esc_js(__('Retry all failed items?', 'wc-multi-store-sync')); ?>')) return;
-            this.disabled = true;
-            dlqAction('wc_mss_dlq_retry_all', {}, function(ok, msg) {
-                alert(msg);
-                if (ok) location.reload();
-            });
-        });
-    }
-
-    // Clear all
-    var clearAllBtn = document.getElementById('wc-mss-dlq-clear-all');
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', function() {
-            if (!confirm('<?php echo esc_js(__('Clear all dead letter items? This cannot be undone.', 'wc-multi-store-sync')); ?>')) return;
-            this.disabled = true;
-            dlqAction('wc_mss_dlq_clear_all', {}, function(ok, msg) {
-                alert(msg);
-                if (ok) location.reload();
-            });
-        });
-    }
-});
-</script>
