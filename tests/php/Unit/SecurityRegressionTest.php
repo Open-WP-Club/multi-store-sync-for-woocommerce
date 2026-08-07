@@ -386,6 +386,9 @@ class SecurityRegressionTest extends WC_Multi_Store_TestCase
 
     private function loadWeeklyVerifier(): void
     {
+        if (!class_exists('WC_Multi_Store_Weekly_Verification_Report_Repository', false)) {
+            require_once WC_MSS_PLUGIN_DIR . 'includes/weekly-verification-report-repository.php';
+        }
         if (!class_exists('WC_Multi_Store_Weekly_Sync_Verifier', false)) {
             require_once WC_MSS_PLUGIN_DIR . 'includes/weekly-sync-verifier.php';
         }
@@ -404,7 +407,7 @@ class SecurityRegressionTest extends WC_Multi_Store_TestCase
             return [];
         });
 
-        WC_Multi_Store_Weekly_Sync_Verifier::get_reports(['orderby' => 'nonexistent_column']);
+        WC_Multi_Store_Weekly_Verification_Report_Repository::get_reports(['orderby' => 'nonexistent_column']);
 
         $this->assertStringContainsString('started_at', $capturedQuery,
             'Invalid orderby must fall back to started_at');
@@ -425,7 +428,7 @@ class SecurityRegressionTest extends WC_Multi_Store_TestCase
             return [];
         });
 
-        WC_Multi_Store_Weekly_Sync_Verifier::get_reports(['orderby' => 'status', 'order' => 'ASC']);
+        WC_Multi_Store_Weekly_Verification_Report_Repository::get_reports(['orderby' => 'status', 'order' => 'ASC']);
 
         $this->assertStringContainsString('status', $capturedQuery,
             'Valid column must be passed through');
@@ -446,7 +449,7 @@ class SecurityRegressionTest extends WC_Multi_Store_TestCase
 
         Functions\when('sanitize_sql_orderby')->justReturn('');
 
-        WC_Multi_Store_Weekly_Sync_Verifier::get_reports(['orderby' => 'started_at']);
+        WC_Multi_Store_Weekly_Verification_Report_Repository::get_reports(['orderby' => 'started_at']);
 
         $this->assertStringContainsString('started_at DESC', $capturedQuery,
             'Hard-coded fallback must be used when sanitize_sql_orderby returns empty');

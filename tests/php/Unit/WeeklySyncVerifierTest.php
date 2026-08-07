@@ -14,12 +14,15 @@ class WeeklySyncVerifierTest extends WC_Multi_Store_TestCase
         parent::setUp();
         $this->setUpVerifierMocks();
 
+        if (!class_exists('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher', false)) {
+            require_once dirname(__DIR__, 3) . '/includes/weekly-verification-remote-data-fetcher.php';
+        }
         if (!class_exists('WC_Multi_Store_Weekly_Sync_Verifier', false)) {
             require_once dirname(__DIR__, 3) . '/includes/weekly-sync-verifier.php';
         }
 
         // Reset static API client pool and prefetch batch cache between tests
-        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Sync_Verifier');
+        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher');
         $prop = $ref->getProperty('api_client_pool');
         $prop->setValue(null, []);
         $batchCacheProp = $ref->getProperty('batch_cache');
@@ -111,14 +114,8 @@ class WeeklySyncVerifierTest extends WC_Multi_Store_TestCase
     }
 
     // ── constants ────────────────────────────────────────────────
-
-    public function test_table_name_constant(): void
-    {
-        $this->assertEquals(
-            'wc_multi_store_weekly_verifications',
-            WC_Multi_Store_Weekly_Sync_Verifier::TABLE_NAME
-        );
-    }
+    // TABLE_NAME moved to WeeklyVerificationReportRepositoryTest.php along
+    // with WC_Multi_Store_Weekly_Verification_Report_Repository.
 
     public function test_verification_lock_constant(): void
     {
@@ -128,83 +125,11 @@ class WeeklySyncVerifierTest extends WC_Multi_Store_TestCase
         );
     }
 
-    // ── table_exists ─────────────────────────────────────────────
-
-    public function test_table_exists_returns_true(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('get_var')
-            ->andReturn('wp_wc_multi_store_weekly_verifications');
-
-        $this->assertTrue(WC_Multi_Store_Weekly_Sync_Verifier::table_exists());
-    }
-
-    public function test_table_exists_returns_false(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('get_var')->andReturn(null);
-
-        $this->assertFalse(WC_Multi_Store_Weekly_Sync_Verifier::table_exists());
-    }
-
-    // ── save_report / get_reports / cleanup ──────────────────────
-
-    public function test_get_reports_queries_database(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('get_results')->andReturn([]);
-
-        $results = WC_Multi_Store_Weekly_Sync_Verifier::get_reports();
-        $this->assertIsArray($results);
-    }
-
-    public function test_get_latest_report_returns_null_when_no_table(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('get_var')->andReturn(null); // table_exists → false
-
-        $result = WC_Multi_Store_Weekly_Sync_Verifier::get_latest_report();
-        $this->assertNull($result);
-    }
-
-    public function test_cleanup_old_reports_default_days(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->andReturn(5);
-
-        $deleted = WC_Multi_Store_Weekly_Sync_Verifier::cleanup_old_reports();
-        $this->assertEquals(5, $deleted);
-    }
-
-    public function test_cleanup_old_reports_custom_days(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->andReturn(2);
-
-        $deleted = WC_Multi_Store_Weekly_Sync_Verifier::cleanup_old_reports(30);
-        $this->assertEquals(2, $deleted);
-    }
+    // table_exists / get_reports / get_latest_report / cleanup_old_reports
+    // moved to WeeklyVerificationReportRepositoryTest.php along with
+    // WC_Multi_Store_Weekly_Verification_Report_Repository. The facade
+    // delegation itself is still exercised indirectly via run_verification()
+    // below (which calls save_report() on the new repository class).
 
     // ── run_verification ─────────────────────────────────────────
 
