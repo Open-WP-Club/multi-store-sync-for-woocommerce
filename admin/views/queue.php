@@ -48,7 +48,7 @@ if (!defined('ABSPATH')) {
                 'section' => 'queue',
             ], admin_url('admin.php')));
             ?>
-            <div style="margin-bottom: 15px;">
+            <div id="wc-mss-queue-filter" style="margin-bottom: 15px;" data-base-url="<?php echo esc_attr($filter_base_url); ?>">
                 <label for="queue_status"><?php _e('Filter by status:', 'wc-multi-store-sync'); ?></label>
                 <select id="queue_status">
                     <option value="all" <?php selected($queue_status_filter, 'all'); ?>><?php _e('All', 'wc-multi-store-sync'); ?></option>
@@ -61,31 +61,14 @@ if (!defined('ABSPATH')) {
                     <?php _e('Refresh', 'wc-multi-store-sync'); ?>
                 </button>
             </div>
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                var baseUrl = <?php echo wp_json_encode($filter_base_url); ?>;
-                var select = document.getElementById('queue_status');
-                var refreshBtn = document.getElementById('wc-mss-refresh-queue');
-
-                function applyFilter() {
-                    var status = select.value;
-                    var url = baseUrl;
-                    if (status && status !== 'all') {
-                        url += '&queue_status=' + encodeURIComponent(status);
-                    }
-                    wcMssSafeNavigate(url);
-                }
-
-                select.addEventListener('change', applyFilter);
-                refreshBtn.addEventListener('click', function() {
-                    wcMssSafeNavigate(window.location.href);
-                });
-            });
-            </script>
 
             <!-- Queue Table -->
             <?php if (!empty($queue_items)): ?>
-            <table class="wp-list-table widefat fixed striped">
+            <table class="wp-list-table widefat fixed striped"
+                data-label-retry="<?php echo esc_attr__('Retry', 'wc-multi-store-sync'); ?>"
+                data-label-retrying="<?php echo esc_attr__('Retrying…', 'wc-multi-store-sync'); ?>"
+                data-label-pending="<?php echo esc_attr__('Pending', 'wc-multi-store-sync'); ?>"
+                data-label-error="<?php echo esc_attr__('Error', 'wc-multi-store-sync'); ?>">
                 <thead>
                     <tr>
                         <th style="width: 60px;"><?php _e('ID', 'wc-multi-store-sync'); ?></th>
@@ -163,54 +146,6 @@ if (!defined('ABSPATH')) {
                 </tbody>
             </table>
 
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                var ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
-                var nonce = '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>';
-
-                document.querySelectorAll('.wc-mss-queue-retry').forEach(function(btn) {
-                    btn.addEventListener('click', function() {
-                        var id = this.dataset.id;
-                        var row = document.getElementById('queue-row-' + id);
-                        this.disabled = true;
-                        this.textContent = '<?php echo esc_js(__('Retrying…', 'wc-multi-store-sync')); ?>';
-
-                        fetch(ajaxUrl, {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                            body: new URLSearchParams({action: 'wc_mss_queue_retry_item', nonce: nonce, item_id: id}).toString()
-                        })
-                        .then(function(r) { return r.json(); })
-                        .then(function(result) {
-                            if (result.success) {
-                                if (row) {
-                                    var statusCell = row.querySelector('td:nth-child(6) span');
-                                    if (statusCell) {
-                                        statusCell.style.cssText = 'color: #2271b1;';
-                                        statusCell.textContent = '<?php echo esc_js(__('Pending', 'wc-multi-store-sync')); ?>';
-                                    }
-                                    var errorNote = row.querySelector('td:nth-child(6) small');
-                                    if (errorNote) errorNote.remove();
-                                    var actionCell = row.querySelector('td:last-child');
-                                    if (actionCell) actionCell.innerHTML = '';
-                                    var attemptsCell = row.querySelector('td:nth-child(8)');
-                                    if (attemptsCell) attemptsCell.textContent = '0/3';
-                                }
-                            } else {
-                                alert(result.data.message || '<?php echo esc_js(__('Error', 'wc-multi-store-sync')); ?>');
-                                this.disabled = false;
-                                this.textContent = '<?php echo esc_js(__('Retry', 'wc-multi-store-sync')); ?>';
-                            }
-                        }.bind(this))
-                        .catch(function() {
-                            alert('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>');
-                            this.disabled = false;
-                            this.textContent = '<?php echo esc_js(__('Retry', 'wc-multi-store-sync')); ?>';
-                        }.bind(this));
-                    });
-                });
-            });
-            </script>
             <p class="description" style="margin-top: 10px;">
                 <?php _e('Showing up to 50 most recent queue items. Priority: 1-2 = Critical (red), 3-4 = High (yellow), 5+ = Normal.', 'wc-multi-store-sync'); ?>
             </p>

@@ -871,6 +871,75 @@
         }
 
         /**
+         * Queue Status Filter
+         */
+        var queueStatusFilter = document.getElementById('queue_status');
+        if (queueStatusFilter) {
+            var queueFilterBar = document.getElementById('wc-mss-queue-filter');
+            var queueFilterBaseUrl = queueFilterBar ? queueFilterBar.dataset.baseUrl : window.location.href;
+
+            queueStatusFilter.addEventListener('change', function() {
+                var status = queueStatusFilter.value;
+                var url = queueFilterBaseUrl;
+                if (status && status !== 'all') {
+                    url += '&queue_status=' + encodeURIComponent(status);
+                }
+                wcMssSafeNavigate(url);
+            });
+        }
+
+        /**
+         * Queue Retry Button
+         */
+        document.querySelectorAll('.wc-mss-queue-retry').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var id = this.dataset.id;
+                var row = document.getElementById('queue-row-' + id);
+                var table = this.closest('table');
+                var labelRetry = (table && table.dataset.labelRetry) || 'Retry';
+                var labelRetrying = (table && table.dataset.labelRetrying) || 'Retrying…';
+                var labelPending = (table && table.dataset.labelPending) || 'Pending';
+                var labelError = (table && table.dataset.labelError) || 'Error';
+
+                this.disabled = true;
+                this.textContent = labelRetrying;
+
+                fetch(wcMssAdmin.ajax_url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({action: 'wc_mss_queue_retry_item', nonce: wcMssAdmin.nonce, item_id: id}).toString()
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    if (result.success) {
+                        if (row) {
+                            var statusCell = row.querySelector('td:nth-child(6) span');
+                            if (statusCell) {
+                                statusCell.style.cssText = 'color: #2271b1;';
+                                statusCell.textContent = labelPending;
+                            }
+                            var errorNote = row.querySelector('td:nth-child(6) small');
+                            if (errorNote) errorNote.remove();
+                            var actionCell = row.querySelector('td:last-child');
+                            if (actionCell) actionCell.innerHTML = '';
+                            var attemptsCell = row.querySelector('td:nth-child(8)');
+                            if (attemptsCell) attemptsCell.textContent = '0/3';
+                        }
+                    } else {
+                        alert((result.data && result.data.message) || labelError);
+                        this.disabled = false;
+                        this.textContent = labelRetry;
+                    }
+                }.bind(this))
+                .catch(function() {
+                    alert(wcMssAdmin.i18n.request_failed);
+                    this.disabled = false;
+                    this.textContent = labelRetry;
+                }.bind(this));
+            });
+        });
+
+        /**
          * Log Viewer
          */
         var logViewer = document.getElementById('wc-mss-log-viewer');
