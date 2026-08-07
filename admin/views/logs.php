@@ -53,40 +53,6 @@ if (!defined('ABSPATH')) {
                 <?php _e('Clear Logs', 'wc-multi-store-sync'); ?>
             </button>
         </div>
-
-        <script>
-        jQuery(document).ready(function($) {
-            $('#wc-mss-clear-log').on('click', function() {
-                if (!confirm('<?php echo esc_js(__('Are you sure you want to clear all sync logs? This cannot be undone.', 'wc-multi-store-sync')); ?>')) {
-                    return;
-                }
-
-                var $btn = $(this);
-                $btn.prop('disabled', true);
-
-                fetch(wcMssAdmin.ajax_url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        action: 'wc_mss_clear_sync_log',
-                        nonce:  wcMssAdmin.nonce
-                    }),
-                })
-                    .then(function (res) { return res.json(); })
-                    .then(function (response) {
-                        if (response.success) {
-                            $('#wc-mss-log-content').text('');
-                            $('#wc-mss-log-viewer').html('<p style="padding: 15px; color: #888;"><?php echo esc_js(__('No log entries found.', 'wc-multi-store-sync')); ?></p>');
-                        } else {
-                            alert(response.data?.message || '<?php echo esc_js(__('Failed to clear logs', 'wc-multi-store-sync')); ?>');
-                        }
-                    })
-                    .finally(function() {
-                        $btn.prop('disabled', false);
-                    });
-            });
-        });
-        </script>
     </div>
 
     <div class="wc-mss-card" id="wc-mss-issues-card">
@@ -105,77 +71,6 @@ if (!defined('ABSPATH')) {
         </div>
     </div>
 
-    <script>
-    jQuery(document).ready(function($) {
-        var raw = $('#wc-mss-log-content').text();
-        if (!raw) return;
-
-        // Matches WooCommerce's own log line format: "{ISO8601} {LEVEL} {message} ..."
-        var issueLinePattern = /^\S+\s+(WARNING|ERROR)\b/;
-        var lines = raw.split('\n');
-        var issues = lines.filter(function(l) {
-            return issueLinePattern.test(l);
-        });
-
-        var $viewer = $('#wc-mss-issues-viewer');
-        var $empty  = $('#wc-mss-issues-empty');
-        var $count  = $('#wc-mss-issues-count');
-
-        if (issues.length === 0) {
-            $count.text('(0)');
-            return;
-        }
-
-        $empty.remove();
-        $count.text('(' + issues.length + ')');
-
-        issues.forEach(function(line) {
-            var color = line.indexOf('[ERROR]') !== -1 ? '#f87171' : '#fbbf24';
-            var $div = $('<div>').css({color: color, 'word-break': 'break-all', 'padding': '1px 0'}).text(line);
-            $viewer.append($div);
-        });
-
-        // Scroll to bottom by default
-        $viewer.scrollTop($viewer[0].scrollHeight);
-
-        $('#wc-mss-clear-warnings-errors').on('click', function() {
-            if (!confirm('<?php echo esc_js(__('Remove all [WARNING] and [ERROR] entries from the log? INFO entries will be kept.', 'wc-multi-store-sync')); ?>')) {
-                return;
-            }
-
-            var $btn    = $(this);
-            var $result = $('#wc-mss-clear-warnings-result');
-            $btn.prop('disabled', true);
-            $result.text('');
-
-            fetch(wcMssAdmin.ajax_url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    action: 'wc_mss_clear_warnings_errors',
-                    nonce:  wcMssAdmin.nonce
-                }),
-            })
-                .then(function (res) { return res.json(); })
-                .then(function (response) {
-                    if (response.success) {
-                        $viewer.html('<p style="color:#888;padding:0;margin:0;"><?php echo esc_js(__('No warnings or errors found — everything looks good!', 'wc-multi-store-sync')); ?></p>');
-                        $count.text('(0)');
-                        $result.css('color', '#2e7d32').text(response.data.message);
-                    } else {
-                        $result.css('color', '#c62828').text(response.data?.message || '<?php echo esc_js(__('Failed to clear', 'wc-multi-store-sync')); ?>');
-                    }
-                })
-                .catch(function() {
-                    $result.css('color', '#c62828').text('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>');
-                })
-                .finally(function() {
-                    $btn.prop('disabled', false);
-                });
-        });
-    });
-    </script>
-
     <div class="wc-mss-card">
         <h2><?php _e('Force Full Sync by SKU', 'wc-multi-store-sync'); ?></h2>
         <p class="description"><?php _e('Enter one or more product SKUs (comma-separated) to immediately queue a full sync (with images, categories, attributes, etc.) to all active stores.', 'wc-multi-store-sync'); ?></p>
@@ -191,70 +86,6 @@ if (!defined('ABSPATH')) {
         </div>
 
         <div id="wc-mss-force-sync-result" style="margin-top: 12px; display: none;"></div>
-
-        <script>
-        jQuery(document).ready(function($) {
-            $('#wc-mss-force-sync-btn').on('click', function() {
-                var raw = $('#wc-mss-test-sku').val().trim();
-                if (!raw) {
-                    $('#wc-mss-force-sync-result')
-                        .show()
-                        .html('<div class="notice notice-warning inline" style="margin:0;"><p><?php echo esc_js(__('Please enter at least one SKU', 'wc-multi-store-sync')); ?></p></div>');
-                    return;
-                }
-
-                var skus = raw.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-
-                var $btn = $(this);
-                $btn.prop('disabled', true).text('<?php echo esc_js(__('Queuing...', 'wc-multi-store-sync')); ?>');
-                $('#wc-mss-force-sync-result').hide();
-
-                var params = new URLSearchParams();
-                params.append('action', 'wc_mss_force_sync_by_sku');
-                skus.forEach(function (sku) { params.append('skus[]', sku); });
-                params.append('nonce', wcMssAdmin.nonce);
-
-                fetch(wcMssAdmin.ajax_url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params,
-                })
-                    .then(function (res) { return res.json(); })
-                    .then(function(response) {
-                        var html;
-                        if (response.success) {
-                            var lines = response.data.results.map(function(r) {
-                                if (r.success) {
-                                    return '<li style="color:#2e7d32;">&#10003; ' + r.message + '</li>';
-                                } else {
-                                    return '<li style="color:#c62828;">&#10007; ' + r.message + '</li>';
-                                }
-                            }).join('');
-                            html = '<div class="notice notice-success inline" style="margin:0;"><p><strong>' + response.data.message + '</strong></p>'
-                                 + '<ul style="margin:6px 0 4px 16px;">' + lines + '</ul>'
-                                 + '<p style="margin:4px 0 0;color:#666;font-size:12px;"><?php echo esc_js(__('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync')); ?></p></div>';
-                        } else {
-                            html = '<div class="notice notice-error inline" style="margin:0;"><p>' + (response.data?.message || '<?php echo esc_js(__('An error occurred', 'wc-multi-store-sync')); ?>') + '</p></div>';
-                        }
-                        $('#wc-mss-force-sync-result').html(html).show();
-                    })
-                    .catch(function() {
-                        $('#wc-mss-force-sync-result')
-                            .html('<div class="notice notice-error inline" style="margin:0;"><p><?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?></p></div>')
-                            .show();
-                    })
-                    .finally(function() {
-                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Force Full Sync', 'wc-multi-store-sync')); ?>');
-                    });
-            });
-
-            $('#wc-mss-test-sku').on('keypress', function(e) {
-                if (e.which === 13) {
-                    $('#wc-mss-force-sync-btn').trigger('click');
-                }
-            });
-        });
-        </script>
     </div>
 
     <div class="wc-mss-card">
@@ -289,55 +120,6 @@ if (!defined('ABSPATH')) {
         </div>
 
         <div id="wc-mss-force-sync-category-result" style="margin-top: 12px; display: none;"></div>
-
-        <script>
-        jQuery(document).ready(function($) {
-            $('#wc-mss-force-sync-category-btn').on('click', function() {
-                var categoryId = $('#wc-mss-category-select').val();
-                if (!categoryId) {
-                    $('#wc-mss-force-sync-category-result')
-                        .show()
-                        .html('<div class="notice notice-warning inline" style="margin:0;"><p><?php echo esc_js(__('Please select a category', 'wc-multi-store-sync')); ?></p></div>');
-                    return;
-                }
-
-                var $btn = $(this);
-                $btn.prop('disabled', true).text('<?php echo esc_js(__('Queuing...', 'wc-multi-store-sync')); ?>');
-                $('#wc-mss-force-sync-category-result').hide();
-
-                fetch(wcMssAdmin.ajax_url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        action:      'wc_mss_force_sync_by_category',
-                        category_id: categoryId,
-                        nonce:       wcMssAdmin.nonce
-                    }),
-                })
-                    .then(function (res) { return res.json(); })
-                    .then(function(response) {
-                        var html;
-                        if (response.success) {
-                            html = '<div class="notice notice-success inline" style="margin:0;">'
-                                 + '<p>' + response.data.message + '</p>'
-                                 + '<p style="margin:4px 0 0;color:#666;font-size:12px;"><?php echo esc_js(__('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync')); ?></p>'
-                                 + '</div>';
-                        } else {
-                            html = '<div class="notice notice-error inline" style="margin:0;"><p>' + (response.data?.message || '<?php echo esc_js(__('An error occurred', 'wc-multi-store-sync')); ?>') + '</p></div>';
-                        }
-                        $('#wc-mss-force-sync-category-result').html(html).show();
-                    })
-                    .catch(function() {
-                        $('#wc-mss-force-sync-category-result')
-                            .html('<div class="notice notice-error inline" style="margin:0;"><p><?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?></p></div>')
-                            .show();
-                    })
-                    .finally(function() {
-                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Force Full Sync', 'wc-multi-store-sync')); ?>');
-                    });
-            });
-        });
-        </script>
     </div>
 
     <div class="wc-mss-card">

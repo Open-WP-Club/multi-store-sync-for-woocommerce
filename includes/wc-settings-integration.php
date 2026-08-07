@@ -886,6 +886,26 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             ]);
         }
 
+        // Strings for the logs page
+        if ($section === 'logs') {
+            wp_localize_script('wc-mss-admin', 'wcMssLogsData', [
+                'i18n' => [
+                    'confirm_clear_log' => __('Are you sure you want to clear all sync logs? This cannot be undone.', 'wc-multi-store-sync'),
+                    'no_log_entries' => __('No log entries found.', 'wc-multi-store-sync'),
+                    'failed_to_clear_logs' => __('Failed to clear logs', 'wc-multi-store-sync'),
+                    'confirm_clear_warnings_errors' => __('Remove all [WARNING] and [ERROR] entries from the log? INFO entries will be kept.', 'wc-multi-store-sync'),
+                    'no_warnings_errors' => __('No warnings or errors found — everything looks good!', 'wc-multi-store-sync'),
+                    'failed_to_clear' => __('Failed to clear', 'wc-multi-store-sync'),
+                    'please_enter_sku' => __('Please enter at least one SKU', 'wc-multi-store-sync'),
+                    'please_select_category' => __('Please select a category', 'wc-multi-store-sync'),
+                    'queuing' => __('Queuing...', 'wc-multi-store-sync'),
+                    'force_full_sync' => __('Force Full Sync', 'wc-multi-store-sync'),
+                    'refresh_to_see_logs' => __('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync'),
+                    'an_error_occurred' => __('An error occurred', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
+
         // Strings for the discrepancies page's category-scan feature
         if ($section === 'discrepancies') {
             wp_localize_script('wc-mss-admin', 'wcMssDiscrepanciesData', [

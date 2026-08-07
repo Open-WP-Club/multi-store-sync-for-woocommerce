@@ -1531,6 +1531,220 @@
         }
 
         /**
+         * Logs Page - Clear Log / Warnings & Errors / Force Sync by SKU / Category
+         */
+        if (document.getElementById('wc-mss-clear-log') && typeof jQuery !== 'undefined' && typeof wcMssLogsData !== 'undefined') {
+            jQuery(function ($) {
+                var i18n = wcMssLogsData.i18n;
+
+                // Clear Log
+                $('#wc-mss-clear-log').on('click', function() {
+                    if (!confirm(i18n.confirm_clear_log)) {
+                        return;
+                    }
+
+                    var $btn = $(this);
+                    $btn.prop('disabled', true);
+
+                    fetch(wcMssAdmin.ajax_url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'wc_mss_clear_sync_log',
+                            nonce:  wcMssAdmin.nonce
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            if (response.success) {
+                                $('#wc-mss-log-content').text('');
+                                $('#wc-mss-log-viewer').html('<p style="padding: 15px; color: #888;">' + i18n.no_log_entries + '</p>');
+                            } else {
+                                alert((response.data && response.data.message) || i18n.failed_to_clear_logs);
+                            }
+                        })
+                        .finally(function() {
+                            $btn.prop('disabled', false);
+                        });
+                });
+
+                // Warnings & Errors extraction + clear
+                var raw = $('#wc-mss-log-content').text();
+                if (raw) {
+                    // Matches WooCommerce's own log line format: "{ISO8601} {LEVEL} {message} ..."
+                    var issueLinePattern = /^\S+\s+(WARNING|ERROR)\b/;
+                    var lines = raw.split('\n');
+                    var issues = lines.filter(function(l) {
+                        return issueLinePattern.test(l);
+                    });
+
+                    var $viewer = $('#wc-mss-issues-viewer');
+                    var $empty  = $('#wc-mss-issues-empty');
+                    var $count  = $('#wc-mss-issues-count');
+
+                    if (issues.length === 0) {
+                        $count.text('(0)');
+                    } else {
+                        $empty.remove();
+                        $count.text('(' + issues.length + ')');
+
+                        issues.forEach(function(line) {
+                            var color = line.indexOf('[ERROR]') !== -1 ? '#f87171' : '#fbbf24';
+                            var $div = $('<div>').css({color: color, 'word-break': 'break-all', 'padding': '1px 0'}).text(line);
+                            $viewer.append($div);
+                        });
+
+                        // Scroll to bottom by default
+                        $viewer.scrollTop($viewer[0].scrollHeight);
+
+                        $('#wc-mss-clear-warnings-errors').on('click', function() {
+                            if (!confirm(i18n.confirm_clear_warnings_errors)) {
+                                return;
+                            }
+
+                            var $btn    = $(this);
+                            var $result = $('#wc-mss-clear-warnings-result');
+                            $btn.prop('disabled', true);
+                            $result.text('');
+
+                            fetch(wcMssAdmin.ajax_url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: new URLSearchParams({
+                                    action: 'wc_mss_clear_warnings_errors',
+                                    nonce:  wcMssAdmin.nonce
+                                }),
+                            })
+                                .then(function (res) { return res.json(); })
+                                .then(function (response) {
+                                    if (response.success) {
+                                        $viewer.html('<p style="color:#888;padding:0;margin:0;">' + i18n.no_warnings_errors + '</p>');
+                                        $count.text('(0)');
+                                        $result.css('color', '#2e7d32').text(response.data.message);
+                                    } else {
+                                        $result.css('color', '#c62828').text((response.data && response.data.message) || i18n.failed_to_clear);
+                                    }
+                                })
+                                .catch(function() {
+                                    $result.css('color', '#c62828').text(wcMssAdmin.i18n.request_failed);
+                                })
+                                .finally(function() {
+                                    $btn.prop('disabled', false);
+                                });
+                        });
+                    }
+                }
+
+                // Force Full Sync by SKU
+                $('#wc-mss-force-sync-btn').on('click', function() {
+                    var raw = $('#wc-mss-test-sku').val().trim();
+                    if (!raw) {
+                        $('#wc-mss-force-sync-result')
+                            .show()
+                            .html('<div class="notice notice-warning inline" style="margin:0;"><p>' + i18n.please_enter_sku + '</p></div>');
+                        return;
+                    }
+
+                    var skus = raw.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+
+                    var $btn = $(this);
+                    $btn.prop('disabled', true).text(i18n.queuing);
+                    $('#wc-mss-force-sync-result').hide();
+
+                    var params = new URLSearchParams();
+                    params.append('action', 'wc_mss_force_sync_by_sku');
+                    skus.forEach(function (sku) { params.append('skus[]', sku); });
+                    params.append('nonce', wcMssAdmin.nonce);
+
+                    fetch(wcMssAdmin.ajax_url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params,
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function(response) {
+                            var html;
+                            if (response.success) {
+                                var lines = response.data.results.map(function(r) {
+                                    if (r.success) {
+                                        return '<li style="color:#2e7d32;">&#10003; ' + r.message + '</li>';
+                                    } else {
+                                        return '<li style="color:#c62828;">&#10007; ' + r.message + '</li>';
+                                    }
+                                }).join('');
+                                html = '<div class="notice notice-success inline" style="margin:0;"><p><strong>' + response.data.message + '</strong></p>'
+                                     + '<ul style="margin:6px 0 4px 16px;">' + lines + '</ul>'
+                                     + '<p style="margin:4px 0 0;color:#666;font-size:12px;">' + i18n.refresh_to_see_logs + '</p></div>';
+                            } else {
+                                html = '<div class="notice notice-error inline" style="margin:0;"><p>' + ((response.data && response.data.message) || i18n.an_error_occurred) + '</p></div>';
+                            }
+                            $('#wc-mss-force-sync-result').html(html).show();
+                        })
+                        .catch(function() {
+                            $('#wc-mss-force-sync-result')
+                                .html('<div class="notice notice-error inline" style="margin:0;"><p>' + wcMssAdmin.i18n.request_failed + '</p></div>')
+                                .show();
+                        })
+                        .finally(function() {
+                            $btn.prop('disabled', false).text(i18n.force_full_sync);
+                        });
+                });
+
+                $('#wc-mss-test-sku').on('keypress', function(e) {
+                    if (e.which === 13) {
+                        $('#wc-mss-force-sync-btn').trigger('click');
+                    }
+                });
+
+                // Force Full Sync by Category
+                $('#wc-mss-force-sync-category-btn').on('click', function() {
+                    var categoryId = $('#wc-mss-category-select').val();
+                    if (!categoryId) {
+                        $('#wc-mss-force-sync-category-result')
+                            .show()
+                            .html('<div class="notice notice-warning inline" style="margin:0;"><p>' + i18n.please_select_category + '</p></div>');
+                        return;
+                    }
+
+                    var $btn = $(this);
+                    $btn.prop('disabled', true).text(i18n.queuing);
+                    $('#wc-mss-force-sync-category-result').hide();
+
+                    fetch(wcMssAdmin.ajax_url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action:      'wc_mss_force_sync_by_category',
+                            category_id: categoryId,
+                            nonce:       wcMssAdmin.nonce
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function(response) {
+                            var html;
+                            if (response.success) {
+                                html = '<div class="notice notice-success inline" style="margin:0;">'
+                                     + '<p>' + response.data.message + '</p>'
+                                     + '<p style="margin:4px 0 0;color:#666;font-size:12px;">' + i18n.refresh_to_see_logs + '</p>'
+                                     + '</div>';
+                            } else {
+                                html = '<div class="notice notice-error inline" style="margin:0;"><p>' + ((response.data && response.data.message) || i18n.an_error_occurred) + '</p></div>';
+                            }
+                            $('#wc-mss-force-sync-category-result').html(html).show();
+                        })
+                        .catch(function() {
+                            $('#wc-mss-force-sync-category-result')
+                                .html('<div class="notice notice-error inline" style="margin:0;"><p>' + wcMssAdmin.i18n.request_failed + '</p></div>')
+                                .show();
+                        })
+                        .finally(function() {
+                            $btn.prop('disabled', false).text(i18n.force_full_sync);
+                        });
+                });
+            });
+        }
+
+        /**
          * Log Viewer
          */
         var logViewer = document.getElementById('wc-mss-log-viewer');
