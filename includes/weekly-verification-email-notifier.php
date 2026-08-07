@@ -20,7 +20,7 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
      * @return bool Success
      */
     public static function send_email_notification(array $report): bool {
-        $settings = WC_Multi_Store_Weekly_Sync_Verifier::get_settings();
+        $settings = WC_Multi_Store_Weekly_Verification_Scheduler::get_settings();
 
         if (empty($settings['email_recipients'])) {
             return false;

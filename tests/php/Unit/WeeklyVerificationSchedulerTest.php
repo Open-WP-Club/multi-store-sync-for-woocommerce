@@ -1,14 +1,13 @@
 <?php
 /**
- * Extended unit tests for WC_Multi_Store_Weekly_Sync_Verifier
- * Tests run_verification happy path, verify_product, get_products_to_verify,
- * scheduling, get_report, and async batch methods
+ * Unit tests for WC_Multi_Store_Weekly_Verification_Scheduler
+ * Tests settings, run_verification, scheduling, and async batch entry points
  */
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 
-class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
+class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
 {
     protected function setUp(): void
     {
@@ -18,8 +17,8 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
         if (!class_exists('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher', false)) {
             require_once dirname(__DIR__, 3) . '/includes/weekly-verification-remote-data-fetcher.php';
         }
-        if (!class_exists('WC_Multi_Store_Weekly_Sync_Verifier', false)) {
-            require_once dirname(__DIR__, 3) . '/includes/weekly-sync-verifier.php';
+        if (!class_exists('WC_Multi_Store_Weekly_Verification_Scheduler', false)) {
+            require_once dirname(__DIR__, 3) . '/includes/weekly-verification-scheduler.php';
         }
 
         // Reset static API client pool and prefetch batch cache between tests
@@ -77,7 +76,114 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
         Functions\when('get_post_meta')->justReturn('');
     }
 
-    // ── run_verification: stale lock ─────────────────────────────
+    // ── get_settings ─────────────────────────────────────────────
+
+    public function test_get_settings_returns_defaults(): void
+    {
+        $settings = WC_Multi_Store_Weekly_Verification_Scheduler::get_settings();
+
+        $this->assertArrayHasKey('enabled', $settings);
+        $this->assertArrayHasKey('schedule', $settings);
+        $this->assertArrayHasKey('check_stock', $settings);
+        $this->assertArrayHasKey('check_prices', $settings);
+        $this->assertArrayHasKey('check_categories', $settings);
+        $this->assertEquals('weekly', $settings['schedule']);
+        $this->assertTrue($settings['check_stock']);
+        $this->assertTrue($settings['check_prices']);
+    }
+
+    public function test_get_settings_enabled_from_option(): void
+    {
+        $settings = WC_Multi_Store_Weekly_Verification_Scheduler::get_settings();
+        $this->assertTrue($settings['enabled']);
+    }
+
+    public function test_get_settings_check_categories_derived_from_sync_type(): void
+    {
+        // sync_type_default is 'full_product' → check_categories should be true
+        $settings = WC_Multi_Store_Weekly_Verification_Scheduler::get_settings();
+        $this->assertTrue($settings['check_categories']);
+    }
+
+    public function test_get_settings_day_of_week_default(): void
+    {
+        $settings = WC_Multi_Store_Weekly_Verification_Scheduler::get_settings();
+        $this->assertEquals(1, $settings['day_of_week']); // Monday
+    }
+
+    // ── update_settings ──────────────────────────────────────────
+
+    public function test_update_settings_calls_update_option(): void
+    {
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::update_settings(['enabled' => false]);
+        $this->assertTrue($result);
+    }
+
+    // ── constants ────────────────────────────────────────────────
+
+    public function test_verification_lock_constant(): void
+    {
+        $this->assertEquals(
+            'wc_mss_verification_running',
+            WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK
+        );
+    }
+
+    // ── run_verification ─────────────────────────────────────────
+
+    public function test_run_verification_disabled_returns_error(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_weekly_verification') {
+                return ['enabled' => false];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['sync_type_default' => 'full_product'];
+            }
+            return $default;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
+        $this->assertArrayHasKey('error', $result);
+        $this->assertEquals('Verification disabled', $result['error']);
+    }
+
+    public function test_run_verification_already_running_returns_error(): void
+    {
+        // Simulate fresh lock (not stale)
+        Functions\when('get_transient')->alias(function ($key) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK) {
+                return time(); // Current timestamp = active lock
+            }
+            return false;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
+        $this->assertArrayHasKey('error', $result);
+        $this->assertEquals('Verification already running', $result['error']);
+    }
+
+    public function test_run_verification_no_active_stores(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_weekly_verification') {
+                return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['sync_type_default' => 'full_product'];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return [];
+            }
+            return $default;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
+        $this->assertArrayHasKey('error', $result);
+        $this->assertEquals('No active stores', $result['error']);
+    }
 
     public function test_run_verification_clears_stale_lock(): void
     {
@@ -86,7 +192,7 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
         // Lock was set 2 hours ago → stale
         $stale_time = time() - (2 * HOUR_IN_SECONDS);
         Functions\when('get_transient')->alias(function ($key) use ($stale_time) {
-            if ($key === WC_Multi_Store_Weekly_Sync_Verifier::VERIFICATION_LOCK) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK) {
                 return $stale_time;
             }
             return false;
@@ -106,13 +212,11 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
             return $default;
         });
 
-        $result = WC_Multi_Store_Weekly_Sync_Verifier::run_verification();
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
 
         // Should have cleared the stale lock and proceeded to 'No active stores'
         $this->assertEquals('No active stores', $result['error']);
     }
-
-    // ── run_verification: no products ────────────────────────────
 
     public function test_run_verification_no_products(): void
     {
@@ -122,7 +226,7 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
             return (object) ['publish' => 0];
         });
 
-        $result = WC_Multi_Store_Weekly_Sync_Verifier::run_verification();
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
 
         $this->assertEquals('No products to verify', $result['error']);
     }
@@ -133,8 +237,8 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
     // "no products" early return, so the array_chunk() batch-prefetch loop
     // (which references WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::
     // REMOTE_BATCH_FETCH_SIZE) was never exercised — a prior refactor left a
-    // stale `self::REMOTE_BATCH_FETCH_SIZE` reference there that fatal-errored
-    // on this exact path (undefined constant on the facade class).
+    // stale `self::REMOTE_BATCH_FETCH_SIZE`/`self::$batch_cache` reference on
+    // the facade class that fatal-errored on this exact path.
 
     public function test_run_verification_happy_path_completes(): void
     {
@@ -162,28 +266,13 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
         $pool = $ref->getProperty('api_client_pool');
         $pool->setValue(null, ['https://store1.com' => $api_client_mock]);
 
-        $result = WC_Multi_Store_Weekly_Sync_Verifier::run_verification();
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
 
         WP_Query::$resultsQueue = null;
 
         $this->assertSame('completed', $result['status']);
         $this->assertSame(0, $result['discrepancies_found']);
     }
-
-    // verify_product (incl. "happy path", stock/price/missing-product detection,
-    // edge cases) and check_full_product_fields/compare_* moved to
-    // WeeklyVerificationComparatorTest.php along with
-    // WC_Multi_Store_Weekly_Verification_Comparator.
-
-    // get_report / get_latest_report(-with-data) moved to
-    // WeeklyVerificationReportRepositoryTest.php along with
-    // WC_Multi_Store_Weekly_Verification_Report_Repository.
-
-    // build_exclusion_tax_query / get_products_to_verify / scan_ghost_products /
-    // build_remote_index / load_search_values_for_products /
-    // prefetch_remote_batch_data / get_remote_product moved to
-    // WeeklyVerificationRemoteDataFetcherTest.php along with
-    // WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher.
 
     // ── schedule_verification / unschedule_verification ──────────
 
@@ -196,7 +285,7 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
             return 1;
         });
 
-        WC_Multi_Store_Weekly_Sync_Verifier::schedule_verification();
+        WC_Multi_Store_Weekly_Verification_Scheduler::schedule_verification();
 
         $this->assertTrue($called, 'as_schedule_recurring_action should have been called');
     }
@@ -209,19 +298,16 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
             return 0;
         });
 
-        WC_Multi_Store_Weekly_Sync_Verifier::unschedule_verification();
+        WC_Multi_Store_Weekly_Verification_Scheduler::unschedule_verification();
 
         $this->assertTrue($called, 'as_unschedule_all_actions should have been called');
     }
-
-    // format_discrepancy_message moved to WeeklyVerificationEmailNotifierTest.php
-    // along with WC_Multi_Store_Weekly_Verification_Email_Notifier.
 
     // ── calculate_next_run_time ─────────────────────────────────
 
     private function callCalculateNextRunTime(array $settings): int
     {
-        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Sync_Verifier::class, 'calculate_next_run_time');
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Scheduler::class, 'calculate_next_run_time');
         return $method->invoke(null, $settings);
     }
 
