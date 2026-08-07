@@ -306,36 +306,43 @@ jQuery(function ($) {
             bar.css('width', pct + '%');
             label.text('<?php echo esc_js(__('Scanning:', 'wc-multi-store-sync')); ?> ' + store.name + ' (' + (index + 1) + '/' + storesToScan.length + ')');
 
-            $.post(ajaxurl, {
-                action:    'wc_mss_scan_categories',
-                nonce:     nonce,
-                store_url: store.url,
-            }, function (resp) {
-                if (resp.success && resp.data.count > 0) {
-                    allMismatches.push(resp.data);
-                }
-                if (!resp.success) {
+            fetch(ajaxurl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action:    'wc_mss_scan_categories',
+                    nonce:     nonce,
+                    store_url: store.url,
+                }),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (resp) {
+                    if (resp.success && resp.data.count > 0) {
+                        allMismatches.push(resp.data);
+                    }
+                    if (!resp.success) {
+                        allMismatches.push({
+                            store_name: store.name,
+                            store_url:  store.url,
+                            error:      resp.data.message || '<?php echo esc_js(__('Unknown error', 'wc-multi-store-sync')); ?>',
+                            items:      [],
+                            count:      0,
+                        });
+                    }
+                    index++;
+                    scanNext();
+                })
+                .catch(function () {
                     allMismatches.push({
                         store_name: store.name,
                         store_url:  store.url,
-                        error:      resp.data.message || '<?php echo esc_js(__('Unknown error', 'wc-multi-store-sync')); ?>',
+                        error:      '<?php echo esc_js(__('Request failed.', 'wc-multi-store-sync')); ?>',
                         items:      [],
                         count:      0,
                     });
-                }
-                index++;
-                scanNext();
-            }).fail(function () {
-                allMismatches.push({
-                    store_name: store.name,
-                    store_url:  store.url,
-                    error:      '<?php echo esc_js(__('Request failed.', 'wc-multi-store-sync')); ?>',
-                    items:      [],
-                    count:      0,
+                    index++;
+                    scanNext();
                 });
-                index++;
-                scanNext();
-            });
         }
 
         scanNext();
@@ -389,13 +396,19 @@ jQuery(function ($) {
             var b   = $(this);
             var pid = b.data('product-id');
             b.prop('disabled', true).text('<?php echo esc_js(__('Queuing…', 'wc-multi-store-sync')); ?>');
-            $.post(ajaxurl, {
-                action:     'wc_mss_force_sync_product',
-                nonce:      resyncNonce,
-                product_id: pid,
-            }, function (r) {
-                b.text(r.success ? '<?php echo esc_js(__('Queued ✓', 'wc-multi-store-sync')); ?>' : '<?php echo esc_js(__('Failed', 'wc-multi-store-sync')); ?>');
-            });
+            fetch(ajaxurl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action:     'wc_mss_force_sync_product',
+                    nonce:      resyncNonce,
+                    product_id: pid,
+                }),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (r) {
+                    b.text(r.success ? '<?php echo esc_js(__('Queued ✓', 'wc-multi-store-sync')); ?>' : '<?php echo esc_js(__('Failed', 'wc-multi-store-sync')); ?>');
+                });
         });
     }
 });
