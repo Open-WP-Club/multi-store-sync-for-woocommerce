@@ -785,7 +785,8 @@ if (!defined('ABSPATH')) {
                                    <?php checked(!empty($category_mapper_settings['enabled'])); ?>>
                             <?php _e('Enable per-store category/tag mapping', 'wc-multi-store-sync'); ?>
                         </label>
-                        <p class="description"><?php _e('Map local categories to different remote categories per store (e.g., "Дрехи" → "Clothing"). Configure mappings in each store\'s settings.', 'wc-multi-store-sync'); ?></p>
+                        <p class="description"><?php _e('Map local categories to different remote categories per store (e.g., "Дрехи" → "Clothing").', 'wc-multi-store-sync'); ?></p>
+                        <p class="description" style="color: #996800;"><?php _e('Note: there is currently no admin screen to enter mappings — enabling this alone has no effect until mapping data is set.', 'wc-multi-store-sync'); ?></p>
                     </td>
                 </tr>
 
@@ -801,6 +802,7 @@ if (!defined('ABSPATH')) {
                             <?php _e('Enable per-store attribute name/value remapping', 'wc-multi-store-sync'); ?>
                         </label>
                         <p class="description"><?php _e('Remap attribute names and values per store (e.g., "Цвят" → "Color", "Червен" → "Red"). Useful for multilingual stores.', 'wc-multi-store-sync'); ?></p>
+                        <p class="description" style="color: #996800;"><?php _e('Note: there is currently no admin screen to enter mappings — enabling this alone has no effect until mapping data is set.', 'wc-multi-store-sync'); ?></p>
                     </td>
                 </tr>
 
