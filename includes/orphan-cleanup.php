@@ -12,6 +12,8 @@ if (!defined('ABSPATH')) {
 
 class WC_Multi_Store_Orphan_Cleanup {
 
+    use WC_Multi_Store_Email_Shell;
+
     const string BACKGROUND_HOOK   = 'wc_mss_orphan_scan_background';
     const string STATUS_OPTION     = 'wc_mss_orphan_scan_status';
     const string RESULTS_OPTION    = 'wc_mss_orphan_scan_results';
@@ -394,26 +396,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             . __('View Results &amp; Clean Up', 'wc-multi-store-sync')
             . '</a></p>';
 
-        $footer_date = current_time('mysql');
-        $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync');
-
-        $body = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head>'
-            . '<body style="margin:0;padding:0;background:#f0f0f1;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">'
-            . '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f0f1;">'
-            . '<tr><td align="center" style="padding:32px 16px;">'
-            . '<table cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">'
-            . '<tr><td style="background:' . $accent . ';padding:28px 32px;">'
-            . '<p style="margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.75);">' . esc_html($badge) . '</p>'
-            . '<h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">' . esc_html($title) . '</h1>'
-            . '</td></tr>'
-            . '<tr><td style="padding:32px;">' . $lead . $table . $button . '</td></tr>'
-            . '<tr><td style="background:#f6f7f7;border-top:1px solid #dcdcde;padding:16px 32px;">'
-            . '<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            . '<td style="font-size:12px;color:#646970;">From <strong style="color:#1d2327;">' . esc_html($site) . '</strong>'
-            . ' &nbsp;&middot;&nbsp; <a href="' . esc_url($settings_url) . '" style="color:#0070a7;text-decoration:none;">Settings</a></td>'
-            . '<td align="right" style="font-size:11px;color:#a7aaad;">' . esc_html($footer_date) . '</td>'
-            . '</tr></table></td></tr>'
-            . '</table></td></tr></table></body></html>';
+        $body = $this->wrap_email($title, $badge, $accent, $lead . $table . $button);
 
         $subject = sprintf(
             __('[%s] Orphan Scan Complete — %d orphan(s) found', 'wc-multi-store-sync'),

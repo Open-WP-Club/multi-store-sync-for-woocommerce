@@ -17,6 +17,8 @@ if (!defined('ABSPATH')) {
  */
 class WC_Multi_Store_Email_Notifications {
 
+    use WC_Multi_Store_Email_Shell;
+
     /**
      * Per-notification-type rate limit — matches the pattern used by
      * circuit-breaker.php's DEFAULT_THRESHOLD/DEFAULT_OPEN_DURATION and
@@ -368,49 +370,6 @@ class WC_Multi_Store_Email_Notifications {
     }
 
     /**
-     * Build the full HTML email shell around body content.
-     *
-     * @param string $title       Main heading shown in the header band
-     * @param string $accent      Background colour of the header band (hex)
-     * @param string $badge       Small uppercase label above the heading
-     * @param string $body        Pre-built HTML for the content area
-     */
-    private function email_layout(string $title, string $accent, string $badge, string $body): string {
-        $site        = esc_html(get_bloginfo('name'));
-        $settings_url = function_exists('admin_url')
-            ? admin_url('admin.php?page=wc-settings&tab=multi_store_sync')
-            : '#';
-        $footer_date = function_exists('current_time') ? current_time('mysql') : date('Y-m-d H:i:s');
-
-        $shell_open = '<!DOCTYPE html><html lang="en"><head>'
-            . '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            . '<title>' . esc_html($title) . '</title></head>'
-            . '<body style="margin:0;padding:0;background:#f0f0f1;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">'
-            . '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f0f1;">'
-            . '<tr><td align="center" style="padding:32px 16px;">'
-            . '<table cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">';
-
-        $header = '<tr><td style="background:' . esc_attr($accent) . ';padding:28px 32px;">'
-            . '<p style="margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.75);">' . esc_html($badge) . '</p>'
-            . '<h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">' . esc_html($title) . '</h1>'
-            . '</td></tr>';
-
-        $body_row = '<tr><td style="padding:32px;">' . $body . '</td></tr>';
-
-        $footer = '<tr><td style="background:#f6f7f7;border-top:1px solid #dcdcde;padding:16px 32px;">'
-            . '<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            . '<td style="font-size:12px;color:#646970;">From <strong style="color:#1d2327;">' . $site . '</strong>'
-            . ' &nbsp;&middot;&nbsp; <a href="' . esc_url($settings_url) . '" style="color:#0070a7;text-decoration:none;">Email Settings</a></td>'
-            . '<td align="right" style="font-size:11px;color:#a7aaad;">' . esc_html($footer_date) . '</td>'
-            . '</tr></table>'
-            . '</td></tr>';
-
-        $shell_close = '</table></td></tr></table></body></html>';
-
-        return $shell_open . $header . $body_row . $footer . $shell_close;
-    }
-
-    /**
      * Build one labelled data row for detail tables inside emails.
      *
      * @param string $label       Left-column label
@@ -480,10 +439,10 @@ class WC_Multi_Store_Email_Notifications {
             $buttons .= '</p>';
         }
 
-        return $this->email_layout(
+        return $this->wrap_email(
             __('Product Sync Failed', 'wc-multi-store-sync'),
-            '#b32d2e',
             __('Sync Alert', 'wc-multi-store-sync'),
+            '#b32d2e',
             $lead . $table . $buttons
         );
     }
@@ -516,10 +475,10 @@ class WC_Multi_Store_Email_Notifications {
             $buttons = '<p style="margin:0;">' . $this->action_button($data['settings_url'], __('Store Settings', 'wc-multi-store-sync'), '#2271b1') . '</p>';
         }
 
-        return $this->email_layout(
+        return $this->wrap_email(
             __('API Error Alert', 'wc-multi-store-sync'),
-            '#9a5001',
             __('Connectivity Alert', 'wc-multi-store-sync'),
+            '#9a5001',
             $lead . $table . $tip . $buttons
         );
     }
@@ -563,10 +522,10 @@ class WC_Multi_Store_Email_Notifications {
             $buttons = '<p style="margin:0;">' . $this->action_button($data['edit_url'], __('Edit Product / Restock', 'wc-multi-store-sync'), '#d97706') . '</p>';
         }
 
-        return $this->email_layout(
+        return $this->wrap_email(
             __('Low Stock Alert', 'wc-multi-store-sync'),
-            '#d97706',
             __('Inventory Alert', 'wc-multi-store-sync'),
+            '#d97706',
             $lead . $table . $buttons
         );
     }
@@ -659,10 +618,10 @@ class WC_Multi_Store_Email_Notifications {
             $buttons = '<p style="margin:0;">' . $this->action_button($data['dashboard_url'], __('Open Dashboard', 'wc-multi-store-sync'), '#0070a7') . '</p>';
         }
 
-        return $this->email_layout(
+        return $this->wrap_email(
             sprintf(__('Daily Sync Summary — %s', 'wc-multi-store-sync'), $data['date']),
-            '#0070a7',
             __('Daily Report', 'wc-multi-store-sync'),
+            '#0070a7',
             $stats_row . $details . $store_section . $buttons
         );
     }

@@ -235,6 +235,13 @@ abstract class WC_Multi_Store_TestCase extends \PHPUnit\Framework\TestCase
         // Default stub — returns empty array. Tests that verify category/tag exclusion
         // override this per-test via Brain Monkey's Functions\when('wp_get_post_terms').
         Monkey\Functions\when('wp_get_post_terms')->justReturn([]);
+
+        // Default WC() stub — used by WC_Multi_Store_Email_Shell::wrap_email() to reach
+        // WC()->mailer()->wrap_message(). Deterministic output so tests can assert on
+        // heading/content passthrough without depending on WooCommerce's real templates.
+        // Tests that need different behaviour override this per-test via
+        // Brain Monkey's Functions\when('WC').
+        Monkey\Functions\when('WC')->justReturn(new WC_Multi_Store_Test_Mailer_Container());
     }
 }
 
@@ -387,6 +394,7 @@ require_once $plugin_root . '/includes/api-usage-tracker.php';
 require_once $plugin_root . '/includes/image-proxy.php';
 require_once $plugin_root . '/includes/action-scheduler-manager.php';
 require_once $plugin_root . '/includes/deletion-audit.php';
+require_once $plugin_root . '/includes/email-shell-trait.php';
 require_once $plugin_root . '/includes/email-notifications.php';
 require_once $plugin_root . '/includes/category-deletion-sync.php';
 require_once $plugin_root . '/includes/remote-order-sync.php';
@@ -538,6 +546,27 @@ if (!class_exists('WP_List_Table')) {
         public function views(): void {}
         protected function extra_tablenav(string $which): void {}
         public function no_items(): void {}
+    }
+}
+
+/**
+ * Mock WooCommerce mailer used by WC_Multi_Store_Email_Shell::wrap_email().
+ * wrap_message() deterministically stitches heading + content so tests can
+ * assert on passthrough without depending on WooCommerce's real email templates.
+ */
+if (!class_exists('WC_Multi_Store_Test_Mailer')) {
+    class WC_Multi_Store_Test_Mailer {
+        public function wrap_message(string $heading, string $content): string {
+            return '<html><body><h1>' . $heading . '</h1>' . $content . '</body></html>';
+        }
+    }
+}
+
+if (!class_exists('WC_Multi_Store_Test_Mailer_Container')) {
+    class WC_Multi_Store_Test_Mailer_Container {
+        public function mailer(): WC_Multi_Store_Test_Mailer {
+            return new WC_Multi_Store_Test_Mailer();
+        }
     }
 }
 

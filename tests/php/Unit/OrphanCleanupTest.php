@@ -930,7 +930,10 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $this->assertEquals('owner@example.com', $mail_args['to']);
         $this->assertStringContainsString('Orphan Scan Complete', $mail_args['subject']);
         $this->assertStringContainsString('3', $mail_args['subject']);
-        $this->assertStringContainsString('<!DOCTYPE html>', $mail_args['body']);
+        // WC_Multi_Store_Test_Mailer::wrap_message() (tests/php/bootstrap.php) wraps
+        // heading + content deterministically, standing in for WooCommerce's real
+        // email header/footer templates.
+        $this->assertStringContainsString('<html><body><h1>Found 3 Orphan Product(s)</h1>', $mail_args['body']);
         $this->assertStringContainsString('Store 1', $mail_args['body']);
         $this->assertContains('Content-Type: text/html; charset=UTF-8', $mail_args['headers']);
     }

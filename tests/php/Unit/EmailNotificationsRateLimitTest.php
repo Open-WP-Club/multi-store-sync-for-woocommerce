@@ -5,7 +5,7 @@
  * Covers:
  * - claim_daily_slot: blocks each notification type when transient is set
  * - claim_daily_slot: sets transient with correct key/TTL on first call
- * - email_layout, data_row, action_button helper methods
+ * - wrap_email, data_row, action_button helper methods
  * - Low-stock template: threshold=0 and out-of-stock label
  * - Daily-summary health status badge logic
  * - Failed-sync template button rendering
@@ -182,39 +182,30 @@ class EmailNotificationsRateLimitTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('low_stock', $transient_key_set);
     }
 
-    // ── email_layout helper ──────────────────────────────────────────
+    // ── wrap_email helper ─────────────────────────────────────────────
 
-    public function test_email_layout_produces_valid_html_structure(): void
+    public function test_wrap_email_delegates_to_wc_mailer(): void
     {
         $notifier = new WC_Multi_Store_Email_Notifications();
-        $method = new ReflectionMethod($notifier, 'email_layout');
+        $method = new ReflectionMethod($notifier, 'wrap_email');
 
-        $html = $method->invoke($notifier, 'Test Title', '#ff0000', 'BADGE', '<p>Body</p>');
+        $html = $method->invoke($notifier, 'Test Title', 'BADGE', '#ff0000', '<p>Body</p>');
 
-        $this->assertStringContainsString('<!DOCTYPE html>', $html);
-        $this->assertStringContainsString('Test Title', $html);
+        // WC_Multi_Store_Test_Mailer::wrap_message() (tests/php/bootstrap.php)
+        // wraps heading + content in this deterministic marker so we can assert
+        // delegation happened without depending on WooCommerce's real templates.
+        $this->assertStringContainsString('<html><body><h1>Test Title</h1>', $html);
         $this->assertStringContainsString('BADGE', $html);
         $this->assertStringContainsString('<p>Body</p>', $html);
-        $this->assertStringContainsString('</html>', $html);
+        $this->assertStringContainsString('</body></html>', $html);
     }
 
-    public function test_email_layout_includes_footer_with_site_name(): void
+    public function test_wrap_email_uses_badge_color(): void
     {
         $notifier = new WC_Multi_Store_Email_Notifications();
-        $method = new ReflectionMethod($notifier, 'email_layout');
+        $method = new ReflectionMethod($notifier, 'wrap_email');
 
-        $html = $method->invoke($notifier, 'Title', '#000', 'Badge', 'Content');
-
-        $this->assertStringContainsString('Test Store', $html);
-        $this->assertStringContainsString('Email Settings', $html);
-    }
-
-    public function test_email_layout_uses_accent_color_in_header(): void
-    {
-        $notifier = new WC_Multi_Store_Email_Notifications();
-        $method = new ReflectionMethod($notifier, 'email_layout');
-
-        $html = $method->invoke($notifier, 'Title', '#b32d2e', 'Badge', 'Content');
+        $html = $method->invoke($notifier, 'Title', 'Badge', '#b32d2e', 'Content');
 
         $this->assertStringContainsString('#b32d2e', $html);
     }
