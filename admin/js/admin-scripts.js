@@ -1215,6 +1215,159 @@
         }
 
         /**
+         * Sync Profiles Page
+         */
+        if (document.querySelector('.wc-mss-sync-profiles') && typeof jQuery !== 'undefined' && typeof wcMssSyncProfilesData !== 'undefined') {
+            (function($) {
+                var i18n = wcMssSyncProfilesData.i18n;
+
+                function showNotice(message, type) {
+                    type = type || 'success';
+                    var cls = type === 'error' ? 'notice-error' : 'notice-success';
+                    $('#wc-mss-profiles-notices').html(
+                        '<div class="notice ' + cls + ' is-dismissible"><p>' + $('<span>').text(message).html() + '</p></div>'
+                    );
+                    $('html, body').animate({ scrollTop: 0 }, 200);
+                }
+
+                // Save current settings as profile
+                $('#wc-mss-save-profile-btn').on('click', function() {
+                    var name = $('#wc-mss-profile-name').val().trim();
+                    if (!name) {
+                        showNotice(i18n.enter_name, 'error');
+                        return;
+                    }
+
+                    var $btn = $(this).prop('disabled', true).text(i18n.saving);
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'wc_mss_profile_save',
+                            nonce: wcMssAdmin.nonce,
+                            name: name,
+                            description: $('#wc-mss-profile-description').val()
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            if (response.success) {
+                                showNotice(response.data.message);
+                                setTimeout(function() { location.reload(); }, 1000);
+                            } else {
+                                showNotice(response.data.message || i18n.error_saving, 'error');
+                                $btn.prop('disabled', false).text(i18n.save_profile);
+                            }
+                        });
+                });
+
+                // Apply preset
+                $(document).on('click', '.wc-mss-apply-preset', function() {
+                    var presetKey = $(this).data('preset');
+                    var presetName = $(this).data('name');
+
+                    if (!confirm(i18n.confirm_apply_preset.replace('%s', presetName))) {
+                        return;
+                    }
+
+                    var $btn = $(this).prop('disabled', true);
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'wc_mss_profile_apply',
+                            nonce: wcMssAdmin.nonce,
+                            preset_key: presetKey
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            if (response.success) {
+                                showNotice(response.data.message);
+                            } else {
+                                showNotice(response.data.message || i18n.error_applying_preset, 'error');
+                            }
+                            $btn.prop('disabled', false);
+                        });
+                });
+
+                // Apply saved profile
+                $(document).on('click', '.wc-mss-apply-profile', function() {
+                    var profileId = $(this).data('id');
+                    var profileName = $(this).data('name');
+
+                    if (!confirm(i18n.confirm_apply_profile.replace('%s', profileName))) {
+                        return;
+                    }
+
+                    var $btn = $(this).prop('disabled', true);
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'wc_mss_profile_apply',
+                            nonce: wcMssAdmin.nonce,
+                            profile_id: profileId
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            if (response.success) {
+                                showNotice(response.data.message);
+                            } else {
+                                showNotice(response.data.message || i18n.error_applying_profile, 'error');
+                            }
+                            $btn.prop('disabled', false);
+                        });
+                });
+
+                // Export profile
+                $(document).on('click', '.wc-mss-export-profile', function() {
+                    var profileId = $(this).data('id');
+                    // Trigger a download via a hidden form (avoids pop-up blockers)
+                    var url = ajaxurl + '?action=wc_mss_export_config&nonce=' + wcMssAdmin.nonce + '&profile_id=' + encodeURIComponent(profileId);
+                    window.location.href = url;
+                });
+
+                // Delete profile
+                $(document).on('click', '.wc-mss-delete-profile', function() {
+                    var profileId = $(this).data('id');
+                    var profileName = $(this).data('name');
+
+                    if (!confirm(i18n.confirm_delete_profile.replace('%s', profileName))) {
+                        return;
+                    }
+
+                    var $row = $('#wc-mss-profile-row-' + profileId);
+                    var $btn = $(this).prop('disabled', true);
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'wc_mss_profile_delete',
+                            nonce: wcMssAdmin.nonce,
+                            profile_id: profileId
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            if (response.success) {
+                                $row.fadeOut(300, function() { $(this).remove(); });
+                                showNotice(response.data.message);
+                            } else {
+                                showNotice(response.data.message || i18n.error_deleting_profile, 'error');
+                                $btn.prop('disabled', false);
+                            }
+                        });
+                });
+            })(jQuery);
+        }
+
+        /**
          * Log Viewer
          */
         var logViewer = document.getElementById('wc-mss-log-viewer');

@@ -884,6 +884,24 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 'tagProducts' => $tag_counts,
             ]);
         }
+
+        // Strings for the sync-profiles page
+        if ($section === 'sync-profiles') {
+            wp_localize_script('wc-mss-admin', 'wcMssSyncProfilesData', [
+                'i18n' => [
+                    'enter_name' => __('Please enter a profile name.', 'wc-multi-store-sync'),
+                    'saving' => __('Saving…', 'wc-multi-store-sync'),
+                    'save_profile' => __('Save Profile', 'wc-multi-store-sync'),
+                    'error_saving' => __('Error saving profile.', 'wc-multi-store-sync'),
+                    'confirm_apply_preset' => __('Apply preset "%s"? This will overwrite your current settings.', 'wc-multi-store-sync'),
+                    'error_applying_preset' => __('Error applying preset.', 'wc-multi-store-sync'),
+                    'confirm_apply_profile' => __('Apply profile "%s"? This will overwrite your current settings.', 'wc-multi-store-sync'),
+                    'error_applying_profile' => __('Error applying profile.', 'wc-multi-store-sync'),
+                    'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'wc-multi-store-sync'),
+                    'error_deleting_profile' => __('Error deleting profile.', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
     }
 
     /**
