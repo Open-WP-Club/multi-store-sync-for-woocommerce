@@ -96,10 +96,10 @@ class WC_Multi_Store_Weekly_Sync_Verifier {
         // didn't resolve (a store that failed to stream, a mid-chunk API
         // error), so a partial prefetch failure degrades to the old
         // (correct, just slower) behavior rather than skewing results.
-        self::$batch_cache = [];
+        WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::reset_batch_cache();
         $match_by = WC_Multi_Store_Settings::get_settings()['match_products_by'] ?? 'sku';
         $remote_index = WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::build_remote_index($active_stores, $match_by);
-        foreach (array_chunk($products, self::REMOTE_BATCH_FETCH_SIZE) as $chunk) {
+        foreach (array_chunk($products, WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::REMOTE_BATCH_FETCH_SIZE) as $chunk) {
             WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::prefetch_remote_batch_data($chunk, $active_stores, $remote_index, $match_by);
         }
 

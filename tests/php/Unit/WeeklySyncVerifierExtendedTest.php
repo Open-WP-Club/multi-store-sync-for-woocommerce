@@ -127,6 +127,49 @@ class WeeklySyncVerifierExtendedTest extends WC_Multi_Store_TestCase
         $this->assertEquals('No products to verify', $result['error']);
     }
 
+    // ── run_verification: happy path (products found) ────────────
+    //
+    // Regression guard: no other test drives run_verification() past the
+    // "no products" early return, so the array_chunk() batch-prefetch loop
+    // (which references WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::
+    // REMOTE_BATCH_FETCH_SIZE) was never exercised — a prior refactor left a
+    // stale `self::REMOTE_BATCH_FETCH_SIZE` reference there that fatal-errored
+    // on this exact path (undefined constant on the facade class).
+
+    public function test_run_verification_happy_path_completes(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        WP_Query::$resultsQueue = [[123]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 1]);
+        Functions\when('wc_get_product')->justReturn(false);
+
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('get_col')->andReturn([]);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($query, ...$args) => $query);
+        $wpdb->shouldReceive('insert')->andReturn(1);
+
+        $api_client_mock = \Mockery::mock('WC_Multi_Store_API_Client');
+        $api_client_mock->shouldReceive('stream_products')
+            ->andReturn(new WP_Error('http_error', 'timeout'));
+
+        $ref = new ReflectionClass(WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::class);
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $api_client_mock]);
+
+        $result = WC_Multi_Store_Weekly_Sync_Verifier::run_verification();
+
+        WP_Query::$resultsQueue = null;
+
+        $this->assertSame('completed', $result['status']);
+        $this->assertSame(0, $result['discrepancies_found']);
+    }
+
     // verify_product (incl. "happy path", stock/price/missing-product detection,
     // edge cases) and check_full_product_fields/compare_* moved to
     // WeeklyVerificationComparatorTest.php along with

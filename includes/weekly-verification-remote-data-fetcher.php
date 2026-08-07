@@ -84,6 +84,15 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
     }
 
     /**
+     * Reset just the per-run prefetch cache (called at the start of a
+     * verification run) without discarding the pooled API clients, which
+     * are meant to be reused across calls.
+     */
+    public static function reset_batch_cache(): void {
+        self::$batch_cache = [];
+    }
+
+    /**
      * Get remote product data for comparison
      *
      * @param WC_Product $product Local product
