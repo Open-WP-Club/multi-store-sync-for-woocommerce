@@ -1368,6 +1368,169 @@
         }
 
         /**
+         * Discrepancies Page - Category Scan
+         */
+        if (document.getElementById('wc-mss-scan-categories-btn') && typeof jQuery !== 'undefined' && typeof wcMssDiscrepanciesData !== 'undefined') {
+            jQuery(function ($) {
+                var i18n     = wcMssDiscrepanciesData.i18n;
+                var btn      = $('#wc-mss-scan-categories-btn');
+                var progress = $('#wc-mss-cat-progress');
+                var bar      = $('#wc-mss-cat-bar');
+                var label    = $('#wc-mss-cat-progress-label');
+                var results  = $('#wc-mss-cat-results');
+
+                // Same store list already rendered into the filter <select> —
+                // reading it here avoids needing a separate PHP->JS data payload.
+                var allStores = Array.prototype.slice.call(document.querySelectorAll('#wc-mss-cat-store-select option'))
+                    .filter(function (opt) { return opt.value !== ''; })
+                    .map(function (opt) { return { url: opt.value, name: opt.textContent.trim() }; });
+
+                btn.on('click', function () {
+                    var selectedUrl = $('#wc-mss-cat-store-select').val();
+
+                    // Determine which stores to process
+                    var storesToScan = selectedUrl
+                        ? allStores.filter(function (s) { return s.url === selectedUrl; })
+                        : allStores;
+
+                    if (!storesToScan.length) {
+                        results.html('<div class="notice notice-warning inline"><p>' + i18n.no_active_stores + '</p></div>');
+                        return;
+                    }
+
+                    btn.prop('disabled', true);
+                    results.html('');
+                    progress.show();
+                    bar.css('width', '0%');
+                    label.text(i18n.starting_scan);
+
+                    var allMismatches = [];
+                    var index = 0;
+
+                    function scanNext() {
+                        if (index >= storesToScan.length) {
+                            // Done
+                            btn.prop('disabled', false);
+                            bar.css('width', '100%');
+                            label.text(i18n.scan_complete);
+                            renderResults(allMismatches);
+                            return;
+                        }
+
+                        var store = storesToScan[index];
+                        var pct   = Math.round((index / storesToScan.length) * 100);
+                        bar.css('width', pct + '%');
+                        label.text(i18n.scanning + ' ' + store.name + ' (' + (index + 1) + '/' + storesToScan.length + ')');
+
+                        fetch(ajaxurl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: new URLSearchParams({
+                                action:    'wc_mss_scan_categories',
+                                nonce:     wcMssAdmin.scan_categories_nonce,
+                                store_url: store.url,
+                            }),
+                        })
+                            .then(function (res) { return res.json(); })
+                            .then(function (resp) {
+                                if (resp.success && resp.data.count > 0) {
+                                    allMismatches.push(resp.data);
+                                }
+                                if (!resp.success) {
+                                    allMismatches.push({
+                                        store_name: store.name,
+                                        store_url:  store.url,
+                                        error:      resp.data.message || i18n.unknown_error,
+                                        items:      [],
+                                        count:      0,
+                                    });
+                                }
+                                index++;
+                                scanNext();
+                            })
+                            .catch(function () {
+                                allMismatches.push({
+                                    store_name: store.name,
+                                    store_url:  store.url,
+                                    error:      i18n.request_failed,
+                                    items:      [],
+                                    count:      0,
+                                });
+                                index++;
+                                scanNext();
+                            });
+                    }
+
+                    scanNext();
+                });
+
+                function renderResults(list) {
+                    var hasAny = list.some(function (s) { return s.count > 0 || s.error; });
+
+                    if (!hasAny) {
+                        results.html('<div class="notice notice-success inline"><p>' + i18n.all_match + '</p></div>');
+                        return;
+                    }
+
+                    var html = '';
+                    $.each(list, function (i, store) {
+                        if (store.error) {
+                            html += '<div class="notice notice-error inline"><p><strong>' + store.store_name + ':</strong> ' + store.error + '</p></div>';
+                            return;
+                        }
+                        if (!store.count) {
+                            return;
+                        }
+
+                        html += '<h3>' + store.store_name + ' — ' + store.count + ' ' + i18n.mismatch_count_label;
+                        html += ' <small style="font-weight:normal;color:#666;">(' + store.total_local + ' ' + i18n.local + ' / ' + store.total_remote + ' ' + i18n.remote + ')</small></h3>';
+                        html += '<table class="wp-list-table widefat fixed striped" style="margin-bottom:1.5rem;">';
+                        html += '<thead><tr>';
+                        html += '<th style="width:30%">' + i18n.th_product + '</th>';
+                        html += '<th style="width:12%">' + i18n.th_sku + '</th>';
+                        html += '<th>' + i18n.th_missing + '</th>';
+                        html += '<th>' + i18n.th_extra + '</th>';
+                        html += '<th style="width:90px">' + i18n.th_action + '</th>';
+                        html += '</tr></thead><tbody>';
+
+                        $.each(store.items, function (j, item) {
+                            html += '<tr>';
+                            html += '<td><a href="' + item.edit_link + '" target="_blank"><strong>' + item.product_name + '</strong></a></td>';
+                            html += '<td><code>' + item.sku + '</code></td>';
+                            html += '<td>' + (item.missing.length ? '<span class="wc-mss-negative">' + item.missing.join(', ') + '</span>' : '—') + '</td>';
+                            html += '<td>' + (item.extra.length   ? '<span class="wc-mss-positive">' + item.extra.join(', ')   + '</span>' : '—') + '</td>';
+                            html += '<td><button class="button button-small wc-mss-resync-btn" data-product-id="' + item.product_id + '">' + i18n.resync + '</button></td>';
+                            html += '</tr>';
+                        });
+
+                        html += '</tbody></table>';
+                    });
+
+                    results.html(html);
+
+                    results.off('click', '.wc-mss-resync-btn').on('click', '.wc-mss-resync-btn', function () {
+                        var b   = $(this);
+                        var pid = b.data('product-id');
+                        b.prop('disabled', true).text(i18n.queuing);
+                        fetch(ajaxurl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: new URLSearchParams({
+                                action:     'wc_mss_force_sync_product',
+                                nonce:      wcMssAdmin.nonce,
+                                product_id: pid,
+                            }),
+                        })
+                            .then(function (res) { return res.json(); })
+                            .then(function (r) {
+                                b.text(r.success ? i18n.queued : i18n.failed);
+                            });
+                    });
+                }
+            });
+        }
+
+        /**
          * Log Viewer
          */
         var logViewer = document.getElementById('wc-mss-log-viewer');

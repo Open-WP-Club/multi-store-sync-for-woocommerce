@@ -820,6 +820,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'health_check_nonce' => wp_create_nonce('wc_mss_run_health_check'),
             'single_store_nonce' => wp_create_nonce('wc_mss_check_single_store'),
             'test_app_password_nonce' => wp_create_nonce('wc_mss_test_app_password'),
+            'scan_categories_nonce' => wp_create_nonce('wc_mss_scan_categories'),
             'i18n' => [
                 'confirm_sync_all' => __('Are you sure you want to force sync ALL products? This will queue all products for immediate sync.', 'wc-multi-store-sync'),
                 'syncing' => __('Syncing...', 'wc-multi-store-sync'),
@@ -882,6 +883,33 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 'totalProducts' => $total_products,
                 'categoryProducts' => $cat_counts,
                 'tagProducts' => $tag_counts,
+            ]);
+        }
+
+        // Strings for the discrepancies page's category-scan feature
+        if ($section === 'discrepancies') {
+            wp_localize_script('wc-mss-admin', 'wcMssDiscrepanciesData', [
+                'i18n' => [
+                    'no_active_stores' => __('No active stores found.', 'wc-multi-store-sync'),
+                    'starting_scan' => __('Starting scan…', 'wc-multi-store-sync'),
+                    'scanning' => __('Scanning:', 'wc-multi-store-sync'),
+                    'scan_complete' => __('Scan complete.', 'wc-multi-store-sync'),
+                    'unknown_error' => __('Unknown error', 'wc-multi-store-sync'),
+                    'request_failed' => __('Request failed.', 'wc-multi-store-sync'),
+                    'all_match' => __('All categories match across all stores!', 'wc-multi-store-sync'),
+                    'mismatch_count_label' => __('product(s) with category mismatch', 'wc-multi-store-sync'),
+                    'local' => __('local', 'wc-multi-store-sync'),
+                    'remote' => __('remote', 'wc-multi-store-sync'),
+                    'th_product' => __('Product', 'wc-multi-store-sync'),
+                    'th_sku' => __('SKU', 'wc-multi-store-sync'),
+                    'th_missing' => __('Missing on remote', 'wc-multi-store-sync'),
+                    'th_extra' => __('Extra on remote', 'wc-multi-store-sync'),
+                    'th_action' => __('Action', 'wc-multi-store-sync'),
+                    'resync' => __('Re-sync', 'wc-multi-store-sync'),
+                    'queuing' => __('Queuing…', 'wc-multi-store-sync'),
+                    'queued' => __('Queued ✓', 'wc-multi-store-sync'),
+                    'failed' => __('Failed', 'wc-multi-store-sync'),
+                ],
             ]);
         }
 
