@@ -1096,6 +1096,125 @@
         }
 
         /**
+         * Settings - Scheduled Sync Visibility Toggle
+         */
+        if (document.getElementById('scheduled_sync_enabled') && typeof jQuery !== 'undefined') {
+            jQuery(function ($) {
+                function updateScheduledSyncVisibility() {
+                    var enabled = $('#scheduled_sync_enabled').is(':checked');
+                    var allProducts = $('input[name="sync_all_products"]:checked').val() === '1';
+
+                    if (enabled) {
+                        $('.scheduled-sync-option').show();
+                        if (allProducts) {
+                            $('#sync_modified_hours_row').hide();
+                        } else {
+                            $('#sync_modified_hours_row').show();
+                        }
+                    } else {
+                        $('.scheduled-sync-option').hide();
+                    }
+                }
+
+                $('#scheduled_sync_enabled').on('change', updateScheduledSyncVisibility);
+                $('input[name="sync_all_products"]').on('change', updateScheduledSyncVisibility);
+            });
+        }
+
+        /**
+         * Settings - Sync by Category
+         */
+        if (document.getElementById('wc-mss-cat-sync-btn') && typeof jQuery !== 'undefined') {
+            jQuery(function ($) {
+                $('#wc-mss-cat-sync-btn').on('click', function () {
+                    var $btn      = $(this);
+                    var catId     = $('#wc-mss-cat-sync-category').val();
+                    var syncType  = $('#wc-mss-cat-sync-type').val();
+                    var children  = $('#wc-mss-cat-sync-children').is(':checked') ? 1 : 0;
+                    var $result   = $('#wc-mss-cat-sync-result');
+
+                    if (!catId) {
+                        $result.text($btn.data('msg-select-category')).css('color', '#d63638');
+                        return;
+                    }
+
+                    $btn.prop('disabled', true);
+                    $result.text($btn.data('msg-queuing')).css('color', '');
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action:           'wc_mss_sync_by_category',
+                            nonce:            wcMssAdmin.nonce,
+                            category_id:      catId,
+                            sync_type:        syncType,
+                            include_children: children,
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (resp) {
+                            $btn.prop('disabled', false);
+                            if (resp.success) {
+                                $result.text(resp.data.message).css('color', '#00a32a');
+                            } else {
+                                $result.text(resp.data.message || $btn.data('msg-error')).css('color', '#d63638');
+                            }
+                        })
+                        .catch(function () {
+                            $btn.prop('disabled', false);
+                            $result.text(wcMssAdmin.i18n.request_failed).css('color', '#d63638');
+                        });
+                });
+            });
+        }
+
+        /**
+         * Settings - Feature Toggle Checkboxes
+         */
+        if (document.querySelector('.wc-mss-feature-toggle') && typeof jQuery !== 'undefined') {
+            jQuery(function ($) {
+                $('.wc-mss-feature-toggle').on('change', function() {
+                    var $checkbox = $(this);
+                    var action = $checkbox.data('action');
+                    var enabled = $checkbox.is(':checked') ? 1 : 0;
+
+                    $checkbox.prop('disabled', true);
+
+                    fetch(wcMssAdmin.ajax_url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: action,
+                            enabled: enabled,
+                            nonce: wcMssAdmin.nonce
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            $checkbox.prop('disabled', false);
+                            if (response.success) {
+                                // Flash green briefly
+                                $checkbox.closest('td').css('background-color', '#d4edda').delay(800).queue(function(next) {
+                                    $(this).css('background-color', '');
+                                    next();
+                                });
+                            } else {
+                                // Revert on failure
+                                $checkbox.prop('checked', !enabled);
+                                alert((response.data && response.data.message) || wcMssAdmin.i18n.failed_to_update);
+                            }
+                        })
+                        .catch(function () {
+                            $checkbox.prop('disabled', false);
+                            $checkbox.prop('checked', !enabled);
+                            alert(wcMssAdmin.i18n.request_failed);
+                        });
+                });
+            });
+        }
+
+        /**
          * Log Viewer
          */
         var logViewer = document.getElementById('wc-mss-log-viewer');

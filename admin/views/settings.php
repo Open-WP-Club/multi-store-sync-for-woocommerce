@@ -423,29 +423,6 @@ if (!defined('ABSPATH')) {
                     </td>
                 </tr>
             </table>
-
-            <script>
-            jQuery(document).ready(function($) {
-                function updateScheduledSyncVisibility() {
-                    var enabled = $('#scheduled_sync_enabled').is(':checked');
-                    var allProducts = $('input[name="sync_all_products"]:checked').val() === '1';
-
-                    if (enabled) {
-                        $('.scheduled-sync-option').show();
-                        if (allProducts) {
-                            $('#sync_modified_hours_row').hide();
-                        } else {
-                            $('#sync_modified_hours_row').show();
-                        }
-                    } else {
-                        $('.scheduled-sync-option').hide();
-                    }
-                }
-
-                $('#scheduled_sync_enabled').on('change', updateScheduledSyncVisibility);
-                $('input[name="sync_all_products"]').on('change', updateScheduledSyncVisibility);
-            });
-            </script>
         </div>
 
         <div class="wc-mss-card">
@@ -497,57 +474,16 @@ if (!defined('ABSPATH')) {
                 <tr>
                     <th scope="row"></th>
                     <td>
-                        <button type="button" class="button button-primary" id="wc-mss-cat-sync-btn">
+                        <button type="button" class="button button-primary" id="wc-mss-cat-sync-btn"
+                            data-msg-select-category="<?php echo esc_attr__('Please select a category.', 'wc-multi-store-sync'); ?>"
+                            data-msg-queuing="<?php echo esc_attr__('Queuing…', 'wc-multi-store-sync'); ?>"
+                            data-msg-error="<?php echo esc_attr__('Error', 'wc-multi-store-sync'); ?>">
                             <?php _e('Queue Category Sync', 'wc-multi-store-sync'); ?>
                         </button>
                         <span id="wc-mss-cat-sync-result" style="margin-left:12px;"></span>
                     </td>
                 </tr>
             </table>
-            <script>
-            jQuery(function ($) {
-                $('#wc-mss-cat-sync-btn').on('click', function () {
-                    var catId    = $('#wc-mss-cat-sync-category').val();
-                    var syncType = $('#wc-mss-cat-sync-type').val();
-                    var children = $('#wc-mss-cat-sync-children').is(':checked') ? 1 : 0;
-                    var $btn     = $(this);
-                    var $result  = $('#wc-mss-cat-sync-result');
-
-                    if (!catId) {
-                        $result.text('<?php echo esc_js(__('Please select a category.', 'wc-multi-store-sync')); ?>').css('color', '#d63638');
-                        return;
-                    }
-
-                    $btn.prop('disabled', true);
-                    $result.text('<?php echo esc_js(__('Queuing…', 'wc-multi-store-sync')); ?>').css('color', '');
-
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                            action:           'wc_mss_sync_by_category',
-                            nonce:            wc_mss_params.nonce,
-                            category_id:      catId,
-                            sync_type:        syncType,
-                            include_children: children,
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
-                        .then(function (resp) {
-                            $btn.prop('disabled', false);
-                            if (resp.success) {
-                                $result.text(resp.data.message).css('color', '#00a32a');
-                            } else {
-                                $result.text(resp.data.message || '<?php echo esc_js(__('Error', 'wc-multi-store-sync')); ?>').css('color', '#d63638');
-                            }
-                        })
-                        .catch(function () {
-                            $btn.prop('disabled', false);
-                            $result.text('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>').css('color', '#d63638');
-                        });
-                });
-            });
-            </script>
         </div>
 
         <div class="wc-mss-card">
@@ -891,49 +827,6 @@ if (!defined('ABSPATH')) {
                 </tr>
             </table>
         </div>
-
-        <script>
-        jQuery(document).ready(function($) {
-            // Feature toggle AJAX handler
-            $('.wc-mss-feature-toggle').on('change', function() {
-                var $checkbox = $(this);
-                var action = $checkbox.data('action');
-                var enabled = $checkbox.is(':checked') ? 1 : 0;
-
-                $checkbox.prop('disabled', true);
-
-                fetch(wcMssAdmin.ajax_url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        action: action,
-                        enabled: enabled,
-                        nonce: wcMssAdmin.nonce
-                    }),
-                })
-                    .then(function (res) { return res.json(); })
-                    .then(function (response) {
-                        $checkbox.prop('disabled', false);
-                        if (response.success) {
-                            // Flash green briefly
-                            $checkbox.closest('td').css('background-color', '#d4edda').delay(800).queue(function(next) {
-                                $(this).css('background-color', '');
-                                next();
-                            });
-                        } else {
-                            // Revert on failure
-                            $checkbox.prop('checked', !enabled);
-                            alert(response.data?.message || '<?php _e('Failed to update setting', 'wc-multi-store-sync'); ?>');
-                        }
-                    })
-                    .catch(function () {
-                        $checkbox.prop('disabled', false);
-                        $checkbox.prop('checked', !enabled);
-                        alert('<?php _e('Request failed', 'wc-multi-store-sync'); ?>');
-                    });
-            });
-        });
-        </script>
 
         <div class="wc-mss-card">
             <h2><?php _e('Email Notifications', 'wc-multi-store-sync'); ?></h2>

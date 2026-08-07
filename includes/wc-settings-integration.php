@@ -831,6 +831,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 'total_requests' => __('Total Requests', 'wc-multi-store-sync'),
                 'successful' => __('Successful', 'wc-multi-store-sync'),
                 'failed' => __('Failed', 'wc-multi-store-sync'),
+                'failed_to_update' => __('Failed to update setting', 'wc-multi-store-sync'),
             ],
         ]);
 
