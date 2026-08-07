@@ -318,20 +318,16 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
      * @return string
      */
     private function get_currency_symbol(string $currency): string {
-        $symbols = [
-            'USD' => '$',
-            'EUR' => '€',
-            'GBP' => '£',
-            'JPY' => '¥',
-            'AUD' => 'A$',
-            'CAD' => 'C$',
-            'CHF' => 'CHF',
-            'CNY' => '¥',
-            'SEK' => 'kr',
-            'NZD' => 'NZ$',
-        ];
+        $symbol = html_entity_decode(get_woocommerce_currency_symbol($currency), ENT_QUOTES, 'UTF-8');
 
-        return $symbols[$currency] ?? $currency . ' ';
+        // get_woocommerce_currency_symbol() falls back to the bare currency code
+        // for currencies it has no symbol for — add a separating space in that
+        // case only, so e.g. "BGN100.00" doesn't run together.
+        if ($symbol === $currency) {
+            $symbol .= ' ';
+        }
+
+        return $symbol;
     }
 
     /**

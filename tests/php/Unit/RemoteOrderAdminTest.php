@@ -187,8 +187,24 @@ class RemoteOrderAdminTest extends WC_Multi_Store_TestCase
 
     // ─── format_price (private) ────────────────────
 
+    private function mockCurrencySymbols(): void
+    {
+        // Mirrors real WooCommerce's get_woocommerce_currency_symbols(): most
+        // symbols are returned as HTML entities, not literal UTF-8 characters —
+        // regression guard for the double-escaping bug this replaced.
+        Functions\when('get_woocommerce_currency_symbol')->alias(function ($currency) {
+            return [
+                'USD' => '&#36;',
+                'EUR' => '&euro;',
+                'GBP' => '&pound;',
+            ][$currency] ?? $currency;
+        });
+    }
+
     public function test_format_price_with_usd(): void
     {
+        $this->mockCurrencySymbols();
+
         $ref = new ReflectionClass($this->admin);
         $method = $ref->getMethod('format_price');
 
@@ -199,6 +215,8 @@ class RemoteOrderAdminTest extends WC_Multi_Store_TestCase
 
     public function test_format_price_with_eur(): void
     {
+        $this->mockCurrencySymbols();
+
         $ref = new ReflectionClass($this->admin);
         $method = $ref->getMethod('format_price');
 
@@ -209,6 +227,8 @@ class RemoteOrderAdminTest extends WC_Multi_Store_TestCase
 
     public function test_format_price_with_gbp(): void
     {
+        $this->mockCurrencySymbols();
+
         $ref = new ReflectionClass($this->admin);
         $method = $ref->getMethod('format_price');
 
@@ -219,6 +239,10 @@ class RemoteOrderAdminTest extends WC_Multi_Store_TestCase
 
     public function test_format_price_with_unknown_currency(): void
     {
+        // Real get_woocommerce_currency_symbol() falls back to the bare
+        // currency code for currencies it has no symbol for.
+        Functions\when('get_woocommerce_currency_symbol')->alias(fn($c) => $c);
+
         $ref = new ReflectionClass($this->admin);
         $method = $ref->getMethod('format_price');
 
@@ -229,6 +253,8 @@ class RemoteOrderAdminTest extends WC_Multi_Store_TestCase
 
     public function test_format_price_with_zero(): void
     {
+        $this->mockCurrencySymbols();
+
         $ref = new ReflectionClass($this->admin);
         $method = $ref->getMethod('format_price');
 
@@ -239,6 +265,8 @@ class RemoteOrderAdminTest extends WC_Multi_Store_TestCase
 
     public function test_format_price_with_large_number(): void
     {
+        $this->mockCurrencySymbols();
+
         $ref = new ReflectionClass($this->admin);
         $method = $ref->getMethod('format_price');
 

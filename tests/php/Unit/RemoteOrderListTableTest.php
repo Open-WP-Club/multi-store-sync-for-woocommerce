@@ -277,6 +277,9 @@ class RemoteOrderListTableTest extends WC_Multi_Store_TestCase
     public function test_column_total_formats_price(): void
     {
         Functions\when('esc_html')->alias(fn($v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'));
+        // Real WooCommerce returns an HTML entity for USD, not a literal '$' —
+        // regression guard for the double-escaping bug this replaced.
+        Functions\when('get_woocommerce_currency_symbol')->alias(fn($c) => $c === 'USD' ? '&#36;' : $c);
 
         $ref = new ReflectionClass($this->table);
         $method = $ref->getMethod('column_total');
@@ -286,12 +289,14 @@ class RemoteOrderListTableTest extends WC_Multi_Store_TestCase
         $result = $method->invoke($this->table, $item);
 
         $this->assertStringContainsString('$', $result);
+        $this->assertStringNotContainsString('&amp;', $result, 'entity must be decoded before esc_html(), not double-escaped');
         $this->assertStringContainsString('99.99', $result);
     }
 
     public function test_column_total_handles_eur_currency(): void
     {
         Functions\when('esc_html')->alias(fn($v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'));
+        Functions\when('get_woocommerce_currency_symbol')->alias(fn($c) => $c === 'EUR' ? '&euro;' : $c);
 
         $ref = new ReflectionClass($this->table);
         $method = $ref->getMethod('column_total');
@@ -301,12 +306,24 @@ class RemoteOrderListTableTest extends WC_Multi_Store_TestCase
         $result = $method->invoke($this->table, $item);
 
         $this->assertStringContainsString('€', $result);
+        $this->assertStringNotContainsString('&amp;', $result);
     }
 
     // ─── get_currency_symbol ───────────────────────
 
     public function test_get_currency_symbol_known_currencies(): void
     {
+        Functions\when('get_woocommerce_currency_symbol')->alias(function ($currency) {
+            return [
+                'USD' => '&#36;',
+                'EUR' => '&euro;',
+                'GBP' => '&pound;',
+                'JPY' => '&yen;',
+                'AUD' => '&#36;',
+                'CAD' => '&#36;',
+            ][$currency] ?? $currency;
+        });
+
         $ref = new ReflectionClass($this->table);
         $method = $ref->getMethod('get_currency_symbol');
 
@@ -314,12 +331,16 @@ class RemoteOrderListTableTest extends WC_Multi_Store_TestCase
         $this->assertEquals('€', $method->invoke($this->table, 'EUR'));
         $this->assertEquals('£', $method->invoke($this->table, 'GBP'));
         $this->assertEquals('¥', $method->invoke($this->table, 'JPY'));
-        $this->assertEquals('A$', $method->invoke($this->table, 'AUD'));
-        $this->assertEquals('C$', $method->invoke($this->table, 'CAD'));
+        $this->assertEquals('$', $method->invoke($this->table, 'AUD'));
+        $this->assertEquals('$', $method->invoke($this->table, 'CAD'));
     }
 
     public function test_get_currency_symbol_unknown_returns_code(): void
     {
+        // Real get_woocommerce_currency_symbol() falls back to the bare
+        // currency code for currencies it has no symbol for.
+        Functions\when('get_woocommerce_currency_symbol')->alias(fn($c) => $c);
+
         $ref = new ReflectionClass($this->table);
         $method = $ref->getMethod('get_currency_symbol');
 
