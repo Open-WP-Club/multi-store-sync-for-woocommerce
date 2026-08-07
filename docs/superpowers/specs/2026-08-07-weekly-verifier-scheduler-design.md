@@ -84,3 +84,23 @@ No coverage exists today for `process_verification_batch()`,
 `finalize_async_verification()`, or `auto_correct_discrepancies()` at the
 implementation level (only indirectly, if at all) — a pre-existing gap, not
 introduced by this move. Not backfilling it as part of a pure extraction pass.
+
+**Update (same day, follow-up pass):** backfilled. All three now have direct
+tests in `WeeklyVerificationSchedulerTest.php` — `auto_correct_discrepancies()`
+and `finalize_async_verification()` via `ReflectionMethod` (both private),
+`process_verification_batch()` directly (public). Covers: empty/ghost/limit/
+unlimited/sync-type-override branches of auto-correct; no-progress early
+return, report-building, email-send, and auto-correct-trigger branches of
+finalize; no-active-progress, non-running-progress, next-batch-scheduling, and
+last-batch/no-products-left finalize triggers of process_verification_batch.
+
+One easy-to-repeat mocking mistake worth flagging for future tests in this
+file: `Functions\when('get_transient')->justReturn($progress)` stubs
+*every* `get_transient()` call, not just the one for
+`ASYNC_PROGRESS_TRANSIENT` — `WC_Multi_Store_Settings::get_active_stores()`
+also reads a transient (via `Cache_Manager::get_active_stores()`) for its own
+caching, and a blanket stub makes it return the fake progress array instead,
+which `scan_ghost_products()` then tries to iterate as if it were a stores
+list (`TypeError` on `$store` being a string instead of an array — confusing
+to debug from the stack trace alone). Scope the stub to the specific key:
+`fn($key) => $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false`.
