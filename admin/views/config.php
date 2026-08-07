@@ -28,7 +28,9 @@ if (!defined('ABSPATH')) {
                 </span>
             </label>
 
-            <button type="button" id="wc-mss-export-btn" class="button button-primary">
+            <button type="button" id="wc-mss-export-btn" class="button button-primary"
+                data-label-loading="<?php echo esc_attr__('Exporting...', 'wc-multi-store-sync'); ?>"
+                data-success-message="<?php echo esc_attr__('Configuration exported successfully.', 'wc-multi-store-sync'); ?>">
                 <?php _e('Export Configuration', 'wc-multi-store-sync'); ?>
             </button>
             <div id="wc-mss-export-result" style="margin-top: 10px;"></div>
@@ -44,7 +46,9 @@ if (!defined('ABSPATH')) {
                 <p class="description"><?php _e('If API keys were redacted during export, existing keys will be preserved.', 'wc-multi-store-sync'); ?></p>
             </div>
 
-            <button type="button" id="wc-mss-import-btn" class="button" disabled>
+            <button type="button" id="wc-mss-import-btn" class="button" disabled
+                data-label-loading="<?php echo esc_attr__('Importing...', 'wc-multi-store-sync'); ?>"
+                data-confirm="<?php echo esc_attr__('This will overwrite current settings. Are you sure?', 'wc-multi-store-sync'); ?>">
                 <?php _e('Import Configuration', 'wc-multi-store-sync'); ?>
             </button>
             <div id="wc-mss-import-result" style="margin-top: 10px;"></div>
@@ -60,85 +64,3 @@ if (!defined('ABSPATH')) {
         ?></textarea>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
-    var nonce = '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>';
-
-    // Export
-    document.getElementById('wc-mss-export-btn').addEventListener('click', function() {
-        var btn = this;
-        btn.disabled = true;
-        btn.textContent = '<?php echo esc_js(__('Exporting...', 'wc-multi-store-sync')); ?>';
-
-        var includeKeys = document.getElementById('wc-mss-export-include-keys').checked;
-
-        fetch(ajaxUrl, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'action=wc_mss_export_config&nonce=' + nonce + '&include_keys=' + (includeKeys ? '1' : '0')
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success) {
-                // Download as file
-                var blob = new Blob([JSON.stringify(data.data.config, null, 2)], {type: 'application/json'});
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = data.data.filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                document.getElementById('wc-mss-export-result').innerHTML = '<div class="notice inline notice-success"><p><?php echo esc_js(__('Configuration exported successfully.', 'wc-multi-store-sync')); ?></p></div>';
-            } else {
-                document.getElementById('wc-mss-export-result').innerHTML = '<div class="notice inline notice-error"><p>' + (data.data.message || 'Error') + '</p></div>';
-            }
-            btn.disabled = false;
-            btn.textContent = '<?php echo esc_js(__('Export Configuration', 'wc-multi-store-sync')); ?>';
-        });
-    });
-
-    // File selection
-    document.getElementById('wc-mss-import-file').addEventListener('change', function() {
-        document.getElementById('wc-mss-import-btn').disabled = !this.files.length;
-    });
-
-    // Import
-    document.getElementById('wc-mss-import-btn').addEventListener('click', function() {
-        if (!confirm('<?php echo esc_js(__('This will overwrite current settings. Are you sure?', 'wc-multi-store-sync')); ?>')) return;
-
-        var btn = this;
-        var fileInput = document.getElementById('wc-mss-import-file');
-        var file = fileInput.files[0];
-        if (!file) return;
-
-        btn.disabled = true;
-        btn.textContent = '<?php echo esc_js(__('Importing...', 'wc-multi-store-sync')); ?>';
-
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            fetch(ajaxUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=wc_mss_import_config&nonce=' + nonce + '&config=' + encodeURIComponent(e.target.result)
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.success) {
-                    document.getElementById('wc-mss-import-result').innerHTML = '<div class="notice inline notice-success"><p>' + data.data.message + '</p></div>';
-                    setTimeout(function() { location.reload(); }, 1500);
-                } else {
-                    document.getElementById('wc-mss-import-result').innerHTML = '<div class="notice inline notice-error"><p>' + (data.data.message || 'Error') + '</p></div>';
-                }
-                btn.disabled = false;
-                btn.textContent = '<?php echo esc_js(__('Import Configuration', 'wc-multi-store-sync')); ?>';
-            });
-        };
-        reader.readAsText(file);
-    });
-});
-</script>

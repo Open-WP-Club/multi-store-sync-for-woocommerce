@@ -1011,6 +1011,91 @@
         }
 
         /**
+         * Config Export / Import
+         */
+        var configExportBtn = document.getElementById('wc-mss-export-btn');
+        if (configExportBtn) {
+            var configExportLabel = configExportBtn.textContent;
+
+            configExportBtn.addEventListener('click', function() {
+                var btn = this;
+                btn.disabled = true;
+                btn.textContent = btn.dataset.labelLoading;
+
+                var includeKeys = document.getElementById('wc-mss-export-include-keys').checked;
+
+                fetch(wcMssAdmin.ajax_url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'action=wc_mss_export_config&nonce=' + wcMssAdmin.nonce + '&include_keys=' + (includeKeys ? '1' : '0')
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        // Download as file
+                        var blob = new Blob([JSON.stringify(data.data.config, null, 2)], {type: 'application/json'});
+                        var url = URL.createObjectURL(blob);
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.download = data.data.filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+
+                        document.getElementById('wc-mss-export-result').innerHTML = '<div class="notice inline notice-success"><p>' + btn.dataset.successMessage + '</p></div>';
+                    } else {
+                        document.getElementById('wc-mss-export-result').innerHTML = '<div class="notice inline notice-error"><p>' + (data.data.message || 'Error') + '</p></div>';
+                    }
+                    btn.disabled = false;
+                    btn.textContent = configExportLabel;
+                });
+            });
+        }
+
+        var configImportFile = document.getElementById('wc-mss-import-file');
+        var configImportBtn = document.getElementById('wc-mss-import-btn');
+        if (configImportFile && configImportBtn) {
+            var configImportLabel = configImportBtn.textContent;
+
+            configImportFile.addEventListener('change', function() {
+                configImportBtn.disabled = !this.files.length;
+            });
+
+            configImportBtn.addEventListener('click', function() {
+                if (!confirm(configImportBtn.dataset.confirm)) return;
+
+                var btn = this;
+                var file = configImportFile.files[0];
+                if (!file) return;
+
+                btn.disabled = true;
+                btn.textContent = btn.dataset.labelLoading;
+
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    fetch(wcMssAdmin.ajax_url, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: 'action=wc_mss_import_config&nonce=' + wcMssAdmin.nonce + '&config=' + encodeURIComponent(e.target.result)
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            document.getElementById('wc-mss-import-result').innerHTML = '<div class="notice inline notice-success"><p>' + data.data.message + '</p></div>';
+                            setTimeout(function() { location.reload(); }, 1500);
+                        } else {
+                            document.getElementById('wc-mss-import-result').innerHTML = '<div class="notice inline notice-error"><p>' + (data.data.message || 'Error') + '</p></div>';
+                        }
+                        btn.disabled = false;
+                        btn.textContent = configImportLabel;
+                    });
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        /**
          * Log Viewer
          */
         var logViewer = document.getElementById('wc-mss-log-viewer');
