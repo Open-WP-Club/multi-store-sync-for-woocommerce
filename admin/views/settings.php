@@ -521,23 +521,30 @@ if (!defined('ABSPATH')) {
                     $btn.prop('disabled', true);
                     $result.text('<?php echo esc_js(__('Queuing…', 'wc-multi-store-sync')); ?>').css('color', '');
 
-                    $.post(ajaxurl, {
-                        action:           'wc_mss_sync_by_category',
-                        nonce:            wc_mss_params.nonce,
-                        category_id:      catId,
-                        sync_type:        syncType,
-                        include_children: children,
-                    }, function (resp) {
-                        $btn.prop('disabled', false);
-                        if (resp.success) {
-                            $result.text(resp.data.message).css('color', '#00a32a');
-                        } else {
-                            $result.text(resp.data.message || '<?php echo esc_js(__('Error', 'wc-multi-store-sync')); ?>').css('color', '#d63638');
-                        }
-                    }).fail(function () {
-                        $btn.prop('disabled', false);
-                        $result.text('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>').css('color', '#d63638');
-                    });
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action:           'wc_mss_sync_by_category',
+                            nonce:            wc_mss_params.nonce,
+                            category_id:      catId,
+                            sync_type:        syncType,
+                            include_children: children,
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (resp) {
+                            $btn.prop('disabled', false);
+                            if (resp.success) {
+                                $result.text(resp.data.message).css('color', '#00a32a');
+                            } else {
+                                $result.text(resp.data.message || '<?php echo esc_js(__('Error', 'wc-multi-store-sync')); ?>').css('color', '#d63638');
+                            }
+                        })
+                        .catch(function () {
+                            $btn.prop('disabled', false);
+                            $result.text('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>').css('color', '#d63638');
+                        });
                 });
             });
             </script>
@@ -895,15 +902,17 @@ if (!defined('ABSPATH')) {
 
                 $checkbox.prop('disabled', true);
 
-                $.ajax({
-                    url: wcMssAdmin.ajax_url,
-                    type: 'POST',
-                    data: {
+                fetch(wcMssAdmin.ajax_url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
                         action: action,
                         enabled: enabled,
                         nonce: wcMssAdmin.nonce
-                    },
-                    success: function(response) {
+                    }),
+                })
+                    .then(function (res) { return res.json(); })
+                    .then(function (response) {
                         $checkbox.prop('disabled', false);
                         if (response.success) {
                             // Flash green briefly
@@ -916,13 +925,12 @@ if (!defined('ABSPATH')) {
                             $checkbox.prop('checked', !enabled);
                             alert(response.data?.message || '<?php _e('Failed to update setting', 'wc-multi-store-sync'); ?>');
                         }
-                    },
-                    error: function() {
+                    })
+                    .catch(function () {
                         $checkbox.prop('disabled', false);
                         $checkbox.prop('checked', !enabled);
                         alert('<?php _e('Request failed', 'wc-multi-store-sync'); ?>');
-                    }
-                });
+                    });
             });
         });
         </script>
