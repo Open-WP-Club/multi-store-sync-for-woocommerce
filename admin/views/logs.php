@@ -64,19 +64,26 @@ if (!defined('ABSPATH')) {
                 var $btn = $(this);
                 $btn.prop('disabled', true);
 
-                $.post(wcMssAdmin.ajax_url, {
-                    action: 'wc_mss_clear_sync_log',
-                    nonce:  wcMssAdmin.nonce
-                }, function(response) {
-                    if (response.success) {
-                        $('#wc-mss-log-content').text('');
-                        $('#wc-mss-log-viewer').html('<p style="padding: 15px; color: #888;"><?php echo esc_js(__('No log entries found.', 'wc-multi-store-sync')); ?></p>');
-                    } else {
-                        alert(response.data?.message || '<?php echo esc_js(__('Failed to clear logs', 'wc-multi-store-sync')); ?>');
-                    }
-                }).always(function() {
-                    $btn.prop('disabled', false);
-                });
+                fetch(wcMssAdmin.ajax_url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action: 'wc_mss_clear_sync_log',
+                        nonce:  wcMssAdmin.nonce
+                    }),
+                })
+                    .then(function (res) { return res.json(); })
+                    .then(function (response) {
+                        if (response.success) {
+                            $('#wc-mss-log-content').text('');
+                            $('#wc-mss-log-viewer').html('<p style="padding: 15px; color: #888;"><?php echo esc_js(__('No log entries found.', 'wc-multi-store-sync')); ?></p>');
+                        } else {
+                            alert(response.data?.message || '<?php echo esc_js(__('Failed to clear logs', 'wc-multi-store-sync')); ?>');
+                        }
+                    })
+                    .finally(function() {
+                        $btn.prop('disabled', false);
+                    });
             });
         });
         </script>
@@ -141,22 +148,30 @@ if (!defined('ABSPATH')) {
             $btn.prop('disabled', true);
             $result.text('');
 
-            $.post(wcMssAdmin.ajax_url, {
-                action: 'wc_mss_clear_warnings_errors',
-                nonce:  wcMssAdmin.nonce
-            }, function(response) {
-                if (response.success) {
-                    $viewer.html('<p style="color:#888;padding:0;margin:0;"><?php echo esc_js(__('No warnings or errors found — everything looks good!', 'wc-multi-store-sync')); ?></p>');
-                    $count.text('(0)');
-                    $result.css('color', '#2e7d32').text(response.data.message);
-                } else {
-                    $result.css('color', '#c62828').text(response.data?.message || '<?php echo esc_js(__('Failed to clear', 'wc-multi-store-sync')); ?>');
-                }
-            }).fail(function() {
-                $result.css('color', '#c62828').text('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>');
-            }).always(function() {
-                $btn.prop('disabled', false);
-            });
+            fetch(wcMssAdmin.ajax_url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action: 'wc_mss_clear_warnings_errors',
+                    nonce:  wcMssAdmin.nonce
+                }),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (response) {
+                    if (response.success) {
+                        $viewer.html('<p style="color:#888;padding:0;margin:0;"><?php echo esc_js(__('No warnings or errors found — everything looks good!', 'wc-multi-store-sync')); ?></p>');
+                        $count.text('(0)');
+                        $result.css('color', '#2e7d32').text(response.data.message);
+                    } else {
+                        $result.css('color', '#c62828').text(response.data?.message || '<?php echo esc_js(__('Failed to clear', 'wc-multi-store-sync')); ?>');
+                    }
+                })
+                .catch(function() {
+                    $result.css('color', '#c62828').text('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>');
+                })
+                .finally(function() {
+                    $btn.prop('disabled', false);
+                });
         });
     });
     </script>
@@ -194,34 +209,43 @@ if (!defined('ABSPATH')) {
                 $btn.prop('disabled', true).text('<?php echo esc_js(__('Queuing...', 'wc-multi-store-sync')); ?>');
                 $('#wc-mss-force-sync-result').hide();
 
-                $.post(wcMssAdmin.ajax_url, {
-                    action: 'wc_mss_force_sync_by_sku',
-                    skus:   skus,
-                    nonce:  wcMssAdmin.nonce
-                }, function(response) {
-                    var html;
-                    if (response.success) {
-                        var lines = response.data.results.map(function(r) {
-                            if (r.success) {
-                                return '<li style="color:#2e7d32;">&#10003; ' + r.message + '</li>';
-                            } else {
-                                return '<li style="color:#c62828;">&#10007; ' + r.message + '</li>';
-                            }
-                        }).join('');
-                        html = '<div class="notice notice-success inline" style="margin:0;"><p><strong>' + response.data.message + '</strong></p>'
-                             + '<ul style="margin:6px 0 4px 16px;">' + lines + '</ul>'
-                             + '<p style="margin:4px 0 0;color:#666;font-size:12px;"><?php echo esc_js(__('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync')); ?></p></div>';
-                    } else {
-                        html = '<div class="notice notice-error inline" style="margin:0;"><p>' + (response.data?.message || '<?php echo esc_js(__('An error occurred', 'wc-multi-store-sync')); ?>') + '</p></div>';
-                    }
-                    $('#wc-mss-force-sync-result').html(html).show();
-                }).fail(function() {
-                    $('#wc-mss-force-sync-result')
-                        .html('<div class="notice notice-error inline" style="margin:0;"><p><?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?></p></div>')
-                        .show();
-                }).always(function() {
-                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Force Full Sync', 'wc-multi-store-sync')); ?>');
-                });
+                var params = new URLSearchParams();
+                params.append('action', 'wc_mss_force_sync_by_sku');
+                skus.forEach(function (sku) { params.append('skus[]', sku); });
+                params.append('nonce', wcMssAdmin.nonce);
+
+                fetch(wcMssAdmin.ajax_url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params,
+                })
+                    .then(function (res) { return res.json(); })
+                    .then(function(response) {
+                        var html;
+                        if (response.success) {
+                            var lines = response.data.results.map(function(r) {
+                                if (r.success) {
+                                    return '<li style="color:#2e7d32;">&#10003; ' + r.message + '</li>';
+                                } else {
+                                    return '<li style="color:#c62828;">&#10007; ' + r.message + '</li>';
+                                }
+                            }).join('');
+                            html = '<div class="notice notice-success inline" style="margin:0;"><p><strong>' + response.data.message + '</strong></p>'
+                                 + '<ul style="margin:6px 0 4px 16px;">' + lines + '</ul>'
+                                 + '<p style="margin:4px 0 0;color:#666;font-size:12px;"><?php echo esc_js(__('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync')); ?></p></div>';
+                        } else {
+                            html = '<div class="notice notice-error inline" style="margin:0;"><p>' + (response.data?.message || '<?php echo esc_js(__('An error occurred', 'wc-multi-store-sync')); ?>') + '</p></div>';
+                        }
+                        $('#wc-mss-force-sync-result').html(html).show();
+                    })
+                    .catch(function() {
+                        $('#wc-mss-force-sync-result')
+                            .html('<div class="notice notice-error inline" style="margin:0;"><p><?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?></p></div>')
+                            .show();
+                    })
+                    .finally(function() {
+                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Force Full Sync', 'wc-multi-store-sync')); ?>');
+                    });
             });
 
             $('#wc-mss-test-sku').on('keypress', function(e) {
@@ -281,28 +305,36 @@ if (!defined('ABSPATH')) {
                 $btn.prop('disabled', true).text('<?php echo esc_js(__('Queuing...', 'wc-multi-store-sync')); ?>');
                 $('#wc-mss-force-sync-category-result').hide();
 
-                $.post(wcMssAdmin.ajax_url, {
-                    action:      'wc_mss_force_sync_by_category',
-                    category_id: categoryId,
-                    nonce:       wcMssAdmin.nonce
-                }, function(response) {
-                    var html;
-                    if (response.success) {
-                        html = '<div class="notice notice-success inline" style="margin:0;">'
-                             + '<p>' + response.data.message + '</p>'
-                             + '<p style="margin:4px 0 0;color:#666;font-size:12px;"><?php echo esc_js(__('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync')); ?></p>'
-                             + '</div>';
-                    } else {
-                        html = '<div class="notice notice-error inline" style="margin:0;"><p>' + (response.data?.message || '<?php echo esc_js(__('An error occurred', 'wc-multi-store-sync')); ?>') + '</p></div>';
-                    }
-                    $('#wc-mss-force-sync-category-result').html(html).show();
-                }).fail(function() {
-                    $('#wc-mss-force-sync-category-result')
-                        .html('<div class="notice notice-error inline" style="margin:0;"><p><?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?></p></div>')
-                        .show();
-                }).always(function() {
-                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Force Full Sync', 'wc-multi-store-sync')); ?>');
-                });
+                fetch(wcMssAdmin.ajax_url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action:      'wc_mss_force_sync_by_category',
+                        category_id: categoryId,
+                        nonce:       wcMssAdmin.nonce
+                    }),
+                })
+                    .then(function (res) { return res.json(); })
+                    .then(function(response) {
+                        var html;
+                        if (response.success) {
+                            html = '<div class="notice notice-success inline" style="margin:0;">'
+                                 + '<p>' + response.data.message + '</p>'
+                                 + '<p style="margin:4px 0 0;color:#666;font-size:12px;"><?php echo esc_js(__('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync')); ?></p>'
+                                 + '</div>';
+                        } else {
+                            html = '<div class="notice notice-error inline" style="margin:0;"><p>' + (response.data?.message || '<?php echo esc_js(__('An error occurred', 'wc-multi-store-sync')); ?>') + '</p></div>';
+                        }
+                        $('#wc-mss-force-sync-category-result').html(html).show();
+                    })
+                    .catch(function() {
+                        $('#wc-mss-force-sync-category-result')
+                            .html('<div class="notice notice-error inline" style="margin:0;"><p><?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?></p></div>')
+                            .show();
+                    })
+                    .finally(function() {
+                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Force Full Sync', 'wc-multi-store-sync')); ?>');
+                    });
             });
         });
         </script>
