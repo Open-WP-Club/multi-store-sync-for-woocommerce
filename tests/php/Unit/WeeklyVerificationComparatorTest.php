@@ -1,32 +1,51 @@
 <?php
 /**
- * Unit tests for the field-comparison helpers extracted from
- * WC_Multi_Store_Weekly_Sync_Verifier::check_full_product_fields().
+ * Unit tests for the field-comparison helpers on
+ * WC_Multi_Store_Weekly_Verification_Comparator::check_full_product_fields().
  *
  * Each helper (compare_scalar_fields, compare_description_fields, compare_weight,
  * compare_dimensions, compare_tags, compare_images, compare_attributes) is a pure
  * private static method: WC_Product + remote object in, discrepancy array out.
  * Invoked via ReflectionMethod, mirroring the pattern used throughout
- * WeeklySyncVerifierExtendedTest.php.
+ * WeeklyVerificationRemoteDataFetcherTest.php.
  */
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 
-class WeeklySyncVerifierFieldComparisonTest extends WC_Multi_Store_TestCase
+class WeeklyVerificationComparatorTest extends WC_Multi_Store_TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        if (!class_exists('WC_Multi_Store_Weekly_Sync_Verifier', false)) {
-            require_once dirname(__DIR__, 3) . '/includes/weekly-sync-verifier.php';
+        if (!class_exists('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher', false)) {
+            require_once dirname(__DIR__, 3) . '/includes/weekly-verification-remote-data-fetcher.php';
         }
+        if (!class_exists('WC_Multi_Store_Weekly_Verification_Comparator', false)) {
+            require_once dirname(__DIR__, 3) . '/includes/weekly-verification-comparator.php';
+        }
+
+        // verify_product() calls WC_Multi_Store_Settings::get_settings() and, via
+        // the RemoteDataFetcher, get_option()/get_transient()/get_post_meta().
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'match_products_by' => 'sku',
+                    'category_match_by' => 'slug',
+                ];
+            }
+            return $default;
+        });
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->justReturn(true);
+        Functions\when('get_post_meta')->justReturn('');
+        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
     }
 
     private function invoke(string $method, array $args)
     {
-        $ref = new ReflectionMethod(WC_Multi_Store_Weekly_Sync_Verifier::class, $method);
+        $ref = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, $method);
         return $ref->invoke(null, ...$args);
     }
 
@@ -494,5 +513,287 @@ class WeeklySyncVerifierFieldComparisonTest extends WC_Multi_Store_TestCase
         $result = $this->invoke('compare_attributes', [$product, $remote, 'https://store1.com', 'Store 1']);
 
         $this->assertSame([], $result);
+    }
+    // ── verify_product ────────────────────────────────────────────
+
+    public function test_run_verification_happy_path_no_discrepancies(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 1]);
+        Functions\when('wc_get_product')->alias(function ($id) {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_id')->andReturn($id);
+            $product->shouldReceive('get_sku')->andReturn('TEST-SKU');
+            $product->shouldReceive('get_slug')->andReturn('test-product');
+            $product->shouldReceive('get_name')->andReturn('Test Product');
+            $product->shouldReceive('get_stock_quantity')->andReturn(10);
+            $product->shouldReceive('get_regular_price')->andReturn('19.99');
+            $product->shouldReceive('get_sale_price')->andReturn('');
+            $product->shouldReceive('get_category_ids')->andReturn([]);
+            $product->shouldReceive('get_tag_ids')->andReturn([]);
+            return $product;
+        });
+        Functions\when('wp_get_post_terms')->justReturn([]);
+
+        // Mock API client for get_remote_product
+        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
+        $mock_api->shouldReceive('get_products')
+            ->andReturn([
+                [
+                    'id' => 100,
+                    'sku' => 'TEST-SKU',
+                    'stock_quantity' => 10,
+                    'regular_price' => '19.99',
+                    'sale_price' => '',
+                    'categories' => [],
+                ],
+            ]);
+
+        // Inject mock API client into the pool
+        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher');
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $mock_api]);
+
+        // Override WP_Query constructor to inject test posts
+        // We use the get_products_to_verify which creates WP_Query
+        // Since WP_Query is a stub, we need to make it return products
+        // by patching the class temporarily
+        $origClass = true;
+
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('insert')->andReturn(1);
+
+        // Use reflection to call verify_product directly instead
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $stores = [
+            'https://store1.com' => [
+                'consumer_key' => 'ck_test',
+                'consumer_secret' => 'cs_test',
+            ],
+        ];
+
+        $settings = [
+            'check_stock' => true,
+            'check_prices' => true,
+            'check_categories' => false,
+        ];
+
+        $result = $method->invoke(null, 42, $stores, $settings);
+
+        $this->assertNotNull($result);
+        $this->assertEmpty($result['discrepancies']);
+    }
+
+    public function test_verify_product_detects_stock_mismatch(): void
+    {
+        Functions\when('wc_get_product')->alias(function ($id) {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_id')->andReturn($id);
+            $product->shouldReceive('get_sku')->andReturn('SKU-STOCK');
+            $product->shouldReceive('get_slug')->andReturn('stock-product');
+            $product->shouldReceive('get_name')->andReturn('Stock Product');
+            $product->shouldReceive('get_stock_quantity')->andReturn(50);
+            $product->shouldReceive('get_regular_price')->andReturn('10.00');
+            $product->shouldReceive('get_sale_price')->andReturn('');
+            $product->shouldReceive('get_category_ids')->andReturn([]);
+            $product->shouldReceive('get_tag_ids')->andReturn([]);
+            return $product;
+        });
+        Functions\when('wp_get_post_terms')->justReturn([]);
+
+        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
+        $mock_api->shouldReceive('get_products')
+            ->andReturn([
+                [
+                    'id' => 100,
+                    'sku' => 'SKU-STOCK',
+                    'stock_quantity' => 30, // Mismatch: local=50, remote=30
+                    'regular_price' => '10.00',
+                    'sale_price' => '',
+                    'categories' => [],
+                ],
+            ]);
+
+        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher');
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $mock_api]);
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $stores = ['https://store1.com' => ['consumer_key' => 'ck_test', 'consumer_secret' => 'cs_test']];
+        $settings = ['check_stock' => true, 'check_prices' => false, 'check_categories' => false];
+
+        $result = $method->invoke(null, 42, $stores, $settings);
+
+        $this->assertNotEmpty($result['discrepancies']);
+        $stock_disc = array_filter($result['discrepancies'], fn($d) => $d['type'] === 'stock');
+        $this->assertCount(1, $stock_disc);
+        $disc = array_values($stock_disc)[0];
+        $this->assertEquals(50, $disc['expected']);
+        $this->assertEquals(30, $disc['actual']);
+    }
+
+    public function test_verify_product_detects_missing_product(): void
+    {
+        Functions\when('wc_get_product')->alias(function ($id) {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_id')->andReturn($id);
+            $product->shouldReceive('get_sku')->andReturn('MISSING-SKU');
+            $product->shouldReceive('get_slug')->andReturn('missing-product');
+            $product->shouldReceive('get_name')->andReturn('Missing Product');
+            $product->shouldReceive('get_stock_quantity')->andReturn(10);
+            $product->shouldReceive('get_regular_price')->andReturn('10.00');
+            $product->shouldReceive('get_sale_price')->andReturn('');
+            $product->shouldReceive('get_category_ids')->andReturn([]);
+            $product->shouldReceive('get_tag_ids')->andReturn([]);
+            return $product;
+        });
+        Functions\when('wp_get_post_terms')->justReturn([]);
+
+        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
+        $mock_api->shouldReceive('get_products')->andReturn([]); // Not found
+
+        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher');
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $mock_api]);
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $stores = ['https://store1.com' => ['consumer_key' => 'ck_test', 'consumer_secret' => 'cs_test']];
+        $settings = ['check_stock' => true, 'check_prices' => true, 'check_categories' => false];
+
+        $result = $method->invoke(null, 42, $stores, $settings);
+
+        $missing = array_filter($result['discrepancies'], fn($d) => $d['type'] === 'missing');
+        $this->assertCount(1, $missing);
+    }
+
+    public function test_verify_product_detects_price_mismatch(): void
+    {
+        Functions\when('wc_get_product')->alias(function ($id) {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_id')->andReturn($id);
+            $product->shouldReceive('get_sku')->andReturn('PRICE-SKU');
+            $product->shouldReceive('get_slug')->andReturn('price-product');
+            $product->shouldReceive('get_name')->andReturn('Price Product');
+            $product->shouldReceive('get_stock_quantity')->andReturn(10);
+            $product->shouldReceive('get_regular_price')->andReturn('29.99');
+            $product->shouldReceive('get_sale_price')->andReturn('19.99');
+            $product->shouldReceive('get_category_ids')->andReturn([]);
+            $product->shouldReceive('get_tag_ids')->andReturn([]);
+            return $product;
+        });
+        Functions\when('wp_get_post_terms')->justReturn([]);
+
+        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
+        $mock_api->shouldReceive('get_products')
+            ->andReturn([
+                [
+                    'id' => 100,
+                    'sku' => 'PRICE-SKU',
+                    'stock_quantity' => 10,
+                    'regular_price' => '39.99', // Mismatch
+                    'sale_price' => '29.99',    // Mismatch
+                    'categories' => [],
+                ],
+            ]);
+
+        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher');
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $mock_api]);
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $stores = ['https://store1.com' => ['consumer_key' => 'ck_test', 'consumer_secret' => 'cs_test']];
+        $settings = ['check_stock' => false, 'check_prices' => true, 'check_categories' => false];
+
+        $result = $method->invoke(null, 42, $stores, $settings);
+
+        $price_disc = array_filter($result['discrepancies'], fn($d) => $d['type'] === 'price');
+        $this->assertCount(2, $price_disc); // regular + sale price
+    }
+
+    // ── verify_product: edge cases ───────────────────────────────
+
+    public function test_verify_product_skips_product_without_sku(): void
+    {
+        Functions\when('wc_get_product')->alias(function () {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_sku')->andReturn('');
+            return $product;
+        });
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $result = $method->invoke(null, 42, ['https://store1.com' => []], [
+            'check_stock' => true,
+            'check_prices' => true,
+            'check_categories' => false,
+        ]);
+
+        $this->assertNull($result);
+    }
+
+    public function test_verify_product_returns_null_for_invalid_product(): void
+    {
+        Functions\when('wc_get_product')->justReturn(false);
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $result = $method->invoke(null, 9999, ['https://store1.com' => []], [
+            'check_stock' => true,
+            'check_prices' => true,
+            'check_categories' => false,
+        ]);
+
+        $this->assertNull($result);
+    }
+
+    public function test_verify_product_handles_api_error(): void
+    {
+        Functions\when('wc_get_product')->alias(function ($id) {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_id')->andReturn($id);
+            $product->shouldReceive('get_sku')->andReturn('ERROR-SKU');
+            $product->shouldReceive('get_slug')->andReturn('error-product');
+            $product->shouldReceive('get_name')->andReturn('Error Product');
+            $product->shouldReceive('get_stock_quantity')->andReturn(10);
+            $product->shouldReceive('get_regular_price')->andReturn('10.00');
+            $product->shouldReceive('get_sale_price')->andReturn('');
+            $product->shouldReceive('get_category_ids')->andReturn([]);
+            $product->shouldReceive('get_tag_ids')->andReturn([]);
+            return $product;
+        });
+        Functions\when('wp_get_post_terms')->justReturn([]);
+
+        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
+        $mock_api->shouldReceive('get_products')
+            ->andReturn(new \WP_Error('api_error', 'Connection timeout'));
+
+        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher');
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $mock_api]);
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $store_config = [
+            'consumer_key' => 'ck_test',
+            'consumer_secret' => 'cs_test',
+        ];
+
+        $result = $method->invoke(null, 42, ['https://store1.com' => $store_config], [
+            'check_stock' => true,
+            'check_prices' => true,
+            'check_categories' => false,
+        ]);
+
+        $this->assertNotNull($result);
+        $this->assertNotEmpty($result['discrepancies']);
+        $this->assertEquals('error', $result['discrepancies'][0]['type']);
+        $this->assertStringContainsString('Connection timeout', $result['discrepancies'][0]['message']);
     }
 }

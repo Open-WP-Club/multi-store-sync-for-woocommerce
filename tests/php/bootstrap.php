@@ -391,6 +391,7 @@ require_once $plugin_root . '/includes/remote-order-sync.php';
 require_once $plugin_root . '/includes/weekly-verification-report-repository.php';
 require_once $plugin_root . '/includes/weekly-verification-email-notifier.php';
 require_once $plugin_root . '/includes/weekly-verification-remote-data-fetcher.php';
+require_once $plugin_root . '/includes/weekly-verification-comparator.php';
 require_once $plugin_root . '/includes/weekly-sync-verifier.php';
 require_once $plugin_root . '/includes/hooks.php';
 require_once $plugin_root . '/includes/remote-order-table.php';
