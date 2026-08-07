@@ -103,9 +103,11 @@ if (!defined('ABSPATH')) {
         var raw = $('#wc-mss-log-content').text();
         if (!raw) return;
 
+        // Matches WooCommerce's own log line format: "{ISO8601} {LEVEL} {message} ..."
+        var issueLinePattern = /^\S+\s+(WARNING|ERROR)\b/;
         var lines = raw.split('\n');
         var issues = lines.filter(function(l) {
-            return l.indexOf('[WARNING]') !== -1 || l.indexOf('[ERROR]') !== -1;
+            return issueLinePattern.test(l);
         });
 
         var $viewer = $('#wc-mss-issues-viewer');
@@ -308,7 +310,7 @@ if (!defined('ABSPATH')) {
 
     <div class="wc-mss-card">
         <h3><?php _e('About Logs', 'wc-multi-store-sync'); ?></h3>
-        <p><?php _e('This page shows the most recent 500 log entries. Logs are automatically rotated when they exceed 10MB.', 'wc-multi-store-sync'); ?></p>
+        <p><?php _e('This page shows the most recent 500 log entries, read from the WooCommerce log for this plugin. Retention is controlled by the "Log retention period" setting under WooCommerce → Status → Logs.', 'wc-multi-store-sync'); ?></p>
         <p><?php _e('Log entries include:', 'wc-multi-store-sync'); ?></p>
         <ul>
             <li><?php _e('Product sync operations (create, update, delete)', 'wc-multi-store-sync'); ?></li>

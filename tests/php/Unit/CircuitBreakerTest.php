@@ -221,18 +221,13 @@ class CircuitBreakerTest extends WC_Multi_Store_TestCase
         $state = ['consecutive_errors' => 0, 'open_until' => 0, 'opened_at' => 0];
         Functions\when('get_transient')->alias(fn(string $k) => $k === $cbKey ? $state : false);
 
+        // record_success() only calls Logger::write() when the circuit was
+        // actually open; on an already-closed circuit it must not log at all.
+        Functions\expect('wc_get_logger')->never();
+
         WC_Multi_Store_Circuit_Breaker::record_success(self::STORE_URL);
 
-        $ref    = new \ReflectionClass(WC_Multi_Store_Logger::class);
-        $inst   = $ref->getProperty('instance')->getValue();
-        $buffer = $inst ? $ref->getProperty('buffer')->getValue($inst) : [];
-
-        // Logger::write_to_file() pushes plain formatted strings into the
-        // buffer (not {message: ...} structs) — array_column() against
-        // 'message' silently returns [] here, which made this assertion
-        // pass regardless of what was actually logged. implode() directly.
-        $combined = implode(' ', $buffer);
-        $this->assertStringNotContainsStringIgnoringCase('CLOSED', $combined);
+        $this->assertTrue(true);
     }
 
     // ── get_status ────────────────────────────────────────────────────────────

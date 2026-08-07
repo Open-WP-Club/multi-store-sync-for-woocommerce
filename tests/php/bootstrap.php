@@ -117,23 +117,6 @@ abstract class WC_Multi_Store_TestCase extends \PHPUnit\Framework\TestCase
 
     protected function tearDown(): void
     {
-        // Clear Logger singleton buffer before mocks are torn down.
-        // Prevents fatal errors in Logger::__destruct() when Brain Monkey
-        // functions are no longer available.
-        if (class_exists('WC_Multi_Store_Logger', false)) {
-            $ref = new \ReflectionClass('WC_Multi_Store_Logger');
-            $prop = $ref->getProperty('instance');
-            $inst = $prop->getValue();
-            if ($inst) {
-                $buf = $ref->getProperty('buffer');
-                $buf->setValue($inst, []);
-            }
-            // Note: do NOT call reset_instance() here. The singleton persists
-            // with valid settings from bootstrap. Clearing the buffer is enough.
-            // Resetting would force re-creation in the next test, which calls
-            // get_option() in the constructor — most tests don't mock that.
-        }
-
         // Clear API Client rate limiter timestamps — after ~20 API tests
         // the rate limit triggers logging which calls Logger without mocks.
         if (class_exists('WC_Multi_Store_API_Client', false)) {
@@ -242,6 +225,13 @@ abstract class WC_Multi_Store_TestCase extends \PHPUnit\Framework\TestCase
         // Tests that need different behaviour override this per-test via
         // Brain Monkey's Functions\when('WC').
         Monkey\Functions\when('WC')->justReturn(new WC_Multi_Store_Test_Mailer_Container());
+
+        // Default wc_get_logger() stub — WC_Multi_Store_Logger::do_log() delegates
+        // every log line to it. Once any test registers Functions\when('wc_get_logger'),
+        // Patchwork makes function_exists('wc_get_logger') report true for the rest of
+        // the run, so every test needs SOME mock in place. Tests that care what gets
+        // logged override this per-test via Brain Monkey's Functions\when('wc_get_logger').
+        Monkey\Functions\when('wc_get_logger')->justReturn(new WC_Multi_Store_Test_Noop_Logger());
     }
 }
 
@@ -558,6 +548,41 @@ if (!class_exists('WC_Multi_Store_Test_Mailer')) {
     class WC_Multi_Store_Test_Mailer {
         public function wrap_message(string $heading, string $content): string {
             return '<html><body><h1>' . $heading . '</h1>' . $content . '</body></html>';
+        }
+    }
+}
+
+/**
+ * No-op default for wc_get_logger() — swallows log calls silently.
+ * Tests asserting on logged content replace this via Functions\when('wc_get_logger').
+ */
+if (!class_exists('WC_Multi_Store_Test_Noop_Logger')) {
+    class WC_Multi_Store_Test_Noop_Logger {
+        public function log(string $level, string $message, array $context = []): void {}
+    }
+}
+
+/**
+ * Mock WooCommerce log file handler used by WC_Multi_Store_Logger.
+ * Points at a real, per-run temp file so get_log()/clear_log()/
+ * clear_warnings_and_errors() tests can exercise real file I/O.
+ */
+if (!class_exists('WC_Log_Handler_File')) {
+    class WC_Log_Handler_File {
+        public static function get_log_file_path(string $handle): string {
+            $dir = sys_get_temp_dir() . '/wc-mss-tests/wc-logs';
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0777, true);
+            }
+            return $dir . '/' . $handle . '.log';
+        }
+
+        public static function remove(string $handle): bool {
+            $file = self::get_log_file_path($handle);
+            if (file_exists($file)) {
+                return unlink($file);
+            }
+            return false;
         }
     }
 }

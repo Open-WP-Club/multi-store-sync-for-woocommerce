@@ -351,7 +351,8 @@ class WC_Multi_Store_Sync {
         // Add settings link on plugins page
         add_filter('plugin_action_links_' . WC_MSS_PLUGIN_BASENAME, $this->plugin_action_links(...));
 
-        // History archival scheduled event (triggered by time-based log rotation)
+        // History archival: independent recurring job, decoupled from logging
+        add_action('init', WC_Multi_Store_Logger::schedule_archival(...));
         add_action('wc_mss_archive_history', WC_Multi_Store_Logger::archive_database_history(...));
     }
 

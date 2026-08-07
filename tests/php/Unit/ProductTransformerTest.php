@@ -13,6 +13,11 @@ class ProductTransformerTest extends WC_Multi_Store_TestCase
      */
     private $transformer;
 
+    /**
+     * @var array<int, string>
+     */
+    private array $loggedMessages = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -24,6 +29,15 @@ class ProductTransformerTest extends WC_Multi_Store_TestCase
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
+
+        // Capture everything WC_Multi_Store_Logger delegates to wc_get_logger(),
+        // since it no longer buffers log lines itself.
+        $this->loggedMessages = [];
+        $wcLogger = \Mockery::mock();
+        $wcLogger->shouldReceive('log')->andReturnUsing(function ($level, $message, $context = []) {
+            $this->loggedMessages[] = $message;
+        });
+        Functions\when('wc_get_logger')->justReturn($wcLogger);
     }
 
     /**
@@ -121,11 +135,7 @@ class ProductTransformerTest extends WC_Multi_Store_TestCase
 
     private function getLoggerMessages(): array
     {
-        // Logger::write_to_file() pushes plain formatted strings into the
-        // buffer (not {message: ...} structs), so just return it as-is.
-        $ref    = new \ReflectionClass(WC_Multi_Store_Logger::class);
-        $inst   = $ref->getProperty('instance')->getValue();
-        return $inst ? $ref->getProperty('buffer')->getValue($inst) : [];
+        return $this->loggedMessages;
     }
 
     private function mockActiveStoresWithAllocationRules(array $storesRules): void

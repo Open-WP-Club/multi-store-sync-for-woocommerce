@@ -858,28 +858,19 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
 
     private function useTempLogDir(): string
     {
-        $temp_log_dir = sys_get_temp_dir() . '/wc-mss-admin-ajax-test-' . uniqid();
-        mkdir($temp_log_dir . '/wc-mss-logs', 0777, true);
+        $log_file = WC_Log_Handler_File::get_log_file_path(WC_Multi_Store_Logger::LOG_HANDLE);
+        @unlink($log_file);
 
-        Functions\when('wp_upload_dir')->justReturn([
-            'basedir' => $temp_log_dir,
-            'baseurl' => 'http://example.com/wp-content/uploads',
-        ]);
         Functions\when('get_option')->justReturn([]);
 
         WC_Multi_Store_Logger::reset_instance();
 
-        return $temp_log_dir;
+        return dirname($log_file);
     }
 
     private function removeTempLogDir(string $dir): void
     {
-        $logs_dir = $dir . '/wc-mss-logs';
-        if (is_dir($logs_dir)) {
-            array_map('unlink', glob($logs_dir . '/*') ?: []);
-            @rmdir($logs_dir);
-        }
-        @rmdir($dir);
+        @unlink(WC_Log_Handler_File::get_log_file_path(WC_Multi_Store_Logger::LOG_HANDLE));
         WC_Multi_Store_Logger::reset_instance();
     }
 
@@ -916,8 +907,8 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
     public function test_clear_sync_log_success_removes_existing_file(): void
     {
         $dir = $this->useTempLogDir();
-        $log_file = $dir . '/wc-mss-logs/sync.log';
-        file_put_contents($log_file, "[INFO] hello\n");
+        $log_file = WC_Log_Handler_File::get_log_file_path(WC_Multi_Store_Logger::LOG_HANDLE);
+        file_put_contents($log_file, "2024-01-15T12:00:00+00:00 INFO hello\n");
         $this->assertFileExists($log_file);
 
         $success = null;
@@ -968,10 +959,13 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
     public function test_clear_warnings_errors_removes_only_warning_and_error_lines(): void
     {
         $dir = $this->useTempLogDir();
-        $log_file = $dir . '/wc-mss-logs/sync.log';
+        $log_file = WC_Log_Handler_File::get_log_file_path(WC_Multi_Store_Logger::LOG_HANDLE);
         file_put_contents(
             $log_file,
-            "[INFO] all good\n[WARNING] careful\n[ERROR] boom\n[INFO] still good\n"
+            "2024-01-15T12:00:00+00:00 INFO all good\n"
+            . "2024-01-15T12:01:00+00:00 WARNING careful\n"
+            . "2024-01-15T12:02:00+00:00 ERROR boom\n"
+            . "2024-01-15T12:03:00+00:00 INFO still good\n"
         );
 
         $success = null;
@@ -985,10 +979,10 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('2', $success['message']);
 
         $remaining = file_get_contents($log_file);
-        $this->assertStringContainsString('[INFO] all good', $remaining);
-        $this->assertStringContainsString('[INFO] still good', $remaining);
-        $this->assertStringNotContainsString('[WARNING]', $remaining);
-        $this->assertStringNotContainsString('[ERROR]', $remaining);
+        $this->assertStringContainsString('INFO all good', $remaining);
+        $this->assertStringContainsString('INFO still good', $remaining);
+        $this->assertStringNotContainsString('WARNING', $remaining);
+        $this->assertStringNotContainsString('ERROR', $remaining);
 
         $this->removeTempLogDir($dir);
     }

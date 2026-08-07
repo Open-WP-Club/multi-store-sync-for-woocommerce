@@ -27,19 +27,20 @@ use Psr\Log\LogLevel;
 class WC_Multi_Store_Logger extends AbstractLogger {
 
     /**
-     * Default max log file size in bytes (10MB)
-     */
-    const int DEFAULT_MAX_LOG_SIZE = 10485760;
-
-    /**
-     * Default number of backup files to keep
-     */
-    const int DEFAULT_MAX_BACKUP_FILES = 10;
-
-    /**
-     * Default rotation interval in days
+     * Default archival cutoff in days
      */
     const int DEFAULT_ROTATION_DAYS = 7;
+
+    /**
+     * Log source handle used both for wc_get_logger() context and for
+     * locating WooCommerce's own log file (WC_Log_Handler_File).
+     */
+    const string LOG_HANDLE = 'wc-multi-store-sync';
+
+    /**
+     * Max number of history-archive JSON files to keep
+     */
+    const int MAX_ARCHIVE_FILES = 10;
 
     /**
      * Singleton instance
@@ -49,60 +50,18 @@ class WC_Multi_Store_Logger extends AbstractLogger {
     private static $instance = null;
 
     /**
-     * Log file path
+     * WooCommerce's own log file path for our handle
      *
      * @var string
      */
     private readonly string $log_file;
 
     /**
-     * Debug mode
-     *
-     * @var bool
-     */
-    private readonly bool $debug_mode;
-
-    /**
-     * Log buffer for reducing file I/O
-     *
-     * @var array
-     */
-    private array $buffer = [];
-
-    /**
-     * Buffer size limit before auto-flush
-     *
-     * @var int
-     */
-    private readonly int $buffer_size;
-
-    /**
-     * Max log file size before rotation (in bytes)
-     *
-     * @var int
-     */
-    private int $max_log_size;
-
-    /**
-     * Max number of backup files to keep
-     *
-     * @var int
-     */
-    private int $max_backup_files;
-
-    /**
-     * Rotation interval in days
+     * Archival cutoff in days
      *
      * @var int
      */
     private int $rotation_days;
-
-    /**
-     * Last rotation timestamp option key
-     *
-     * @var string
-     */
-    private readonly string $last_rotation_option;
 
     /**
      * Get singleton instance
@@ -129,58 +88,20 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      * Constructor
      */
     public function __construct() {
-        // Store logs in uploads directory — survives plugin updates and can be
-        // centrally protected. Falls back to plugin dir if uploads is unavailable.
-        $upload_dir = wp_upload_dir();
-        $logs_dir = $upload_dir['basedir'] . '/wc-mss-logs';
+        $this->log_file = WC_Log_Handler_File::get_log_file_path(self::LOG_HANDLE);
 
-        if (!file_exists($logs_dir)) {
-            wp_mkdir_p($logs_dir);
-            // Protect directory from direct web access (Apache)
-            file_put_contents($logs_dir . '/.htaccess', "deny from all\n");
-            // Protect directory from direct web access (Nginx — requires include in server block)
-            // Users should add: include /path/to/uploads/wc-mss-logs/nginx.conf; in their Nginx config
-            file_put_contents($logs_dir . '/nginx.conf', "location ~* /wc-mss-logs/ {\n    deny all;\n    return 403;\n}\n");
-            // Fallback: index.php prevents directory listing
-            file_put_contents($logs_dir . '/index.php', "<?php\n// Silence is golden.\n");
-        }
-
-        $this->log_file = $logs_dir . '/sync.log';
-        $this->debug_mode = defined('WP_DEBUG') && WP_DEBUG;
-        $this->buffer_size = 10;
-        $this->last_rotation_option = 'wc_mss_last_log_rotation';
-
-        // Load configurable rotation settings
+        // Load configurable archival cutoff
         $this->load_rotation_settings();
     }
 
     /**
-     * Load rotation settings from options or constants
+     * Load the archival cutoff (in days) from options or a constant override
      *
      * @return void
      */
     private function load_rotation_settings(): void {
         $settings = get_option('wc_multi_store_sync_settings', []);
 
-        // Max log size
-        if (defined('WC_MSS_MAX_LOG_SIZE')) {
-            $this->max_log_size = (int) WC_MSS_MAX_LOG_SIZE;
-        } else {
-            $this->max_log_size = isset($settings['max_log_size'])
-                ? (int) $settings['max_log_size']
-                : self::DEFAULT_MAX_LOG_SIZE;
-        }
-
-        // Max backup files (default 10)
-        if (defined('WC_MSS_MAX_BACKUP_FILES')) {
-            $this->max_backup_files = (int) WC_MSS_MAX_BACKUP_FILES;
-        } else {
-            $this->max_backup_files = isset($settings['max_backup_files'])
-                ? (int) $settings['max_backup_files']
-                : self::DEFAULT_MAX_BACKUP_FILES;
-        }
-
-        // Rotation days (default 7)
         if (defined('WC_MSS_ROTATION_DAYS')) {
             $this->rotation_days = (int) WC_MSS_ROTATION_DAYS;
         } else {
@@ -190,34 +111,27 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         }
 
         // Enforce reasonable limits
-        $this->max_log_size = max(1048576, min(104857600, $this->max_log_size)); // 1MB - 100MB
-        $this->max_backup_files = max(1, min(20, $this->max_backup_files)); // 1 - 20 files
         $this->rotation_days = max(1, min(30, $this->rotation_days)); // 1 - 30 days
     }
 
     /**
-     * Get current rotation settings
+     * Ensure the recurring database-history archival job is scheduled.
+     * Independent of WooCommerce's own log retention — archival is a
+     * database-cleanup concern, not a logging concern.
      *
-     * Uses the singleton instance to avoid creating a new Logger
-     * (which would trigger directory creation and settings loading).
-     *
-     * @return array Settings array
+     * @return void
      */
-    public static function get_rotation_settings(): array {
-        $instance = self::instance();
-        return [
-            'max_log_size' => $instance->max_log_size,
-            'max_log_size_mb' => round($instance->max_log_size / 1048576, 2),
-            'max_backup_files' => $instance->max_backup_files,
-            'rotation_days' => $instance->rotation_days,
-        ];
-    }
+    public static function schedule_archival(): void {
+        if (!WC_Multi_Store_Action_Scheduler_Manager::is_available()) {
+            return;
+        }
 
-    /**
-     * Destructor - flush any remaining buffered logs
-     */
-    public function __destruct() {
-        $this->flush_buffer();
+        $hook = 'wc_mss_archive_history';
+        $group = WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP;
+
+        if (!as_next_scheduled_action($hook, [], $group)) {
+            as_schedule_recurring_action(time(), DAY_IN_SECONDS, $hook, [], $group);
+        }
     }
 
     /**
@@ -229,7 +143,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      * @return void
      */
     public static function write(string $message, string $level = 'info', string $context = ''): void {
-        self::instance()->do_log($message, $level, $context);
+        self::instance()->do_log($message, $level, $context !== '' ? ['context' => $context] : []);
     }
 
     /**
@@ -243,160 +157,26 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      * @return void
      */
     public function log(mixed $level, string|\Stringable $message, array $context = []): void {
-        $context_string = !empty($context) ? json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : '';
-        $this->do_log((string) $message, (string) $level, $context_string);
+        $this->do_log((string) $message, (string) $level, $context);
     }
 
     /**
-     * Internal log implementation
+     * Internal log implementation — delegates to WooCommerce's own logger
      *
      * @param string $message Log message
      * @param string $level Log level (info, warning, error)
-     * @param string $context Additional context
+     * @param array $context PSR-3 context array
      * @return void
      */
-    private function do_log(string $message, string $level = 'info', string $context = ''): void {
-        $timestamp = current_time('Y-m-d H:i:s');
-        $level = strtoupper($level);
-
-        $log_entry = sprintf(
-            "[%s] [%s] %s",
-            $timestamp,
-            $level,
-            $message
-        );
-
-        if (!empty($context)) {
-            $log_entry .= ' | Context: ' . $context;
-        }
-
-        $log_entry .= PHP_EOL;
-
-        // Write to file
-        $this->write_to_file($log_entry);
-
-        // Also write to WooCommerce logger if available
+    private function do_log(string $message, string $level = 'info', array $context = []): void {
         if (function_exists('wc_get_logger')) {
-            wc_get_logger()?->log($level, $message, ['source' => 'wc-multi-store-sync']);
-        }
-
-        // Write to error log if debug mode and error level
-        if ($this->debug_mode && $level === 'ERROR') {
-            error_log('WC Multi-Store Sync: ' . $message);
-        }
-    }
-
-    /**
-     * Write log entry to buffer (or file for critical errors)
-     * PERFORMANCE FIX: Buffering reduces file I/O operations
-     *
-     * @param string $log_entry Log entry
-     * @return void
-     */
-    private function write_to_file(string $log_entry): void {
-        // Add to buffer
-        $this->buffer[] = $log_entry;
-
-        // Auto-flush if buffer is full
-        if (count($this->buffer) >= $this->buffer_size) {
-            $this->flush_buffer();
-        }
-    }
-
-    /**
-     * Flush buffered log entries to file
-     * PERFORMANCE FIX: Reduces file I/O by writing multiple entries at once
-     *
-     * @return void
-     */
-    public function flush_buffer(): void {
-        if (empty($this->buffer)) {
-            return;
-        }
-
-        // Ensure logs directory exists and is writable
-        $logs_dir = dirname($this->log_file);
-        if (!file_exists($logs_dir)) {
-            if (!wp_mkdir_p($logs_dir)) {
-                // Can't create directory, clear buffer and return
-                $this->buffer = [];
-                return;
-            }
-        }
-
-        // PERFORMANCE FIX: Check if directory is writable before attempting write
-        if (!is_writable($logs_dir)) {
-            $this->buffer = [];
-            return;
-        }
-
-        // Check for time-based rotation before writing
-        if ($this->should_rotate_by_time()) {
-            $this->rotate_log('time');
-        }
-
-        // Write all buffered entries at once
-        file_put_contents($this->log_file, implode('', $this->buffer), FILE_APPEND | LOCK_EX);
-
-        // Clear buffer
-        $this->buffer = [];
-
-        // Rotate log file if too large (configurable size)
-        if (file_exists($this->log_file) && filesize($this->log_file) > $this->max_log_size) {
-            $this->rotate_log('size');
-        }
-    }
-
-    /**
-     * Check if time-based rotation is needed
-     *
-     * @return bool True if rotation is needed
-     */
-    private function should_rotate_by_time(): bool {
-        $last_rotation = (int) get_option($this->last_rotation_option, 0);
-
-        if (!$last_rotation) {
-            // First time - set the timestamp and don't rotate
-            update_option($this->last_rotation_option, time());
-            return false;
-        }
-
-        $days_since_rotation = (time() - $last_rotation) / DAY_IN_SECONDS;
-
-        return $days_since_rotation >= $this->rotation_days;
-    }
-
-    /**
-     * Rotate log file
-     *
-     * @param string $reason Reason for rotation: 'size' or 'time'
-     * @return void
-     */
-    private function rotate_log(string $reason = 'size'): void {
-        if (file_exists($this->log_file)) {
-            $backup_file = $this->log_file . '.' . date('Y-m-d-H-i-s') . '.bak';
-            rename($this->log_file, $backup_file);
-
-            // Keep only configured number of backup files
-            $this->cleanup_old_logs();
-
-            // If time-based rotation, also archive database history
-            if ($reason === 'time') {
-                update_option($this->last_rotation_option, time());
-
-                // Schedule database history archival (runs async to avoid blocking)
-                if (WC_Multi_Store_Action_Scheduler_Manager::is_available()
-                    && !as_next_scheduled_action('wc_mss_archive_history', [], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP)
-                ) {
-                    as_schedule_single_action(time() + 5, 'wc_mss_archive_history', [], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
-                }
-            }
+            wc_get_logger()?->log(strtolower($level), $message, array_merge($context, ['source' => self::LOG_HANDLE]));
         }
     }
 
     /**
      * Archive database history to JSON file
-     * This is called via scheduled event after time-based rotation
+     * Called via the recurring wc_mss_archive_history scheduled action (see schedule_archival())
      *
      * @return array Result with success status and message
      */
@@ -467,8 +247,8 @@ class WC_Multi_Store_Logger extends AbstractLogger {
             )
         );
 
-        // Clean up old archive files (keep only max_backup_files)
-        self::cleanup_old_archives($logs_dir, self::instance()->max_backup_files);
+        // Clean up old archive files (keep only MAX_ARCHIVE_FILES)
+        self::cleanup_old_archives($logs_dir, self::MAX_ARCHIVE_FILES);
 
         self::write(sprintf(
             'History archived: %d records to %s, deleted from database',
@@ -500,29 +280,6 @@ class WC_Multi_Store_Logger extends AbstractLogger {
             $to_delete = array_slice($files, 0, count($files) - $max_files);
             foreach ($to_delete as $file) {
                 @unlink($file);
-            }
-        }
-    }
-
-    /**
-     * Cleanup old log files
-     * PERFORMANCE FIX: More efficient sorting with natsort instead of usort with filemtime
-     *
-     * @return void
-     */
-    private function cleanup_old_logs(): void {
-        $logs_dir = dirname($this->log_file);
-        $files = glob($logs_dir . '/*.bak', GLOB_NOSORT);
-
-        if (count($files) > $this->max_backup_files) {
-            // PERFORMANCE FIX: Use natsort which is faster than usort with filemtime
-            // File names already contain timestamps, so natural sort works
-            natsort($files);
-
-            // Delete oldest files (keep only max_backup_files)
-            $to_delete = array_slice($files, 0, count($files) - $this->max_backup_files);
-            foreach ($to_delete as $file) {
-                @unlink($file); // Suppress warnings if file already deleted
             }
         }
     }
@@ -565,14 +322,15 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      * @return bool Success
      */
     public function clear_log(): bool {
-        if (file_exists($this->log_file)) {
-            return unlink($this->log_file);
+        if (!file_exists($this->log_file)) {
+            return true;
         }
-        return true;
+        return WC_Log_Handler_File::remove(self::LOG_HANDLE);
     }
 
     /**
-     * Remove only [WARNING] and [ERROR] lines from the log, preserving INFO entries.
+     * Remove only WARNING and ERROR lines from the log, preserving INFO entries.
+     * Matches WooCommerce's own log line format: "{ISO8601} {LEVEL} {message} ...".
      *
      * @return array{removed: int, kept: int}
      */
@@ -586,7 +344,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         $removed = 0;
 
         foreach ($lines as $line) {
-            if (str_contains($line, '[WARNING]') || str_contains($line, '[ERROR]')) {
+            if (preg_match('/^\S+\s+(WARNING|ERROR)\b/', $line)) {
                 $removed++;
             } else {
                 $kept[] = $line;
