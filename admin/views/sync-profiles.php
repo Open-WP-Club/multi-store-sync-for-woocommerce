@@ -145,20 +145,26 @@ if (!defined('ABSPATH')) {
 
         var $btn = $(this).prop('disabled', true).text(<?php echo wp_json_encode(__('Saving…', 'wc-multi-store-sync')); ?>);
 
-        $.post(ajaxurl, {
-            action: 'wc_mss_profile_save',
-            nonce: nonce,
-            name: name,
-            description: $('#wc-mss-profile-description').val()
-        }, function(response) {
-            if (response.success) {
-                showNotice(response.data.message);
-                setTimeout(function() { location.reload(); }, 1000);
-            } else {
-                showNotice(response.data.message || <?php echo wp_json_encode(__('Error saving profile.', 'wc-multi-store-sync')); ?>, 'error');
-                $btn.prop('disabled', false).text(<?php echo wp_json_encode(__('Save Profile', 'wc-multi-store-sync')); ?>);
-            }
-        });
+        fetch(ajaxurl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                action: 'wc_mss_profile_save',
+                nonce: nonce,
+                name: name,
+                description: $('#wc-mss-profile-description').val()
+            }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (response) {
+                if (response.success) {
+                    showNotice(response.data.message);
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else {
+                    showNotice(response.data.message || <?php echo wp_json_encode(__('Error saving profile.', 'wc-multi-store-sync')); ?>, 'error');
+                    $btn.prop('disabled', false).text(<?php echo wp_json_encode(__('Save Profile', 'wc-multi-store-sync')); ?>);
+                }
+            });
     });
 
     // Apply preset
@@ -172,18 +178,24 @@ if (!defined('ABSPATH')) {
 
         var $btn = $(this).prop('disabled', true);
 
-        $.post(ajaxurl, {
-            action: 'wc_mss_profile_apply',
-            nonce: nonce,
-            preset_key: presetKey
-        }, function(response) {
-            if (response.success) {
-                showNotice(response.data.message);
-            } else {
-                showNotice(response.data.message || <?php echo wp_json_encode(__('Error applying preset.', 'wc-multi-store-sync')); ?>, 'error');
-            }
-            $btn.prop('disabled', false);
-        });
+        fetch(ajaxurl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                action: 'wc_mss_profile_apply',
+                nonce: nonce,
+                preset_key: presetKey
+            }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (response) {
+                if (response.success) {
+                    showNotice(response.data.message);
+                } else {
+                    showNotice(response.data.message || <?php echo wp_json_encode(__('Error applying preset.', 'wc-multi-store-sync')); ?>, 'error');
+                }
+                $btn.prop('disabled', false);
+            });
     });
 
     // Apply saved profile
@@ -197,18 +209,24 @@ if (!defined('ABSPATH')) {
 
         var $btn = $(this).prop('disabled', true);
 
-        $.post(ajaxurl, {
-            action: 'wc_mss_profile_apply',
-            nonce: nonce,
-            profile_id: profileId
-        }, function(response) {
-            if (response.success) {
-                showNotice(response.data.message);
-            } else {
-                showNotice(response.data.message || <?php echo wp_json_encode(__('Error applying profile.', 'wc-multi-store-sync')); ?>, 'error');
-            }
-            $btn.prop('disabled', false);
-        });
+        fetch(ajaxurl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                action: 'wc_mss_profile_apply',
+                nonce: nonce,
+                profile_id: profileId
+            }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (response) {
+                if (response.success) {
+                    showNotice(response.data.message);
+                } else {
+                    showNotice(response.data.message || <?php echo wp_json_encode(__('Error applying profile.', 'wc-multi-store-sync')); ?>, 'error');
+                }
+                $btn.prop('disabled', false);
+            });
     });
 
     // Export profile
@@ -231,19 +249,25 @@ if (!defined('ABSPATH')) {
         var $row = $('#wc-mss-profile-row-' + profileId);
         var $btn = $(this).prop('disabled', true);
 
-        $.post(ajaxurl, {
-            action: 'wc_mss_profile_delete',
-            nonce: nonce,
-            profile_id: profileId
-        }, function(response) {
-            if (response.success) {
-                $row.fadeOut(300, function() { $(this).remove(); });
-                showNotice(response.data.message);
-            } else {
-                showNotice(response.data.message || <?php echo wp_json_encode(__('Error deleting profile.', 'wc-multi-store-sync')); ?>, 'error');
-                $btn.prop('disabled', false);
-            }
-        });
+        fetch(ajaxurl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                action: 'wc_mss_profile_delete',
+                nonce: nonce,
+                profile_id: profileId
+            }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (response) {
+                if (response.success) {
+                    $row.fadeOut(300, function() { $(this).remove(); });
+                    showNotice(response.data.message);
+                } else {
+                    showNotice(response.data.message || <?php echo wp_json_encode(__('Error deleting profile.', 'wc-multi-store-sync')); ?>, 'error');
+                    $btn.prop('disabled', false);
+                }
+            });
     });
 
 })(jQuery);
