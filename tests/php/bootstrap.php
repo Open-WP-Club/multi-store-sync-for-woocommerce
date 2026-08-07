@@ -414,6 +414,22 @@ require_once $plugin_root . '/includes/conflict-detector.php';
 if (!class_exists('WP_CLI_Command')) {
     class WP_CLI_Command {}
 }
+// Minimal WP_CLI stub: mirrors real WP-CLI's behavior of error() halting
+// execution (via exception here, a wp_die()-style hard stop in real WP-CLI),
+// so tests can assert on both the halt and the logged messages.
+if (!class_exists('WP_CLI')) {
+    class WP_CLI {
+        /** @var array<int, array{0: string, 1: string}> */
+        public static array $logged = [];
+        public static function log(string $message): void { self::$logged[] = ['log', $message]; }
+        public static function success(string $message): void { self::$logged[] = ['success', $message]; }
+        public static function warning(string $message): void { self::$logged[] = ['warning', $message]; }
+        public static function error(string $message): void {
+            self::$logged[] = ['error', $message];
+            throw new \RuntimeException($message);
+        }
+    }
+}
 require_once $plugin_root . '/includes/cli-commands.php';
 
 // Note: order-sync.php is NOT loaded here because it has file-level add_action().

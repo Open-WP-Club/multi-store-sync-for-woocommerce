@@ -430,19 +430,20 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
      */
     public function verify($args, $assoc_args) {
         $limit = (int) ($assoc_args['limit'] ?? 0);
+        $store_url = isset($assoc_args['store']) ? rtrim($assoc_args['store'], '/') : null;
 
         WP_CLI::log(__('Starting stock verification...', 'wc-multi-store-sync'));
 
-        $result = WC_Multi_Store_Weekly_Sync_Verifier::run_verification_sync($limit ?: null);
+        $result = WC_Multi_Store_Weekly_Sync_Verifier::run_verification($limit ?: null, $store_url);
 
-        if (is_wp_error($result)) {
-            WP_CLI::error($result->get_error_message());
+        if (isset($result['error'])) {
+            WP_CLI::error($result['error']);
         }
 
         WP_CLI::success(sprintf(
             __('Verification complete. %d product(s) checked, %d discrepancy(ies) found.', 'wc-multi-store-sync'),
             $result['products_checked'] ?? 0,
-            $result['discrepancies'] ?? 0
+            $result['discrepancies_found'] ?? 0
         ));
     }
 

@@ -32,14 +32,20 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
     /**
      * Run a complete sync verification audit
      *
+     * @param int|null    $limit_override Override the configured product_limit for this run only (e.g. CLI --limit).
+     * @param string|null $store_filter   Restrict to a single store URL (exact key match in the stores option) for this run only (e.g. CLI --store).
      * @return array Report data
      */
-    public static function run_verification(): array {
+    public static function run_verification(?int $limit_override = null, ?string $store_filter = null): array {
         // Check settings first
         $settings = self::get_settings();
         if (!$settings['enabled']) {
             WC_Multi_Store_Logger::write('Weekly verification is disabled in settings, skipping', 'warning');
             return ['error' => 'Verification disabled'];
+        }
+
+        if ($limit_override !== null) {
+            $settings['product_limit'] = $limit_override;
         }
 
         // Check if verification is already running (prevent concurrent runs)
@@ -73,6 +79,10 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         // Use cached active stores instead of fetching all stores and filtering
         $active_stores = WC_Multi_Store_Settings::get_active_stores();
+
+        if ($store_filter !== null) {
+            $active_stores = array_intersect_key($active_stores, [$store_filter => true]);
+        }
 
         if (empty($active_stores)) {
             WC_Multi_Store_Logger::write('No active stores found for verification', 'warning');
