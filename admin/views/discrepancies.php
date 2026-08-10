@@ -71,11 +71,11 @@ $total_count = WC_Multi_Store_Stock_Verifier::get_discrepancy_count('all');
 $stores = get_option('wc_multi_store_sync_stores', []);
 ?>
 
-<div class="wrap">
+<div class="wrap wc-mss-discrepancies-page">
     <h1>
         <?php _e('Stock Discrepancies', 'wc-multi-store-sync'); ?>
         <?php if ($pending_count > 0): ?>
-            <span class="wc-mss-badge wc-mss-badge-error"><?php echo esc_html($pending_count); ?></span>
+            <span class="wc-mss-count-badge wc-mss-count-badge-error"><?php echo esc_html($pending_count); ?></span>
         <?php endif; ?>
     </h1>
 
@@ -250,20 +250,6 @@ $stores = get_option('wc_multi_store_sync_stores', []);
 
 <style>
 /* All measurements in rems (1rem = 16px) */
-.wc-mss-badge {
-    display: inline-block;
-    padding: 0.125rem 0.5rem;
-    border-radius: 0.625rem;
-    font-size: 0.75rem;
-    font-weight: bold;
-    margin-left: 0.625rem;
-}
-
-.wc-mss-badge-error {
-    background: #dc3232;
-    color: #fff;
-}
-
 .wc-mss-positive {
     color: #46b450;
 }
@@ -299,13 +285,6 @@ $stores = get_option('wc_multi_store_sync_stores', []);
 .wc-mss-status-ignored {
     background: #999;
     color: #fff;
-}
-
-.button-small {
-    height: 1.625rem;
-    line-height: 1.5rem;
-    padding: 0 0.5rem;
-    font-size: 0.6875rem;
 }
 
 .wc-mss-discrepancies-filters {

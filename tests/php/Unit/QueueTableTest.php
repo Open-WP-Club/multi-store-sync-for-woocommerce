@@ -42,7 +42,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
             'create_table', 'drop_table', 'add', 'get_next_batch',
             'mark_processing', 'mark_completed', 'mark_failed',
             'get_stats', 'get_recent_items', 'cleanup', 'clear_all',
-            'get_by_product', 'get_by_store', 'reset_stuck_items',
+            'reset_stuck_items',
             'retry_item', 'retry_failed_items', 'clear_failed', 'clear_completed', 'clear_pending',
         ];
 
@@ -461,43 +461,6 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $result = WC_Multi_Store_Queue_Table::clear_all();
 
         $this->assertEquals(1, $result);
-    }
-
-    // ─── get_by_product ────────────────────────────
-
-    public function test_get_by_product_returns_items(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $items = [
-            ['id' => 1, 'product_id' => 42, 'status' => 'completed'],
-        ];
-
-        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
-        $wpdb->shouldReceive('get_results')->once()->andReturn($items);
-
-        $result = WC_Multi_Store_Queue_Table::get_by_product(42);
-
-        $this->assertCount(1, $result);
-        $this->assertEquals(42, $result[0]['product_id']);
-    }
-
-    // ─── get_by_store ──────────────────────────────
-
-    public function test_get_by_store_returns_items(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
-        $wpdb->shouldReceive('get_results')->once()->andReturn([]);
-
-        $result = WC_Multi_Store_Queue_Table::get_by_store('https://store.com');
-
-        $this->assertIsArray($result);
     }
 
     // ─── reset_stuck_items ─────────────────────────

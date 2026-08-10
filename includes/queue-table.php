@@ -486,50 +486,6 @@ class WC_Multi_Store_Queue_Table {
     }
 
     /**
-     * Get items by product ID
-     *
-     * @param int $product_id Product ID
-     * @param int $limit Limit
-     * @return array Queue items
-     */
-    public static function get_by_product($product_id, $limit = 10): array {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . self::TABLE_NAME;
-
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_name}
-            WHERE product_id = %d
-            ORDER BY created_at DESC
-            LIMIT %d",
-            $product_id,
-            $limit
-        ), ARRAY_A);
-    }
-
-    /**
-     * Get items by store URL
-     *
-     * @param string $store_url Store URL
-     * @param int $limit Limit
-     * @return array Queue items
-     */
-    public static function get_by_store($store_url, $limit = 10): array {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . self::TABLE_NAME;
-
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_name}
-            WHERE store_url = %s
-            ORDER BY created_at DESC
-            LIMIT %d",
-            $store_url,
-            $limit
-        ), ARRAY_A);
-    }
-
-    /**
      * Reset items stuck in "processing" status
      * Items stuck for more than X minutes are reset to pending
      *

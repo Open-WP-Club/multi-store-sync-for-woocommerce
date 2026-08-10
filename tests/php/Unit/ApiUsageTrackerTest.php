@@ -44,7 +44,7 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
             'create_table', 'get_statistics', 'get_usage_by_store',
             'get_usage_by_endpoint', 'get_daily_trend', 'get_recent_errors',
             'get_cost_estimates', 'export_to_csv', 'cleanup_old_data',
-            'clear_all_data', 'track_request',
+            'clear_all_data',
         ];
 
         foreach ($methods as $method) {
@@ -443,29 +443,6 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         // Quotes should be escaped as ""
         $this->assertStringContainsString('""quotes""', $csv);
         $this->assertStringContainsString('No', $csv);
-    }
-
-    // ─── track_request ─────────────────────────────
-
-    public function test_track_request_fires_action(): void
-    {
-        Monkey\Actions\expectDone('wc_mss_api_request')
-            ->once()
-            ->with(
-                'https://store.com',
-                '/products',
-                'POST',
-                ['success' => true]
-            );
-
-        WC_Multi_Store_API_Usage_Tracker::track_request(
-            'https://store.com',
-            '/products',
-            'POST',
-            ['success' => true]
-        );
-
-        $this->addToAssertionCount(1);
     }
 
     // ─── get_usage_by_store ────────────────────────

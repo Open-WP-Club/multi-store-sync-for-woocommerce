@@ -21,6 +21,8 @@ class StockVerifierTest extends WC_Multi_Store_TestCase
         Functions\when('untrailingslashit')->alias(fn($str) => rtrim($str, '/'));
         Functions\when('absint')->alias(fn($val) => abs((int)$val));
         Functions\when('sanitize_sql_orderby')->alias(fn($val) => $val);
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->justReturn(true);
     }
 
     public function test_class_exists(): void

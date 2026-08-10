@@ -40,7 +40,7 @@ class WC_Multi_Store_Stock_Verifier {
         }
 
         // Get store configuration — stores are keyed by URL in the option
-        $stores = get_option('wc_multi_store_sync_stores', []);
+        $stores = WC_Multi_Store_Settings::get_active_stores();
         $store_config = null;
         $matched_url = null;
 

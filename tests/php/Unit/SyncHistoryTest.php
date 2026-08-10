@@ -35,7 +35,7 @@ class SyncHistoryTest extends WC_Multi_Store_TestCase
     {
         $methods = [
             'create_table', 'log_sync', 'get_history', 'get_statistics',
-            'get_recent', 'cleanup_old_records', 'get_product_history',
+            'cleanup_old_records',
             'clear_all', 'delete_by_criteria', 'delete_by_status',
             'delete_by_store', 'delete_errors', 'delete_successful',
             'get_count', 'get_table_size', 'get_table_name',
@@ -187,61 +187,6 @@ class SyncHistoryTest extends WC_Multi_Store_TestCase
         ]);
 
         $this->assertEquals(1, $result);
-    }
-
-    // ─── get_recent ────────────────────────────────
-
-    public function test_get_recent_uses_default_limit(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
-        $wpdb->shouldReceive('get_results')->andReturn([]);
-        $wpdb->shouldReceive('get_var')->andReturn(0);
-        Functions\when('sanitize_sql_orderby')->alias(fn($v) => $v);
-
-        $result = WC_Multi_Store_Sync_History::get_recent();
-
-        $this->assertArrayHasKey('results', $result);
-        $this->assertArrayHasKey('total', $result);
-        $this->assertEquals(10, $result['limit']);
-    }
-
-    public function test_get_recent_with_custom_limit(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
-        $wpdb->shouldReceive('get_results')->andReturn([]);
-        $wpdb->shouldReceive('get_var')->andReturn(0);
-        Functions\when('sanitize_sql_orderby')->alias(fn($v) => $v);
-
-        $result = WC_Multi_Store_Sync_History::get_recent(5);
-
-        $this->assertEquals(5, $result['limit']);
-    }
-
-    // ─── get_product_history ───────────────────────
-
-    public function test_get_product_history_delegates_to_get_history(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
-        $wpdb->shouldReceive('get_results')->andReturn([]);
-        $wpdb->shouldReceive('get_var')->andReturn(0);
-        Functions\when('sanitize_sql_orderby')->alias(fn($v) => $v);
-
-        $result = WC_Multi_Store_Sync_History::get_product_history(42, 15);
-
-        $this->assertArrayHasKey('results', $result);
-        $this->assertEquals(15, $result['limit']);
     }
 
     // ─── delete_by_criteria ────────────────────────

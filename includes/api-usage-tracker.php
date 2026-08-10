@@ -549,16 +549,4 @@ class WC_Multi_Store_API_Usage_Tracker {
 
         return $wpdb->query("TRUNCATE TABLE {$table_name}");
     }
-
-    /**
-     * Trigger API request tracking
-     *
-     * @param string $store_url Store URL
-     * @param string $endpoint API endpoint
-     * @param string $method HTTP method
-     * @param array $result Result data
-     */
-    public static function track_request(string $store_url, string $endpoint, string $method, array $result): void {
-        do_action('wc_mss_api_request', $store_url, $endpoint, $method, $result);
-    }
 }

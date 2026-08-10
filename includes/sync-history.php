@@ -307,19 +307,6 @@ class WC_Multi_Store_Sync_History {
     }
 
     /**
-     * Get recent sync history
-     *
-     * @param int $limit Number of records
-     * @return array Recent syncs
-     */
-    public static function get_recent(int $limit = 10): array {
-        return self::get_history([
-            'limit' => $limit,
-            'offset' => 0,
-        ]);
-    }
-
-    /**
      * Clear old history records
      *
      * @param int $days Keep records from last N days
@@ -343,20 +330,6 @@ class WC_Multi_Store_Sync_History {
         }
 
         return (int) $deleted;
-    }
-
-    /**
-     * Get sync history for specific product
-     *
-     * @param int $product_id Product ID
-     * @param int $limit Number of records
-     * @return array Sync history
-     */
-    public static function get_product_history(int $product_id, int $limit = 20): array {
-        return self::get_history([
-            'product_id' => $product_id,
-            'limit' => $limit,
-        ]);
     }
 
     /**

@@ -23,6 +23,8 @@ class StockVerifierEdgeCaseTest extends WC_Multi_Store_TestCase
         Functions\when('untrailingslashit')->alias(fn($str) => rtrim($str, '/'));
         Functions\when('absint')->alias(fn($val) => abs((int) $val));
         Functions\when('sanitize_sql_orderby')->alias(fn($val) => $val);
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->justReturn(true);
         // No stored remote-ID mapping by default — exercises the pre-existing
         // search-by-SKU/slug path unless a test explicitly stubs a stored ID.
         Functions\when('get_post_meta')->justReturn('');
@@ -99,6 +101,7 @@ class StockVerifierEdgeCaseTest extends WC_Multi_Store_TestCase
                         'consumer_key' => 'ck_test',
                         'consumer_secret' => 'cs_test',
                         'auth_method' => 'query_string',
+                        'status' => 'active',
                     ],
                 ];
             }
@@ -153,6 +156,7 @@ class StockVerifierEdgeCaseTest extends WC_Multi_Store_TestCase
                         'consumer_key' => 'ck_test',
                         'consumer_secret' => 'cs_test',
                         'auth_method' => 'query_string',
+                        'status' => 'active',
                     ],
                 ];
             }
