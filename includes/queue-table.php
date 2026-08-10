@@ -60,35 +60,10 @@ class WC_Multi_Store_Queue_Table {
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
 
-        // Upgrade existing tables to add new columns if needed
-        self::maybe_upgrade_table();
-
         // Store DB version
         update_option('wc_mss_queue_db_version', self::DB_VERSION);
 
         WC_Multi_Store_Logger::write('Queue table created/upgraded successfully');
-    }
-
-    /**
-     * Upgrade existing table to add new columns
-     */
-    private static function maybe_upgrade_table(): void {
-        global $wpdb;
-        $table_name = esc_sql($wpdb->prefix . self::TABLE_NAME);
-
-        // Check if product_sku column exists
-        $sku_column = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'product_sku'");
-        if (empty($sku_column)) {
-            $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN product_sku varchar(100) DEFAULT NULL AFTER product_id");
-            WC_Multi_Store_Logger::write('Queue table upgraded: added product_sku column');
-        }
-
-        // Check if extra_data column exists
-        $extra_column = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'extra_data'");
-        if (empty($extra_column)) {
-            $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN extra_data text DEFAULT NULL AFTER last_error");
-            WC_Multi_Store_Logger::write('Queue table upgraded: added extra_data column');
-        }
     }
 
     /**
