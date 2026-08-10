@@ -36,3 +36,41 @@ still undecided. See git history for the full record.
 ## MODERNIZE — PHP 8.4 is already the minimum version; use its features consistently
 
 - [~] `includes/queue-manager.php:18-21` — `PRIORITY_CRITICAL/HIGH/NORMAL/LOW` bare int constants (1/2/3/10). **Not converted to backed enum**: the `priority` column is an ordinal 1-10 scale, not a closed set — `queue-table.php::add()` defaults `$priority = 5` and branches on `$priority < 5` (line 164) to decide whether to bump an existing queue item's priority; `5` isn't one of the four named constants, and `get_next_batch()` sorts with plain `ORDER BY priority ASC`. Every call site (`queue-manager.php`, `queue-table.php`) types `$priority` as bare `int`, and reflection-based tests (`QueueManagerTest.php:189`) assert `getDefaultValue()` against the raw int. A 4-case enum can't represent the full domain this column actually stores/compares — the named constants are presets within a wider ordinal scale, not the type itself.
+
+
+Три паралелни агента минаха през целия plugin (~32k реда в includes/, admin/views, root файлове). Ето обединения резултат — само over-engineering/bloat находки (без performance/security, това е извън обхвата на този одит):
+
+Най-големи находки
+
+- yagni Category/Attribute Mapping системата (CRUD, AJAX handlers, apply_mappings/apply_tag_mappings/apply_variation_mappings) е напълно недостижима — самият settings.php признава "there is currently no admin screen to enter mappings — enabling this alone has no effect." Изтрий фийчъра или довърши UI-то. includes/category-mapper.php, includes/attribute-remapper.php (~773 реда)
+- delete Целият email notification listener path (sync_failed/api_error/low_stock) — никой извън тестовете не тригерва тези do_action хуквания. includes/email-notifications.php:139-258,412-531 (~250 реда)
+- delete WC_Multi_Store_Performance_Monitor — цял клас (178 реда), единственото извикване старт/стоп-ва таймер и никога не чете резултата. includes/performance-monitor.php
+- shrink Идентичен ~155-редов polling <script> блок (start/poll/cancel/reset) copy-paste между dashboard.php и weekly-verification.php. Един параметризиран JS helper. admin/views/dashboard.php:147-302, admin/views/weekly-verification.php:424-585
+- delete Downloadable-files "API transfer mode" (sync_downloads(), upload_file_to_remote()) — мъртъв, работи само extract_downloads(). includes/downloadable-files-sync.php
+
+Дублирана логика/мъртви делегати
+
+- delete Remote_Product_Manager::delete()/restore()/update_status() и Variation_Synchronizer::delete_variation() — sync-engine.php реимплементира същата логика inline, вместо да ги вика. includes/remote-product-manager.php:214,273,341, includes/variation-synchronizer.php:325
+- shrink pricing-rules.php — 4 метода (apply_fixed/percentage/multiplier_adjustment, apply_currency_conversion) с идентичен 15-редов loop → един apply_adjustment()
+- shrink deletion-audit.php get_logs()/get_total_count() строят еднакъв WHERE clause 2 пъти; същото за category-mapper.php (apply_mappings/apply_tag_mappings), remote-order-table.php (3×), sync-history.php (3×), api-client.php batch-size проверки (4×)
+- yagni Купчина one-line delegate wrapper-и с единствен caller: webhook-receiver.php::get_client_ip(), remote-order-sync.php::create_api_client(), pricing-rules.php::apply_to_variation(), weekly-verification-comparator.php (2 wrapper-а) — обади се директно на подлежащия метод, изтрий wrapper-а
+- shrink coupon-sync.php/shipping-class-sync.php — schedule_async() и get_api_client() дефинирани идентично в двата файла
+- native remote-order-list-table.php hand-rolled $status_labels map (дефинирана 2 пъти в файла!) вместо wc_get_order_status_name(); order-sync.php hand-rolled static settings cache вместо директно get_option()
+
+Мъртъв код (unused public methods, никой ги вика извън тестове)
+
+time-manager.php::get_settings_info()/estimate_sync_time() · product-exclusion-filter.php::is_category_excluded()/is_tag_excluded() · stock-allocator.php::get_allocation_types() + pricing-rules.php::get_rule_types() · store-health-check.php::get_health_summary()/get_last_health_check() · api-usage-tracker.php::cleanup_old_data() (никога не се закача към daily maintenance) · dead-letter-queue.php::cleanup() (същото) · order-sync.php::sync_last_orders()/get_statistics() · category-deletion-sync.php::get_settings()/update_settings() (дублира WC_Multi_Store_Settings) · coupon-sync.php::delete_coupon_from_all_stores() · conflict-detector.php::get_unresolved_conflicts() · category-mapper.php::add_mapping()/remove_mapping()/get_remote_categories()
+
+Мъртви config флагове и write-only данни
+
+conflict-detector.php action_on_conflict/notify_email (записват се, никой не ги чете) · coupon-sync.php auto_sync_on_save/auto_sync_deletions · api-usage-tracker.php cost-estimate опции (wc_mss_api_cost_per_1000/gb) — няма settings поле, "Cost Estimates" картата винаги е $0 · pricing-rules.php currency_from/currency_to полета никога не се четат · product-edit.php пише _wc_mss_deletion_stores_map post meta, никой не го чете · dead-letter-queue.php::do_action('wc_mss_dead_letter_added') — "no consumers anywhere" по собствените коментари в кода
+
+Плюс: неизползвани локални променливи (variation-synchronizer.php:249-251, api-usage.php:33, discrepancies.php:68), излишен in-memory+transient двоен cache layer в settings.php::get_active_stores() (файлът сам коментира, че вторият слой "would only add an invalidation path for no real benefit"), излишен cache-manager.php warmup() hook.
+
+net: приблизително -1800 до -2000 реда (от ~32 600 в includes/), 0 deps.
+
+---⚠️ Извън обхвата на тоя одит, но си струва да знаеш — двe находки всъщност са бъгове, не bloat:
+1. orphan-cleanup.php:197-266 — Delete-Selected бутонът вика $api_client->make_request(), метод който не съществува в WC_Multi_Store_API_Client. Реален клик там → fatal error.
+2. sync-previewer.php:227-250 — apply_pricing_rules()/apply_stock_allocation() викат apply_store_pricing()/allocate_stock(), методи с други имена/сигнатури в реалния API. Preview редовете за pricing/stock никога не работят.
+
+Искаш ли да пристъпя към прилагане на находките (или само на топ 5-те най-безопасни)?
