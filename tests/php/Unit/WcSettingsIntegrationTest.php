@@ -83,7 +83,7 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
         $sections = $this->integration->get_sections();
 
         $expected_keys = [
-            '', 'stores', 'settings', 'queue', 'weekly-verification',
+            '', 'stores', 'category-mapping', 'settings', 'queue', 'weekly-verification',
             'history', 'api-usage', 'discrepancies', 'deletion-audit',
             'orphan-cleanup', 'logs',
         ];
@@ -104,7 +104,7 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
     {
         $sections = $this->integration->get_sections();
 
-        $this->assertCount(14, $sections);
+        $this->assertCount(15, $sections);
     }
 
     // ─── save ──────────────────────────────────────

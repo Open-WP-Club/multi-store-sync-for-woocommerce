@@ -6,10 +6,13 @@
 use Brain\Monkey\Functions;
 
 if (!class_exists('WP_Term')) {
+    // Kept in sync with the other guarded `WP_Term` stubs in this suite
+    // (AdminAjaxForceSyncTest.php, ShippingClassSyncTest.php, CategoryMapperTest.php).
     class WP_Term {
         public int $term_id = 0;
         public string $name = '';
         public string $slug = '';
+        public string $taxonomy = 'product_cat';
         public string $description = '';
         public int $parent = 0;
         public int $count = 0;

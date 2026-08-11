@@ -785,8 +785,13 @@ if (!defined('ABSPATH')) {
                                    <?php checked(!empty($category_mapper_settings['enabled'])); ?>>
                             <?php _e('Enable per-store category/tag mapping', 'wc-multi-store-sync'); ?>
                         </label>
-                        <p class="description"><?php _e('Map local categories to different remote categories per store (e.g., "Дрехи" → "Clothing").', 'wc-multi-store-sync'); ?></p>
-                        <p class="description" style="color: #996800;"><?php _e('Note: there is currently no admin screen to enter mappings — enabling this alone has no effect until mapping data is set.', 'wc-multi-store-sync'); ?></p>
+                        <p class="description">
+                            <?php printf(
+                                /* translators: %s: link to the Category Mapping tab */
+                                __('Map local categories to different remote categories per store (e.g., "Дрехи" → "Clothing"). Enter mappings in the %s tab.', 'wc-multi-store-sync'),
+                                '<a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=category-mapping')) . '">' . __('Category Mapping', 'wc-multi-store-sync') . '</a>'
+                            ); ?>
+                        </p>
                     </td>
                 </tr>
 

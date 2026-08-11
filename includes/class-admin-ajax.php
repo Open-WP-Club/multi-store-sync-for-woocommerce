@@ -76,6 +76,7 @@ class WC_Multi_Store_Admin_Ajax {
         add_action('wp_ajax_wc_mss_save_category_mappings', WC_Multi_Store_Category_Mapper::ajax_save_mappings(...));
         add_action('wp_ajax_wc_mss_get_category_mappings',  WC_Multi_Store_Category_Mapper::ajax_get_mappings(...));
         add_action('wp_ajax_wc_mss_toggle_category_mapper', WC_Multi_Store_Category_Mapper::ajax_toggle(...));
+        add_action('wp_ajax_wc_mss_get_remote_terms',       $this->ajax_get_remote_terms(...));
 
         // Attribute remapper
         add_action('wp_ajax_wc_mss_save_attribute_mappings',   WC_Multi_Store_Attribute_Remapper::ajax_save_mappings(...));
@@ -908,6 +909,38 @@ class WC_Multi_Store_Admin_Ajax {
             WC_Multi_Store_Logger::write('Category scan error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * AJAX: Fetch a remote store's categories or tags, for the category/tag
+     * mapping UI's "map to" dropdown.
+     */
+    public function ajax_get_remote_terms(): void {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+            return;
+        }
+
+        $store_url = isset($_POST['store_url']) ? sanitize_text_field($_POST['store_url']) : '';
+        $taxonomy  = isset($_POST['taxonomy']) ? sanitize_text_field($_POST['taxonomy']) : 'category';
+
+        if (!$store_url) {
+            wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
+            return;
+        }
+
+        $config = WC_Multi_Store_Settings::get_store($store_url);
+        if (!$config) {
+            wp_send_json_error(['message' => sprintf(__('Store not found: %s', 'wc-multi-store-sync'), $store_url)]);
+            return;
+        }
+
+        $client = WC_Multi_Store_API_Client::for_store($store_url, $config);
+
+        $terms = $taxonomy === 'tag'
+            ? WC_Multi_Store_Category_Mapper::get_remote_tags($client)
+            : WC_Multi_Store_Category_Mapper::get_remote_categories($client);
+
+        wp_send_json_success(['terms' => $terms]);
     }
 
     /**

@@ -50,6 +50,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         return [
             ''                    => __('Dashboard', 'wc-multi-store-sync'),
             'stores'              => __('Stores', 'wc-multi-store-sync'),
+            'category-mapping'    => __('Category Mapping', 'wc-multi-store-sync'),
             'settings'            => __('Settings', 'wc-multi-store-sync'),
             'queue'               => __('Queue', 'wc-multi-store-sync'),
             'weekly-verification' => __('Weekly Verification', 'wc-multi-store-sync'),
@@ -111,6 +112,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         match ($current_section) {
             ''                    => $this->output_dashboard(),
             'stores'              => $this->output_stores(),
+            'category-mapping'    => $this->output_category_mapping(),
             'settings'            => $this->output_settings(),
             'queue'               => $this->output_queue(),
             'weekly-verification' => $this->output_weekly_verification(),
@@ -176,6 +178,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
     private function output_stores(): void {
         $stores = WC_Multi_Store_Settings::get_stores();
         include WC_MSS_PLUGIN_DIR . 'admin/views/stores.php';
+    }
+
+    /**
+     * Output category/tag mapping section
+     */
+    private function output_category_mapping(): void {
+        include WC_MSS_PLUGIN_DIR . 'admin/views/category-mapping.php';
     }
 
     /**
@@ -947,6 +956,21 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     'error_applying_profile' => __('Error applying profile.', 'wc-multi-store-sync'),
                     'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'wc-multi-store-sync'),
                     'error_deleting_profile' => __('Error deleting profile.', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
+
+        // Strings for the category/tag mapping page
+        if ($section === 'category-mapping') {
+            wp_localize_script('wc-mss-admin', 'wcMssCategoryMappingData', [
+                'i18n' => [
+                    'loading' => __('Loading…', 'wc-multi-store-sync'),
+                    'load_failed' => __('Failed to load categories/tags for this store.', 'wc-multi-store-sync'),
+                    'no_mapping' => __('— Don\'t map (send as-is) —', 'wc-multi-store-sync'),
+                    'skip' => __('— Skip (don\'t sync) —', 'wc-multi-store-sync'),
+                    'saving' => __('Saving…', 'wc-multi-store-sync'),
+                    'saved' => __('Saved ✓', 'wc-multi-store-sync'),
+                    'save_failed' => __('Failed to save', 'wc-multi-store-sync'),
                 ],
             ]);
         }

@@ -258,6 +258,29 @@ class WC_Multi_Store_Category_Mapper {
     }
 
     /**
+     * Get all local tags for the mapping UI
+     */
+    public static function get_local_tags(): array {
+        $terms = get_terms([
+            'taxonomy' => 'product_tag',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+
+        if (is_wp_error($terms)) {
+            return [];
+        }
+
+        return array_map(fn(WP_Term $term) => [
+            'id' => $term->term_id,
+            'name' => $term->name,
+            'slug' => $term->slug,
+            'count' => $term->count,
+        ], $terms);
+    }
+
+    /**
      * Get remote categories for the mapping UI (fetches from remote store)
      */
     public static function get_remote_categories(WC_Multi_Store_API_Client $client): array {
@@ -265,7 +288,7 @@ class WC_Multi_Store_Category_Mapper {
         $all_categories = [];
 
         do {
-            $response = $client->get('products/categories', [
+            $response = $client->get_categories('', [
                 'per_page' => 100,
                 'page' => $page,
             ]);
@@ -285,6 +308,35 @@ class WC_Multi_Store_Category_Mapper {
             'parent' => $cat['parent'],
             'count' => $cat['count'],
         ], $all_categories);
+    }
+
+    /**
+     * Get remote tags for the mapping UI (fetches from remote store)
+     */
+    public static function get_remote_tags(WC_Multi_Store_API_Client $client): array {
+        $page = 1;
+        $all_tags = [];
+
+        do {
+            $response = $client->get_tags('', [
+                'per_page' => 100,
+                'page' => $page,
+            ]);
+
+            if (is_wp_error($response) || empty($response)) {
+                break;
+            }
+
+            $all_tags = array_merge($all_tags, $response);
+            $page++;
+        } while (count($response) === 100);
+
+        return array_map(fn($tag) => [
+            'id' => $tag['id'],
+            'name' => $tag['name'],
+            'slug' => $tag['slug'],
+            'count' => $tag['count'],
+        ], $all_tags);
     }
 
     /**
@@ -330,7 +382,9 @@ class WC_Multi_Store_Category_Mapper {
     }
 
     /**
-     * AJAX handler: Get category mappings for a store
+     * AJAX handler: Get category and tag mappings for a store, plus the
+     * local category/tag lists the mapping UI needs to render both tables
+     * in one request.
      */
     public static function ajax_get_mappings(): void {
         check_ajax_referer('wc_mss_admin', 'nonce');
@@ -341,20 +395,17 @@ class WC_Multi_Store_Category_Mapper {
         }
 
         $store_url = sanitize_text_field($_GET['store_url'] ?? '');
-        $mapping_type = sanitize_text_field($_GET['mapping_type'] ?? 'category');
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
             return;
         }
 
-        $mappings = $mapping_type === 'tag'
-            ? self::get_tag_mappings($store_url)
-            : self::get_mappings($store_url);
-
         wp_send_json_success([
-            'mappings' => $mappings,
+            'category_mappings' => self::get_mappings($store_url),
+            'tag_mappings' => self::get_tag_mappings($store_url),
             'local_categories' => self::get_local_categories(),
+            'local_tags' => self::get_local_tags(),
         ]);
     }
 }

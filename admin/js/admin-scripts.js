@@ -1531,6 +1531,141 @@
         }
 
         /**
+         * Category Mapping Page - per-store category/tag mapping tables
+         */
+        if (document.getElementById('wc-mss-map-store-select') && typeof jQuery !== 'undefined' && typeof wcMssCategoryMappingData !== 'undefined') {
+            jQuery(function ($) {
+                var i18n = wcMssCategoryMappingData.i18n;
+
+                var storeSelect = $('#wc-mss-map-store-select');
+                var loading     = $('#wc-mss-map-loading');
+                var tablesWrap  = $('#wc-mss-map-tables');
+                var emptyWrap   = $('#wc-mss-map-empty');
+                var catBody     = $('#wc-mss-map-category-table tbody');
+                var tagBody     = $('#wc-mss-map-tag-table tbody');
+
+                function ajaxPost(action, extraParams) {
+                    var params = new URLSearchParams({ action: action, nonce: wcMssAdmin.nonce });
+                    Object.keys(extraParams || {}).forEach(function (key) {
+                        params.append(key, extraParams[key]);
+                    });
+                    return fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params,
+                    }).then(function (res) { return res.json(); });
+                }
+
+                function buildRemoteOptions(remoteTerms, currentValue) {
+                    var html = '<option value=""' + (currentValue === undefined || currentValue === '' ? ' selected' : '') + '>' + i18n.no_mapping + '</option>';
+                    html += '<option value="__skip__"' + (currentValue === '__skip__' ? ' selected' : '') + '>' + i18n.skip + '</option>';
+                    remoteTerms.forEach(function (term) {
+                        var sel = currentValue === term.slug ? ' selected' : '';
+                        html += '<option value="' + escapeHtml(term.slug) + '"' + sel + '>' + escapeHtml(term.name) + '</option>';
+                    });
+                    return html;
+                }
+
+                function buildRows(localTerms, mappings, remoteTerms) {
+                    var html = '';
+                    localTerms.forEach(function (term) {
+                        var current = mappings[term.slug];
+                        html += '<tr>'
+                            + '<td>' + escapeHtml(term.name) + '</td>'
+                            + '<td><select class="wc-mss-map-remote-select" data-local-slug="' + escapeHtml(term.slug) + '">'
+                            + buildRemoteOptions(remoteTerms, current)
+                            + '</select></td>'
+                            + '</tr>';
+                    });
+                    return html;
+                }
+
+                function saveMappings(button, mappingType, tbody) {
+                    var storeUrl = storeSelect.val();
+                    var statusEl = $('.wc-mss-map-save-status[data-for="' + (mappingType === 'tag' ? 'tags' : 'categories') + '"]');
+                    var params = { store_url: storeUrl, mapping_type: mappingType };
+
+                    tbody.find('select.wc-mss-map-remote-select').each(function () {
+                        var slug = $(this).data('local-slug');
+                        var val  = $(this).val();
+                        if (val !== '') {
+                            params['mappings[' + slug + ']'] = val;
+                        }
+                    });
+
+                    button.prop('disabled', true);
+                    statusEl.removeClass('success error').text(i18n.saving);
+
+                    ajaxPost('wc_mss_save_category_mappings', params)
+                        .then(function (resp) {
+                            button.prop('disabled', false);
+                            if (resp.success) {
+                                statusEl.addClass('success').text(i18n.saved);
+                            } else {
+                                statusEl.addClass('error').text((resp.data && resp.data.message) || i18n.save_failed);
+                            }
+                        })
+                        .catch(function () {
+                            button.prop('disabled', false);
+                            statusEl.addClass('error').text(i18n.save_failed);
+                        });
+                }
+
+                storeSelect.on('change', function () {
+                    var storeUrl = $(this).val();
+
+                    tablesWrap.hide();
+                    emptyWrap.hide();
+                    catBody.empty();
+                    tagBody.empty();
+
+                    if (!storeUrl) {
+                        return;
+                    }
+
+                    loading.show();
+
+                    Promise.all([
+                        ajaxPost('wc_mss_get_category_mappings', { store_url: storeUrl }),
+                        ajaxPost('wc_mss_get_remote_terms', { store_url: storeUrl, taxonomy: 'category' }),
+                        ajaxPost('wc_mss_get_remote_terms', { store_url: storeUrl, taxonomy: 'tag' }),
+                    ]).then(function (results) {
+                        loading.hide();
+
+                        var mappingsResp = results[0];
+                        if (!mappingsResp.success) {
+                            emptyWrap.text((mappingsResp.data && mappingsResp.data.message) || i18n.load_failed).show();
+                            return;
+                        }
+
+                        var data = mappingsResp.data;
+                        var remoteCategories = results[1].success ? results[1].data.terms : [];
+                        var remoteTags = results[2].success ? results[2].data.terms : [];
+
+                        if (!data.local_categories.length && !data.local_tags.length) {
+                            emptyWrap.show();
+                            return;
+                        }
+
+                        catBody.html(buildRows(data.local_categories, data.category_mappings, remoteCategories));
+                        tagBody.html(buildRows(data.local_tags, data.tag_mappings, remoteTags));
+                        tablesWrap.show();
+                    }).catch(function () {
+                        loading.hide();
+                        emptyWrap.text(i18n.load_failed).show();
+                    });
+                });
+
+                $('#wc-mss-map-save-categories').on('click', function () {
+                    saveMappings($(this), 'category', catBody);
+                });
+                $('#wc-mss-map-save-tags').on('click', function () {
+                    saveMappings($(this), 'tag', tagBody);
+                });
+            });
+        }
+
+        /**
          * Logs Page - Clear Log / Warnings & Errors / Force Sync by SKU / Category
          */
         if (document.getElementById('wc-mss-clear-log') && typeof jQuery !== 'undefined' && typeof wcMssLogsData !== 'undefined') {
