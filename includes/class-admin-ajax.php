@@ -72,6 +72,9 @@ class WC_Multi_Store_Admin_Ajax {
         // Downloadable files sync
         add_action('wp_ajax_wc_mss_toggle_downloadable_files_sync', WC_Multi_Store_Downloadable_Files_Sync::ajax_toggle(...));
 
+        // Orphan auto-trash
+        add_action('wp_ajax_wc_mss_toggle_orphan_auto_trash', WC_Multi_Store_Orphan_Cleanup::ajax_toggle(...));
+
         // Category mapper
         add_action('wp_ajax_wc_mss_save_category_mappings', WC_Multi_Store_Category_Mapper::ajax_save_mappings(...));
         add_action('wp_ajax_wc_mss_get_category_mappings',  WC_Multi_Store_Category_Mapper::ajax_get_mappings(...));

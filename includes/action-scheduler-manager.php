@@ -131,6 +131,22 @@ class WC_Multi_Store_Action_Scheduler_Manager {
                 }
             }
         }
+
+        // Reconcile orphan auto-trash schedule against its enabled setting —
+        // unlike the other jobs above, this one also needs to be *unscheduled*
+        // when turned off, since an unattended delete-adjacent job left
+        // running after being disabled would be surprising.
+        if (class_exists('WC_Multi_Store_Orphan_Cleanup')) {
+            $auto_trash_enabled = WC_Multi_Store_Orphan_Cleanup::is_enabled();
+            $auto_trash_next = as_next_scheduled_action(WC_Multi_Store_Orphan_Cleanup::AUTO_TRASH_HOOK, [], self::ACTION_GROUP);
+
+            if ($auto_trash_enabled && !$auto_trash_next) {
+                WC_Multi_Store_Logger::write('Orphan auto-trash enabled but not scheduled, scheduling now');
+                WC_Multi_Store_Orphan_Cleanup::schedule_auto_trash();
+            } elseif (!$auto_trash_enabled && $auto_trash_next) {
+                WC_Multi_Store_Orphan_Cleanup::unschedule_auto_trash();
+            }
+        }
     }
 
     /**
