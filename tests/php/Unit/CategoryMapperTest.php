@@ -584,7 +584,7 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
             };
         });
 
-        $_GET['store_url'] = $this->store_url_a;
+        $_POST['store_url'] = $this->store_url_a;
 
         $sent = null;
         Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
@@ -598,7 +598,7 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $this->assertArrayHasKey('local_categories', $sent);
         $this->assertArrayHasKey('local_tags', $sent);
 
-        unset($_GET['store_url']);
+        unset($_POST['store_url']);
     }
 
     public function test_ajax_get_mappings_requires_store_url(): void

@@ -104,7 +104,7 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
     {
         $sections = $this->integration->get_sections();
 
-        $this->assertCount(15, $sections);
+        $this->assertCount(16, $sections);
     }
 
     // ─── save ──────────────────────────────────────

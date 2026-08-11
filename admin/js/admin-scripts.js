@@ -1666,6 +1666,206 @@
         }
 
         /**
+         * Attribute Mapping Page - per-store attribute name/value mapping
+         */
+        if (document.getElementById('wc-mss-attr-map-store-select') && typeof jQuery !== 'undefined' && typeof wcMssAttributeMappingData !== 'undefined') {
+            jQuery(function ($) {
+                var i18n = wcMssAttributeMappingData.i18n;
+
+                var storeSelect   = $('#wc-mss-attr-map-store-select');
+                var loading       = $('#wc-mss-attr-map-loading');
+                var tablesWrap    = $('#wc-mss-attr-map-tables');
+                var emptyWrap     = $('#wc-mss-attr-map-empty');
+                var nameBody      = $('#wc-mss-attr-map-name-table tbody');
+                var valueGroups   = $('#wc-mss-attr-map-value-groups');
+
+                function ajaxPost(action, extraParams) {
+                    var params = new URLSearchParams({ action: action, nonce: wcMssAdmin.nonce });
+                    Object.keys(extraParams || {}).forEach(function (key) {
+                        params.append(key, extraParams[key]);
+                    });
+                    return fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params,
+                    }).then(function (res) { return res.json(); });
+                }
+
+                function buildRemoteNameOptions(remoteAttributes, currentValue) {
+                    var html = '<option value=""' + (currentValue === undefined || currentValue === '' ? ' selected' : '') + '>' + i18n.no_mapping + '</option>';
+                    html += '<option value="__skip__"' + (currentValue === '__skip__' ? ' selected' : '') + '>' + i18n.skip + '</option>';
+                    remoteAttributes.forEach(function (attr) {
+                        var sel = currentValue === attr.name ? ' selected' : '';
+                        html += '<option value="' + escapeHtml(attr.name) + '"' + sel + '>' + escapeHtml(attr.name) + '</option>';
+                    });
+                    return html;
+                }
+
+                function buildNameRows(localAttributes, nameMappings, remoteAttributes) {
+                    var html = '';
+                    localAttributes.forEach(function (attr) {
+                        var current = nameMappings[attr.name];
+                        html += '<tr>'
+                            + '<td>' + escapeHtml(attr.name) + '</td>'
+                            + '<td><select class="wc-mss-attr-map-remote-select" data-local-name="' + escapeHtml(attr.name) + '">'
+                            + buildRemoteNameOptions(remoteAttributes, current)
+                            + '</select></td>'
+                            + '</tr>';
+                    });
+                    return html;
+                }
+
+                function buildValueGroups(localAttributes, valueMappingsByAttr) {
+                    var html = '';
+                    localAttributes.forEach(function (attr) {
+                        if (!attr.values || !attr.values.length) {
+                            return;
+                        }
+                        var mappings = valueMappingsByAttr[attr.name] || {};
+                        var rows = attr.values.map(function (value) {
+                            var current = mappings[value] || '';
+                            return '<tr>'
+                                + '<td>' + escapeHtml(value) + '</td>'
+                                + '<td><input type="text" class="wc-mss-attr-map-value-input" data-local-value="' + escapeHtml(value) + '" value="' + escapeHtml(current) + '"></td>'
+                                + '</tr>';
+                        }).join('');
+
+                        html += '<details class="wc-mss-attr-map-value-group" data-attribute-name="' + escapeHtml(attr.name) + '">'
+                            + '<summary>' + escapeHtml(attr.name) + '</summary>'
+                            + '<table class="wp-list-table widefat fixed striped wc-mss-attr-map-value-table">'
+                            + '<thead><tr><th>' + escapeHtml(attr.name) + '</th><th></th></tr></thead>'
+                            + '<tbody>' + rows + '</tbody>'
+                            + '</table>'
+                            + '</details>';
+                    });
+                    return html || '<p class="description">' + i18n.no_values + '</p>';
+                }
+
+                function saveNameMappings(button) {
+                    var statusEl = $('.wc-mss-attr-map-save-status[data-for="names"]');
+                    var params = { store_url: storeSelect.val(), mapping_type: 'names' };
+
+                    nameBody.find('select.wc-mss-attr-map-remote-select').each(function () {
+                        var name = $(this).data('local-name');
+                        var val  = $(this).val();
+                        if (val !== '') {
+                            params['name_mappings[' + name + ']'] = val;
+                        }
+                    });
+
+                    button.prop('disabled', true);
+                    statusEl.removeClass('success error').text(i18n.saving);
+
+                    ajaxPost('wc_mss_save_attribute_mappings', params)
+                        .then(function (resp) {
+                            button.prop('disabled', false);
+                            if (resp.success) {
+                                statusEl.addClass('success').text(i18n.saved);
+                            } else {
+                                statusEl.addClass('error').text((resp.data && resp.data.message) || i18n.save_failed);
+                            }
+                        })
+                        .catch(function () {
+                            button.prop('disabled', false);
+                            statusEl.addClass('error').text(i18n.save_failed);
+                        });
+                }
+
+                function saveValueMappings(button) {
+                    var statusEl = $('.wc-mss-attr-map-save-status[data-for="values"]');
+                    var storeUrl = storeSelect.val();
+                    var groups = valueGroups.find('details.wc-mss-attr-map-value-group').toArray();
+
+                    button.prop('disabled', true);
+                    statusEl.removeClass('success error').text(i18n.saving);
+
+                    var saves = groups.map(function (group) {
+                        var $group = $(group);
+                        var attributeName = $group.data('attribute-name');
+                        var params = {
+                            store_url: storeUrl,
+                            mapping_type: 'values',
+                            attribute_name: attributeName,
+                        };
+
+                        $group.find('input.wc-mss-attr-map-value-input').each(function () {
+                            var value = $(this).data('local-value');
+                            var mapped = $(this).val();
+                            if (mapped !== '') {
+                                params['value_mappings[' + value + ']'] = mapped;
+                            }
+                        });
+
+                        return ajaxPost('wc_mss_save_attribute_mappings', params);
+                    });
+
+                    Promise.all(saves)
+                        .then(function (results) {
+                            button.prop('disabled', false);
+                            var failed = results.some(function (r) { return !r.success; });
+                            statusEl
+                                .addClass(failed ? 'error' : 'success')
+                                .text(failed ? i18n.save_failed : i18n.saved);
+                        })
+                        .catch(function () {
+                            button.prop('disabled', false);
+                            statusEl.addClass('error').text(i18n.save_failed);
+                        });
+                }
+
+                storeSelect.on('change', function () {
+                    var storeUrl = $(this).val();
+
+                    tablesWrap.hide();
+                    emptyWrap.hide();
+                    nameBody.empty();
+                    valueGroups.empty();
+
+                    if (!storeUrl) {
+                        return;
+                    }
+
+                    loading.show();
+
+                    Promise.all([
+                        ajaxPost('wc_mss_get_attribute_mappings', { store_url: storeUrl }),
+                        ajaxPost('wc_mss_get_remote_terms', { store_url: storeUrl, taxonomy: 'attribute' }),
+                    ]).then(function (results) {
+                        loading.hide();
+
+                        var mappingsResp = results[0];
+                        if (!mappingsResp.success) {
+                            emptyWrap.text((mappingsResp.data && mappingsResp.data.message) || i18n.load_failed).show();
+                            return;
+                        }
+
+                        var data = mappingsResp.data;
+                        var remoteAttributes = results[1].success ? results[1].data.terms : [];
+
+                        if (!data.local_attributes.length) {
+                            emptyWrap.show();
+                            return;
+                        }
+
+                        nameBody.html(buildNameRows(data.local_attributes, data.name_mappings, remoteAttributes));
+                        valueGroups.html(buildValueGroups(data.local_attributes, data.value_mappings));
+                        tablesWrap.show();
+                    }).catch(function () {
+                        loading.hide();
+                        emptyWrap.text(i18n.load_failed).show();
+                    });
+                });
+
+                $('#wc-mss-attr-map-save-names').on('click', function () {
+                    saveNameMappings($(this));
+                });
+                $('#wc-mss-attr-map-save-values').on('click', function () {
+                    saveValueMappings($(this));
+                });
+            });
+        }
+
+        /**
          * Logs Page - Clear Log / Warnings & Errors / Force Sync by SKU / Category
          */
         if (document.getElementById('wc-mss-clear-log') && typeof jQuery !== 'undefined' && typeof wcMssLogsData !== 'undefined') {

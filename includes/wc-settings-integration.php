@@ -51,6 +51,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             ''                    => __('Dashboard', 'wc-multi-store-sync'),
             'stores'              => __('Stores', 'wc-multi-store-sync'),
             'category-mapping'    => __('Category Mapping', 'wc-multi-store-sync'),
+            'attribute-mapping'   => __('Attribute Mapping', 'wc-multi-store-sync'),
             'settings'            => __('Settings', 'wc-multi-store-sync'),
             'queue'               => __('Queue', 'wc-multi-store-sync'),
             'weekly-verification' => __('Weekly Verification', 'wc-multi-store-sync'),
@@ -113,6 +114,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             ''                    => $this->output_dashboard(),
             'stores'              => $this->output_stores(),
             'category-mapping'    => $this->output_category_mapping(),
+            'attribute-mapping'   => $this->output_attribute_mapping(),
             'settings'            => $this->output_settings(),
             'queue'               => $this->output_queue(),
             'weekly-verification' => $this->output_weekly_verification(),
@@ -185,6 +187,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function output_category_mapping(): void {
         include WC_MSS_PLUGIN_DIR . 'admin/views/category-mapping.php';
+    }
+
+    /**
+     * Output attribute name/value mapping section
+     */
+    private function output_attribute_mapping(): void {
+        include WC_MSS_PLUGIN_DIR . 'admin/views/attribute-mapping.php';
     }
 
     /**
@@ -971,6 +980,22 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     'saving' => __('Saving…', 'wc-multi-store-sync'),
                     'saved' => __('Saved ✓', 'wc-multi-store-sync'),
                     'save_failed' => __('Failed to save', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
+
+        // Strings for the attribute name/value mapping page
+        if ($section === 'attribute-mapping') {
+            wp_localize_script('wc-mss-admin', 'wcMssAttributeMappingData', [
+                'i18n' => [
+                    'loading' => __('Loading…', 'wc-multi-store-sync'),
+                    'load_failed' => __('Failed to load attributes for this store.', 'wc-multi-store-sync'),
+                    'no_mapping' => __('— Don\'t map (send as-is) —', 'wc-multi-store-sync'),
+                    'skip' => __('— Skip (don\'t sync) —', 'wc-multi-store-sync'),
+                    'saving' => __('Saving…', 'wc-multi-store-sync'),
+                    'saved' => __('Saved ✓', 'wc-multi-store-sync'),
+                    'save_failed' => __('Failed to save', 'wc-multi-store-sync'),
+                    'no_values' => __('This attribute has no terms to map.', 'wc-multi-store-sync'),
                 ],
             ]);
         }

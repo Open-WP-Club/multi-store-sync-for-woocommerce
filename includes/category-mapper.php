@@ -392,7 +392,7 @@ class WC_Multi_Store_Category_Mapper {
             return;
         }
 
-        $store_url = sanitize_text_field($_GET['store_url'] ?? '');
+        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);

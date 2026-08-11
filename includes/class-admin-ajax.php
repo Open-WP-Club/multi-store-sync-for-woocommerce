@@ -912,8 +912,8 @@ class WC_Multi_Store_Admin_Ajax {
     }
 
     /**
-     * AJAX: Fetch a remote store's categories or tags, for the category/tag
-     * mapping UI's "map to" dropdown.
+     * AJAX: Fetch a remote store's categories, tags, or attributes, for the
+     * category/tag/attribute mapping UIs' "map to" dropdowns.
      */
     public function ajax_get_remote_terms(): void {
         if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
@@ -936,9 +936,11 @@ class WC_Multi_Store_Admin_Ajax {
 
         $client = WC_Multi_Store_API_Client::for_store($store_url, $config);
 
-        $terms = $taxonomy === 'tag'
-            ? WC_Multi_Store_Category_Mapper::get_remote_tags($client)
-            : WC_Multi_Store_Category_Mapper::get_remote_categories($client);
+        $terms = match ($taxonomy) {
+            'tag' => WC_Multi_Store_Category_Mapper::get_remote_tags($client),
+            'attribute' => WC_Multi_Store_Attribute_Remapper::get_remote_attributes($client),
+            default => WC_Multi_Store_Category_Mapper::get_remote_categories($client),
+        };
 
         wp_send_json_success(['terms' => $terms]);
     }

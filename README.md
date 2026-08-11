@@ -498,14 +498,6 @@ See [Developer Documentation](documentation/DEVELOPER.md) for contribution guide
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-### Latest: 4.0.0
-- **New**: Custom Field / ACF Mapper — sync custom post meta and ACF fields (including repeaters) with per-field mapping
-- **New**: Remote Orders — pull orders from child stores back to the main store and browse them in a dedicated viewer
-- **Change**: admin UI moved into **WooCommerce > Settings > Multi-Store Sync**
-- **Change**: project renamed to **Multi-Store Sync for WooCommerce**
-
-See [CHANGELOG.md](CHANGELOG.md) for the full version history.
-
 ---
 
 ## License
@@ -522,14 +514,3 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 ```
 
----
-
-## Credits
-
-- **Author**: Gkanev.com
-- **Website**: [https://gkanev.com](https://gkanev.com)
-- **GitHub**: [Open-WP-Club](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce)
-
----
-
-Made with ❤️ by [Gkanev.com](https://gkanev.com) · **Star this repository if you find it helpful! ⭐**

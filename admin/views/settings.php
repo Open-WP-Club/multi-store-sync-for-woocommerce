@@ -806,8 +806,13 @@ if (!defined('ABSPATH')) {
                                    <?php checked(!empty($attribute_remapper_settings['enabled'])); ?>>
                             <?php _e('Enable per-store attribute name/value remapping', 'wc-multi-store-sync'); ?>
                         </label>
-                        <p class="description"><?php _e('Remap attribute names and values per store (e.g., "Цвят" → "Color", "Червен" → "Red"). Useful for multilingual stores.', 'wc-multi-store-sync'); ?></p>
-                        <p class="description" style="color: #996800;"><?php _e('Note: there is currently no admin screen to enter mappings — enabling this alone has no effect until mapping data is set.', 'wc-multi-store-sync'); ?></p>
+                        <p class="description">
+                            <?php printf(
+                                /* translators: %s: link to the Attribute Mapping tab */
+                                __('Remap attribute names and values per store (e.g., "Цвят" → "Color", "Червен" → "Red"). Useful for multilingual stores. Enter mappings in the %s tab.', 'wc-multi-store-sync'),
+                                '<a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=attribute-mapping')) . '">' . __('Attribute Mapping', 'wc-multi-store-sync') . '</a>'
+                            ); ?>
+                        </p>
                     </td>
                 </tr>
 

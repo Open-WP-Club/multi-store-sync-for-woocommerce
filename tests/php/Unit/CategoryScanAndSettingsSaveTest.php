@@ -244,6 +244,45 @@ class CategoryScanAndSettingsSaveTest extends WC_Multi_Store_TestCase
         $this->assertSame('Clothing', $sent['terms'][0]['name']);
     }
 
+    public function test_ajax_get_remote_terms_returns_remote_attributes(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('get_option')->alias(function ($opt, $default = false) {
+            return $opt === 'wc_multi_store_sync_stores'
+                ? ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs']]
+                : $default;
+        });
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->justReturn(true);
+        Functions\when('add_query_arg')->alias(fn($args, $url) => $url . '?' . http_build_query($args));
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body'] ?? '[]');
+        Functions\when('wp_remote_get')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode([
+                ['id' => 1, 'name' => 'Color', 'slug' => 'color'],
+            ]),
+        ]);
+
+        $_POST['store_url'] = 'https://store1.com';
+        $_POST['taxonomy'] = 'attribute';
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        $this->makeAjax()->ajax_get_remote_terms();
+
+        $this->assertCount(1, $sent['terms']);
+        $this->assertSame('Color', $sent['terms'][0]['name']);
+
+        unset($_POST['store_url'], $_POST['taxonomy']);
+    }
+
     public function test_ajax_get_remote_terms_requires_store_url(): void
     {
         Functions\when('check_ajax_referer')->justReturn(true);

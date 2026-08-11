@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## 4.1.0
+
+- New: **Category Mapping** admin screen — map local categories/tags to different names per remote store (WooCommerce > Settings > Multi-Store Sync > Category Mapping)
+- New: **Attribute Mapping** admin screen — map local attribute names and values to different names per remote store (WooCommerce > Settings > Multi-Store Sync > Attribute Mapping)
+- Fix: category/attribute mapping's store selector failed to load existing mappings (request data was read from the wrong PHP superglobal)
+- Improved: removed dead code paths and duplicated logic across the sync engine, pricing rules, and mapping modules
+
 ## 4.0.0
 
 - New: **Custom Field / ACF Mapper** — sync custom post meta and Advanced Custom Fields (including repeater fields) to child stores with per-field local-to-remote mapping

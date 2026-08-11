@@ -1104,6 +1104,26 @@ class WC_Multi_Store_API_Client {
     }
 
     // ========================================
+    // Attribute Operations
+    // ========================================
+
+    /**
+     * Get global product attributes (e.g. Color, Size)
+     *
+     * @param array $params Additional parameters
+     * @return array|WP_Error Attributes array or WP_Error
+     */
+    public function get_attributes(array $params = []): array|\WP_Error {
+        $default_params = [
+            'per_page' => self::DEFAULT_BATCH_SIZE,
+        ];
+
+        $params = wp_parse_args($params, $default_params);
+
+        return $this->get('products/attributes', $params);
+    }
+
+    // ========================================
     // Batch Term Operations
     // ========================================
 

@@ -733,6 +733,31 @@ class ApiClientTest extends WC_Multi_Store_TestCase
     }
 
     /**
+     * Test get_attributes
+     */
+    public function test_get_attributes(): void
+    {
+        $api_client = new WC_Multi_Store_API_Client(
+            $this->store_url,
+            $this->consumer_key,
+            $this->consumer_secret
+        );
+
+        Functions\expect('wp_remote_get')
+            ->once()
+            ->andReturn(array(
+                'response' => array('code' => 200),
+                'body' => json_encode(array(
+                    array('id' => 1, 'name' => 'Color', 'slug' => 'color'),
+                )),
+            ));
+
+        $result = $api_client->get_attributes();
+
+        $this->assertIsArray($result);
+    }
+
+    /**
      * Test test_connection method exists
      */
     public function test_test_connection_method_exists(): void
