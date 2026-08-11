@@ -43,7 +43,7 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $methods = [
             'create_table', 'get_statistics', 'get_usage_by_store',
             'get_usage_by_endpoint', 'get_daily_trend', 'get_recent_errors',
-            'get_cost_estimates', 'export_to_csv', 'cleanup_old_data',
+            'export_to_csv', 'cleanup_old_data',
             'clear_all_data',
         ];
 
@@ -293,79 +293,6 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
 
         $this->assertEquals(0, $stats['total_requests']);
         $this->assertEquals(0, $stats['success_rate']);
-    }
-
-    // ─── get_cost_estimates ────────────────────────
-
-    public function test_get_cost_estimates_with_zero_rates(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        // Statistics returns zero data
-        $stats_row = (object) [
-            'total_requests' => '100',
-            'successful_requests' => '100',
-            'failed_requests' => '0',
-            'avg_response_time' => '200',
-            'total_data_sent' => '1000',
-            'total_data_received' => '5000',
-        ];
-
-        $wpdb->shouldReceive('prepare')->andReturn('WHERE ...');
-        $wpdb->shouldReceive('get_row')->once()->andReturn($stats_row);
-
-        // Rates are 0 by default
-        Functions\when('get_option')->alias(function ($key, $default = false) {
-            return match ($key) {
-                'wc_mss_api_cost_per_1000' => 0,
-                'wc_mss_api_cost_per_gb' => 0,
-                default => $default,
-            };
-        });
-
-        $costs = WC_Multi_Store_API_Usage_Tracker::get_cost_estimates();
-
-        $this->assertEquals(0, $costs['request_cost']);
-        $this->assertEquals(0, $costs['data_transfer_cost']);
-        $this->assertEquals(0, $costs['total_estimated_cost']);
-        $this->assertEquals(0, $costs['cost_per_1000_requests']);
-        $this->assertEquals(0, $costs['cost_per_gb_transferred']);
-    }
-
-    public function test_get_cost_estimates_with_configured_rates(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $stats_row = (object) [
-            'total_requests' => '2000',
-            'successful_requests' => '2000',
-            'failed_requests' => '0',
-            'avg_response_time' => '100',
-            'total_data_sent' => '0',
-            'total_data_received' => '0',
-        ];
-
-        $wpdb->shouldReceive('prepare')->andReturn('WHERE ...');
-        $wpdb->shouldReceive('get_row')->once()->andReturn($stats_row);
-
-        Functions\when('get_option')->alias(function ($key, $default = false) {
-            return match ($key) {
-                'wc_mss_api_cost_per_1000' => 5.0,
-                'wc_mss_api_cost_per_gb' => 0.10,
-                default => $default,
-            };
-        });
-
-        $costs = WC_Multi_Store_API_Usage_Tracker::get_cost_estimates();
-
-        // 2000 / 1000 * 5.0 = 10.0
-        $this->assertEquals(10.0, $costs['request_cost']);
-        $this->assertEquals(5.0, $costs['cost_per_1000_requests']);
-        $this->assertEquals(0.10, $costs['cost_per_gb_transferred']);
     }
 
     // ─── export_to_csv ─────────────────────────────

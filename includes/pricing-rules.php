@@ -201,8 +201,6 @@ class WC_Multi_Store_Pricing_Rules {
             'percentage' => 0,
             'multiplier' => 1,
             'exchange_rate' => 1,
-            'currency_from' => '',
-            'currency_to' => '',
         ];
     }
 
@@ -237,10 +235,6 @@ class WC_Multi_Store_Pricing_Rules {
         if ($validated['exchange_rate'] <= 0) {
             $validated['exchange_rate'] = 1;
         }
-
-        // Sanitize currency codes
-        $validated['currency_from'] = sanitize_text_field($validated['currency_from']);
-        $validated['currency_to'] = sanitize_text_field($validated['currency_to']);
 
         return $validated;
     }

@@ -458,9 +458,7 @@ class WC_Multi_Store_Conflict_Detector {
      */
     public static function get_settings(): array {
         return get_option('wc_mss_conflict_settings', [
-            'enabled'           => false,
-            'action_on_conflict' => 'warn',
-            'notify_email'      => true,
+            'enabled' => false,
         ]);
     }
 

@@ -2,7 +2,7 @@
 /**
  * Extended unit tests for WC_Multi_Store_Cache_Manager
  *
- * Covers: warmup(), bulk_refresh with data, taxonomy term sorting,
+ * Covers: bulk_refresh with data, taxonomy term sorting,
  * update_remote_product_after_sync, cache key consistency.
  */
 
@@ -11,59 +11,6 @@ use Brain\Monkey\Functions;
 
 class CacheManagerExtendedTest extends WC_Multi_Store_TestCase
 {
-    // ── warmup ───────────────────────────────────────────────────
-
-    public function test_warmup_caches_active_stores(): void
-    {
-        $stores = [
-            'https://store1.com' => ['status' => 'active'],
-            'https://store2.com' => ['status' => 'active'],
-        ];
-
-        // Clear Settings static cache
-        WC_Multi_Store_Settings::clear_static_cache();
-
-        Functions\when('get_option')->alias(function ($key, $default = false) use ($stores) {
-            if ($key === 'wc_multi_store_sync_stores') {
-                return $stores;
-            }
-            if ($key === 'wc_multi_store_sync_settings') {
-                return ['enabled' => true];
-            }
-            if ($key === 'wc_multi_store_sync_scheduled') {
-                return ['interval' => 'hourly'];
-            }
-            if ($key === 'wc_multi_store_sync_orders') {
-                return ['auto_sync_enabled' => true];
-            }
-            return $default;
-        });
-        Functions\when('get_transient')->justReturn(false);
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-
-        Functions\expect('set_transient')->andReturn(true);
-
-        $result = WC_Multi_Store_Cache_Manager::warmup();
-
-        $this->assertIsArray($result);
-        $this->assertContains('active_stores', $result);
-    }
-
-    public function test_warmup_returns_empty_when_no_stores(): void
-    {
-        WC_Multi_Store_Settings::clear_static_cache();
-
-        Functions\when('get_option')->justReturn([]);
-        Functions\when('get_transient')->justReturn(false);
-        Functions\when('set_transient')->justReturn(true);
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-
-        $result = WC_Multi_Store_Cache_Manager::warmup();
-
-        $this->assertIsArray($result);
-        $this->assertNotContains('active_stores', $result);
-    }
-
     // ── bulk_refresh_after_verification ───────────────────────────
 
     public function test_bulk_refresh_with_remote_data_updates_cache(): void

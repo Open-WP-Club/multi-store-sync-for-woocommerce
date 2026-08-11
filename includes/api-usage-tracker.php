@@ -417,30 +417,6 @@ class WC_Multi_Store_API_Usage_Tracker {
     }
 
     /**
-     * Get estimated API costs (configurable rates)
-     *
-     * @param array $args Query arguments
-     * @return array Cost estimates
-     */
-    public static function get_cost_estimates(array $args = []): array {
-        $stats = self::get_statistics($args);
-
-        // Default cost assumptions (can be configured)
-        $cost_per_1000_requests = get_option('wc_mss_api_cost_per_1000', 0);
-        $cost_per_gb_transferred = get_option('wc_mss_api_cost_per_gb', 0);
-
-        $total_gb_transferred = $stats['total_data_transferred'] / 1024 / 1024 / 1024;
-
-        return [
-            'request_cost' => ($stats['total_requests'] / 1000) * $cost_per_1000_requests,
-            'data_transfer_cost' => $total_gb_transferred * $cost_per_gb_transferred,
-            'total_estimated_cost' => (($stats['total_requests'] / 1000) * $cost_per_1000_requests) + ($total_gb_transferred * $cost_per_gb_transferred),
-            'cost_per_1000_requests' => $cost_per_1000_requests,
-            'cost_per_gb_transferred' => $cost_per_gb_transferred,
-        ];
-    }
-
-    /**
      * Export usage data to CSV
      *
      * @param array $args Query arguments

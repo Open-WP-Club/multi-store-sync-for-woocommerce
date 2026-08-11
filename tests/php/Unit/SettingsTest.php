@@ -302,24 +302,18 @@ class SettingsTest extends WC_Multi_Store_TestCase
      */
     public function test_get_active_stores_filters_active(): void
     {
+        WC_Multi_Store_Settings::clear_static_cache();
+
         $stores = array(
             'https://store1.com' => array('status' => 'active'),
             'https://store2.com' => array('status' => 'inactive'),
             'https://store3.com' => array('status' => 'active'),
         );
 
-        Functions\expect('get_transient')
-            ->once()
-            ->andReturn(false);
-
         Functions\expect('get_option')
             ->once()
             ->with('wc_multi_store_sync_stores', array())
             ->andReturn($stores);
-
-        Functions\expect('set_transient')
-            ->once()
-            ->andReturn(true);
 
         $result = WC_Multi_Store_Settings::get_active_stores();
 
@@ -330,21 +324,24 @@ class SettingsTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test get_active_stores uses cache
+     * Test get_active_stores uses the in-memory static cache on repeat calls
      */
     public function test_get_active_stores_uses_cache(): void
     {
-        $cached_stores = array('https://cached.com' => array('status' => 'active'));
+        WC_Multi_Store_Settings::clear_static_cache();
 
-        Functions\expect('get_transient')
+        $stores = array('https://cached.com' => array('status' => 'active'));
+
+        Functions\expect('get_option')
             ->once()
-            ->andReturn($cached_stores);
+            ->with('wc_multi_store_sync_stores', array())
+            ->andReturn($stores);
 
-        Functions\expect('get_option')->never();
+        $first = WC_Multi_Store_Settings::get_active_stores();
+        $second = WC_Multi_Store_Settings::get_active_stores();
 
-        $result = WC_Multi_Store_Settings::get_active_stores();
-
-        $this->assertEquals($cached_stores, $result);
+        $this->assertEquals($first, $second);
+        $this->assertArrayHasKey('https://cached.com', $second);
     }
 
     /**
@@ -475,12 +472,10 @@ class SettingsTest extends WC_Multi_Store_TestCase
         ];
 
         // Prime the static cache with old data
-        Functions\expect('get_transient')->once()->andReturn(false);
         Functions\expect('get_option')
             ->once()
             ->with('wc_multi_store_sync_stores', [])
             ->andReturn($old_stores);
-        Functions\expect('set_transient')->once()->andReturn(true);
 
         $before = WC_Multi_Store_Settings::get_active_stores();
         $this->assertEquals('ck_old', $before['https://store1.com']['consumer_key']);
@@ -506,12 +501,10 @@ class SettingsTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Settings::update_store('https://store1.com', ['status' => 'active', 'consumer_key' => 'ck_new']);
 
         // After update, get_active_stores must NOT return the stale cached value
-        Functions\expect('get_transient')->once()->andReturn(false);
         Functions\expect('get_option')
             ->once()
             ->with('wc_multi_store_sync_stores', [])
             ->andReturn($new_stores);
-        Functions\expect('set_transient')->once()->andReturn(true);
 
         $after = WC_Multi_Store_Settings::get_active_stores();
         $this->assertEquals('ck_new', $after['https://store1.com']['consumer_key']);
@@ -527,12 +520,10 @@ class SettingsTest extends WC_Multi_Store_TestCase
         ];
 
         // Prime the static cache
-        Functions\expect('get_transient')->once()->andReturn(false);
         Functions\expect('get_option')
             ->once()
             ->with('wc_multi_store_sync_stores', [])
             ->andReturn($stores);
-        Functions\expect('set_transient')->once()->andReturn(true);
 
         $before = WC_Multi_Store_Settings::get_active_stores();
         $this->assertArrayHasKey('https://store1.com', $before);
@@ -552,12 +543,10 @@ class SettingsTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Settings::delete_store('https://store1.com');
 
         // Static cache must be cleared — next call should hit DB
-        Functions\expect('get_transient')->once()->andReturn(false);
         Functions\expect('get_option')
             ->once()
             ->with('wc_multi_store_sync_stores', [])
             ->andReturn([]);
-        Functions\expect('set_transient')->once()->andReturn(true);
 
         $after = WC_Multi_Store_Settings::get_active_stores();
         $this->assertArrayNotHasKey('https://store1.com', $after);

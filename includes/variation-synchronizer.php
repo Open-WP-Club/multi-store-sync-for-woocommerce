@@ -246,9 +246,6 @@ class WC_Multi_Store_Variation_Synchronizer {
      */
     private function chunk_batch_operations(array $creates, array $updates, array $deletes, int $max_per_batch = 100): array {
         $chunks = [];
-        $create_chunks = array_chunk($creates, $max_per_batch);
-        $update_chunks = array_chunk($updates, $max_per_batch);
-        $delete_chunks = array_chunk($deletes, $max_per_batch);
 
         // Merge all items into a flat list with their operation type
         $all_items = [];

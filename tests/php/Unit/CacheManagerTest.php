@@ -323,57 +323,6 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test get_active_stores calls get_transient
-     */
-    public function test_get_active_stores_calls_transient(): void
-    {
-        $expected_stores = array('https://store1.com' => array('status' => 'active'));
-
-        Functions\expect('get_transient')
-            ->once()
-            ->andReturn($expected_stores);
-
-        $result = WC_Multi_Store_Cache_Manager::get_active_stores();
-
-        $this->assertEquals($expected_stores, $result);
-    }
-
-    /**
-     * Test set_active_stores uses correct expiration
-     */
-    public function test_set_active_stores_uses_correct_expiration(): void
-    {
-        $stores = array('https://store1.com' => array('status' => 'active'));
-
-        Functions\expect('set_transient')
-            ->once()
-            ->with(
-                \Mockery::type('string'),
-                $stores,
-                WC_Multi_Store_Cache_Manager::STORE_CONFIG_EXPIRATION
-            )
-            ->andReturn(true);
-
-        $result = WC_Multi_Store_Cache_Manager::set_active_stores($stores);
-
-        $this->assertTrue($result);
-    }
-
-    /**
-     * Test clear_active_stores calls delete_transient
-     */
-    public function test_clear_active_stores_calls_delete_transient(): void
-    {
-        Functions\expect('delete_transient')
-            ->once()
-            ->andReturn(true);
-
-        $result = WC_Multi_Store_Cache_Manager::clear_active_stores();
-
-        $this->assertTrue($result);
-    }
-
-    /**
      * Test cache constants are defined correctly
      */
     public function test_cache_constants(): void

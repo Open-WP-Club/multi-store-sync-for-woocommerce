@@ -250,9 +250,6 @@ class WC_Multi_Store_Sync {
         // Stock verification triggered by scheduled Action Scheduler job
         add_action('wc_multi_store_verify_stock', WC_Multi_Store_Stock_Verifier::verify_product_stock(...), 10, 3);
 
-        // Cache warmup — fires after screens are initialized so get_current_screen() works
-        add_action('current_screen', $this->warmup_cache(...), 20);
-
         // Database upgrades (admin / cron / AJAX only, gated inside the method)
         add_action('init', $this->maybe_upgrade_database(...), 5);
 
@@ -590,35 +587,6 @@ class WC_Multi_Store_Sync {
         return WC_MSS_VERSION;
     }
 
-    /**
-     * Warm up cache on init
-     *
-     * @return void
-     */
-    public function warmup_cache() {
-        // Only warm up cache on plugin admin pages to avoid performance impact
-        // Check if we're on one of our admin pages
-        if (!is_admin() || wp_doing_ajax()) {
-            return;
-        }
-
-        // Only warm up on our plugin pages
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        if (!$screen || !str_contains($screen->id, 'wc-settings')) {
-            return;
-        }
-
-        // Use transient to prevent warming up too frequently
-        $warmup_key = 'wc_mss_cache_warmed';
-        if (get_transient($warmup_key)) {
-            return;
-        }
-
-        WC_Multi_Store_Cache_Manager::warmup();
-
-        // Set transient for 5 minutes
-        set_transient($warmup_key, true, 5 * MINUTE_IN_SECONDS);
-    }
 }
 
 /**

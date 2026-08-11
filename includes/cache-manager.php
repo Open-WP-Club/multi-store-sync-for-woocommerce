@@ -408,38 +408,6 @@ class WC_Multi_Store_Cache_Manager {
     }
 
     /**
-     * Get active stores from cache
-     *
-     * @return array|null Cached stores or null
-     */
-    public static function get_active_stores(): array|false {
-        return get_transient(self::build_cache_key('active_stores', []));
-    }
-
-    /**
-     * Set active stores in cache
-     *
-     * @param array $stores Stores data
-     * @return bool Success
-     */
-    public static function set_active_stores($stores): bool {
-        return set_transient(
-            self::build_cache_key('active_stores', []),
-            $stores,
-            self::STORE_CONFIG_EXPIRATION
-        );
-    }
-
-    /**
-     * Clear active stores cache
-     *
-     * @return bool Success
-     */
-    public static function clear_active_stores(): bool {
-        return delete_transient(self::build_cache_key('active_stores', []));
-    }
-
-    /**
      * Build cache key
      *
      * @param string $type Cache type
@@ -510,27 +478,5 @@ class WC_Multi_Store_Cache_Manager {
         }
 
         return $deleted > 0;
-    }
-
-    /**
-     * Warm up cache for common operations
-     *
-     * Pre-loads frequently accessed data into cache
-     *
-     * @return array Warmed cache types
-     */
-    public static function warmup(): array {
-        $warmed = [];
-
-        // Cache active stores
-        $stores = WC_Multi_Store_Settings::get_active_stores();
-        if (!empty($stores)) {
-            self::set_active_stores($stores);
-            $warmed[] = 'active_stores';
-        }
-
-        WC_Multi_Store_Logger::write('Cache warmed up: ' . implode(', ', $warmed));
-
-        return $warmed;
     }
 }

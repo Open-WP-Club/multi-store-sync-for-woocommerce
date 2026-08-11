@@ -65,7 +65,6 @@ if (!empty($store_filter)) {
 
 $discrepancies = WC_Multi_Store_Stock_Verifier::get_discrepancies($args);
 $pending_count = WC_Multi_Store_Stock_Verifier::get_discrepancy_count('pending');
-$total_count = WC_Multi_Store_Stock_Verifier::get_discrepancy_count('all');
 
 // Get all stores for filter
 $stores = get_option('wc_multi_store_sync_stores', []);

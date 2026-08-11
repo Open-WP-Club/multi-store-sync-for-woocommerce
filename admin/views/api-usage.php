@@ -30,9 +30,7 @@ if ($store_filter) {
 $stats = WC_Multi_Store_API_Usage_Tracker::get_statistics($args);
 $usage_by_store = WC_Multi_Store_API_Usage_Tracker::get_usage_by_store($args);
 $usage_by_endpoint = WC_Multi_Store_API_Usage_Tracker::get_usage_by_endpoint($args);
-$daily_trend = WC_Multi_Store_API_Usage_Tracker::get_daily_trend(array_merge($args, ['days' => $days]));
 $recent_errors = WC_Multi_Store_API_Usage_Tracker::get_recent_errors(10);
-$cost_estimates = WC_Multi_Store_API_Usage_Tracker::get_cost_estimates($args);
 
 ?>
 
@@ -207,24 +205,4 @@ $cost_estimates = WC_Multi_Store_API_Usage_Tracker::get_cost_estimates($args);
         </div>
     <?php endif; ?>
 
-    <!-- Cost Estimates (if configured) -->
-    <?php if ($cost_estimates['cost_per_1000_requests'] > 0 || $cost_estimates['cost_per_gb_transferred'] > 0): ?>
-        <div class="wc-mss-card" style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ddd; border-radius: 4px;">
-            <h2><?php _e('Cost Estimates', 'wc-multi-store-sync'); ?></h2>
-            <table class="wp-list-table widefat fixed">
-                <tr>
-                    <td style="padding: 10px;"><strong><?php _e('Request Cost:', 'wc-multi-store-sync'); ?></strong></td>
-                    <td style="padding: 10px;">$<?php echo number_format($cost_estimates['request_cost'], 2); ?></td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px;"><strong><?php _e('Data Transfer Cost:', 'wc-multi-store-sync'); ?></strong></td>
-                    <td style="padding: 10px;">$<?php echo number_format($cost_estimates['data_transfer_cost'], 2); ?></td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; background: #f5f5f5;"><strong><?php _e('Total Estimated Cost:', 'wc-multi-store-sync'); ?></strong></td>
-                    <td style="padding: 10px; background: #f5f5f5;"><strong>$<?php echo number_format($cost_estimates['total_estimated_cost'], 2); ?></strong></td>
-                </tr>
-            </table>
-        </div>
-    <?php endif; ?>
 </div>
