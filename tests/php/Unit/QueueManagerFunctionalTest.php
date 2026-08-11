@@ -450,27 +450,6 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $this->assertEquals('empty', $result['status']);
     }
 
-    // ── get_queue_count ──────────────────────────────────────────
-
-    public function test_get_queue_count_returns_pending_count(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $wpdb->shouldReceive('get_row')->andReturn([
-            'pending'    => '5',
-            'processing' => '1',
-            'completed'  => '10',
-            'failed'     => '2',
-            'total'      => '18',
-        ]);
-
-        $count = WC_MSS()->queue_manager->get_queue_count();
-
-        $this->assertEquals(5, $count);
-    }
-
     // ── get_statistics ───────────────────────────────────────────
 
     public function test_get_statistics_returns_counts_by_status(): void
@@ -499,22 +478,6 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $this->assertEquals(20, $stats['completed']);
         $this->assertEquals(5, $stats['failed']);
         $this->assertEquals(29, $stats['total']);
-    }
-
-    // ── remove_product ───────────────────────────────────────────
-
-    public function test_remove_product_deletes_pending_items(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->once()->andReturn(3);
-
-        $result = WC_MSS()->queue_manager->remove_product(100);
-
-        $this->assertEquals(3, $result);
     }
 
     // ── is_queued ────────────────────────────────────────────────
@@ -558,19 +521,4 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $this->assertEquals(15, $result);
     }
 
-    // ── cleanup_old_items ────────────────────────────────────────
-
-    public function test_cleanup_old_items_deletes_old_completed(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->once()->andReturn(8);
-
-        $result = WC_MSS()->queue_manager->cleanup_old_items(7);
-
-        $this->assertEquals(8, $result);
-    }
 }

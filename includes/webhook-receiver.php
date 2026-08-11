@@ -671,17 +671,4 @@ class WC_Multi_Store_Webhook_Receiver {
         );
     }
 
-    /**
-     * Get test webhook URL
-     *
-     * @param string $store_url Remote store URL
-     * @return string
-     */
-    public static function get_test_webhook_url(string $store_url = ''): string {
-        $url = rest_url('wc-multi-store-sync/v1/webhook/test');
-        if (!empty($store_url)) {
-            $url = add_query_arg('store_url', urlencode($store_url), $url);
-        }
-        return $url;
-    }
 }

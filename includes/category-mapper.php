@@ -90,31 +90,6 @@ class WC_Multi_Store_Category_Mapper {
     }
 
     /**
-     * Add a single category mapping for a store
-     *
-     * @param string $store_url Remote store URL
-     * @param string $local_slug Local category slug
-     * @param string $remote_slug Remote category slug to map to
-     */
-    public static function add_mapping(string $store_url, string $local_slug, string $remote_slug): void {
-        $mappings = self::get_mappings($store_url);
-        $mappings[$local_slug] = $remote_slug;
-        self::set_mappings($store_url, $mappings);
-    }
-
-    /**
-     * Remove a single category mapping for a store
-     *
-     * @param string $store_url Remote store URL
-     * @param string $local_slug Local category slug to unmap
-     */
-    public static function remove_mapping(string $store_url, string $local_slug): void {
-        $mappings = self::get_mappings($store_url);
-        unset($mappings[$local_slug]);
-        self::set_mappings($store_url, $mappings);
-    }
-
-    /**
      * Apply category mappings to product data before sending to a remote store
      *
      * @param array $product_data Product data array (with 'categories' key)

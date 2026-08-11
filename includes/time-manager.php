@@ -50,29 +50,6 @@ class WC_Multi_Store_Time_Manager {
     }
 
     /**
-     * Get sync type based on time of day
-     *
-     * @return string Sync type (full_product, price_quantity, or quantity)
-     */
-    public static function get_sync_type(): string {
-        $settings = get_option('wc_multi_store_sync_scheduled', []);
-        $force_full_sync = $settings['force_full_sync'] ?? false;
-
-        // If force full sync is enabled, always do full sync
-        if ($force_full_sync) {
-            return 'full_product';
-        }
-
-        // Off-peak hours: full product sync
-        if (self::is_off_peak()) {
-            return 'full_product';
-        }
-
-        // Peak hours: lighter sync (price and quantity only)
-        return 'price_quantity';
-    }
-
-    /**
      * Get batch size based on time
      *
      * @return int Number of products to sync per batch

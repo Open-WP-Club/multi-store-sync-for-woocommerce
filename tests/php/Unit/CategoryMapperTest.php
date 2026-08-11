@@ -106,60 +106,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     }
 
     // -------------------------------------------------------------------------
-    // add_mapping() / remove_mapping()
-    // -------------------------------------------------------------------------
-
-    public function test_add_mapping_adds_single_entry_to_existing(): void
-    {
-        $key = md5($this->store_url_a);
-
-        Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
-                return [$key => ['shoes' => 'footwear']];
-            }
-            return $default;
-        });
-
-        $captured = null;
-        Functions\when('update_option')->alias(function (string $option, mixed $value) use (&$captured): bool {
-            $captured = $value;
-            return true;
-        });
-
-        WC_Multi_Store_Category_Mapper::add_mapping($this->store_url_a, 'clothing', 'apparel');
-
-        $this->assertNotNull($captured);
-        $this->assertArrayHasKey($key, $captured);
-        $this->assertSame('footwear', $captured[$key]['shoes']);
-        $this->assertSame('apparel', $captured[$key]['clothing']);
-    }
-
-    public function test_remove_mapping_removes_entry(): void
-    {
-        $key = md5($this->store_url_a);
-
-        Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
-                return [$key => ['clothing' => 'apparel', 'shoes' => 'footwear']];
-            }
-            return $default;
-        });
-
-        $captured = null;
-        Functions\when('update_option')->alias(function (string $option, mixed $value) use (&$captured): bool {
-            $captured = $value;
-            return true;
-        });
-
-        WC_Multi_Store_Category_Mapper::remove_mapping($this->store_url_a, 'clothing');
-
-        $this->assertNotNull($captured);
-        $this->assertArrayNotHasKey('clothing', $captured[$key]);
-        $this->assertArrayHasKey('shoes', $captured[$key]);
-        $this->assertSame('footwear', $captured[$key]['shoes']);
-    }
-
-    // -------------------------------------------------------------------------
     // apply_mappings()
     // -------------------------------------------------------------------------
 

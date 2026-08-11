@@ -71,50 +71,6 @@ class TimeManagerTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test get_sync_type returns full_product when force_full_sync is enabled
-     */
-    public function test_get_sync_type_force_full_sync(): void
-    {
-        Functions\when('get_option')->justReturn(array('force_full_sync' => true));
-
-        $result = WC_Multi_Store_Time_Manager::get_sync_type();
-
-        $this->assertEquals('full_product', $result);
-    }
-
-    /**
-     * Test get_sync_type returns full_product during off-peak
-     */
-    public function test_get_sync_type_off_peak(): void
-    {
-        Functions\when('get_option')->justReturn(array('peak_start_hour' => 6, 'peak_end_hour' => 23));
-
-        Functions\expect('current_datetime')
-            ->once()
-            ->andReturn(new \DateTimeImmutable('2025-01-26 03:00:00'));
-
-        $result = WC_Multi_Store_Time_Manager::get_sync_type();
-
-        $this->assertEquals('full_product', $result);
-    }
-
-    /**
-     * Test get_sync_type returns price_quantity during peak hours
-     */
-    public function test_get_sync_type_peak_hours(): void
-    {
-        Functions\when('get_option')->justReturn(array('peak_start_hour' => 6, 'peak_end_hour' => 23));
-
-        Functions\expect('current_datetime')
-            ->once()
-            ->andReturn(new \DateTimeImmutable('2025-01-26 12:00:00'));
-
-        $result = WC_Multi_Store_Time_Manager::get_sync_type();
-
-        $this->assertEquals('price_quantity', $result);
-    }
-
-    /**
      * Test get_batch_size returns off-peak size during off-peak hours
      */
     public function test_get_batch_size_off_peak(): void

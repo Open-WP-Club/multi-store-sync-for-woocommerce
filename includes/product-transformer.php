@@ -208,12 +208,4 @@ class WC_Multi_Store_Product_Transformer {
         ), 'warning');
     }
 
-    /**
-     * Clear cached allocation rules (call when store config changes)
-     *
-     * @return void
-     */
-    public function clear_cache(): void {
-        $this->cached_allocation_rules = null;
-    }
 }

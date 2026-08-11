@@ -510,29 +510,6 @@ class WC_Multi_Store_Product_Extractor {
         $this->save_synced_value_hash($product_id, $store_url, 'images', $filenames);
     }
 
-    /**
-     * Format images for API, optionally skipping if unchanged
-     *
-     * @param WC_Product $product Product object
-     * @param string|null $store_url Store URL for comparison (null = always include)
-     * @param bool $is_update Whether this is an update (true) or create (false)
-     * @return array|null Formatted images or null if unchanged
-     */
-    public function format_images_smart(WC_Product $product, ?string $store_url = null, bool $is_update = false): ?array {
-        // For create operations, always include images
-        if (!$is_update || $store_url === null) {
-            return $this->format_images($product);
-        }
-
-        // For updates, check if images have changed
-        if ($this->have_images_changed($product, $store_url)) {
-            return $this->format_images($product);
-        }
-
-        // Images haven't changed, return null to skip
-        return null;
-    }
-
     // =========================================
     // Smart Category/Tag Comparison Methods
     // =========================================

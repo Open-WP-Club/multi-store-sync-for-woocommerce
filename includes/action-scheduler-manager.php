@@ -132,6 +132,15 @@ class WC_Multi_Store_Action_Scheduler_Manager {
             }
         }
 
+        // Schedule remote order sync (daily) — migrated from WP Cron, always on
+        // whenever the class is loaded (admin/AJAX/cron contexts), same as
+        // the other core recurring actions above.
+        if (!as_next_scheduled_action('wc_multi_store_sync_remote_orders', [], self::ACTION_GROUP)) {
+            if (class_exists('WC_Multi_Store_Remote_Order_Sync')) {
+                WC_Multi_Store_Remote_Order_Sync::schedule_sync();
+            }
+        }
+
         // Reconcile orphan auto-trash schedule against its enabled setting —
         // unlike the other jobs above, this one also needs to be *unscheduled*
         // when turned off, since an unattended delete-adjacent job left

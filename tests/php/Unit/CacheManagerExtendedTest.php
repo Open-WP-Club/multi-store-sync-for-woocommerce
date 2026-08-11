@@ -2,8 +2,8 @@
 /**
  * Extended unit tests for WC_Multi_Store_Cache_Manager
  *
- * Covers: bulk_refresh with data, taxonomy term sorting,
- * update_remote_product_after_sync, cache key consistency.
+ * Covers: taxonomy term sorting, update_remote_product_after_sync,
+ * cache key consistency.
  */
 
 use Brain\Monkey;
@@ -11,102 +11,6 @@ use Brain\Monkey\Functions;
 
 class CacheManagerExtendedTest extends WC_Multi_Store_TestCase
 {
-    // ── bulk_refresh_after_verification ───────────────────────────
-
-    public function test_bulk_refresh_with_remote_data_updates_cache(): void
-    {
-        $products = [
-            [
-                'sku' => 'SKU-001',
-                'store_url' => 'https://store1.com',
-                'remote_data' => ['id' => 100, 'name' => 'Product A'],
-            ],
-            [
-                'sku' => 'SKU-002',
-                'store_url' => 'https://store1.com',
-                'remote_data' => ['id' => 200, 'name' => 'Product B'],
-            ],
-        ];
-
-        Functions\expect('set_transient')
-            ->times(2)
-            ->andReturn(true);
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        $refreshed = WC_Multi_Store_Cache_Manager::bulk_refresh_after_verification($products, 'sku');
-
-        $this->assertEquals(2, $refreshed);
-    }
-
-    public function test_bulk_refresh_without_remote_data_refreshes_expiration(): void
-    {
-        $products = [
-            [
-                'sku' => 'SKU-001',
-                'store_url' => 'https://store1.com',
-                // No remote_data - should refresh expiration
-            ],
-        ];
-
-        // get_transient returns cached data, then set_transient refreshes it
-        Functions\expect('get_transient')
-            ->once()
-            ->andReturn(['id' => 100, 'name' => 'Cached Product']);
-
-        Functions\expect('set_transient')
-            ->once()
-            ->andReturn(true);
-
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        $refreshed = WC_Multi_Store_Cache_Manager::bulk_refresh_after_verification($products, 'sku');
-
-        $this->assertEquals(1, $refreshed);
-    }
-
-    public function test_bulk_refresh_with_slug_match_type(): void
-    {
-        $products = [
-            [
-                'slug' => 'product-slug',
-                'store_url' => 'https://store1.com',
-                'remote_data' => ['id' => 300, 'slug' => 'product-slug'],
-            ],
-        ];
-
-        Functions\expect('set_transient')
-            ->once()
-            ->andReturn(true);
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        $refreshed = WC_Multi_Store_Cache_Manager::bulk_refresh_after_verification($products, 'slug');
-
-        $this->assertEquals(1, $refreshed);
-    }
-
-    public function test_bulk_refresh_mixed_valid_and_invalid(): void
-    {
-        $products = [
-            ['sku' => 'SKU-001', 'store_url' => 'https://store1.com', 'remote_data' => ['id' => 1]],
-            ['sku' => '', 'store_url' => 'https://store2.com'],  // Invalid - empty sku
-            ['sku' => 'SKU-003', 'store_url' => '', 'remote_data' => ['id' => 3]],  // Invalid - empty store
-            ['sku' => 'SKU-004', 'store_url' => 'https://store1.com', 'remote_data' => ['id' => 4]],
-        ];
-
-        Functions\expect('set_transient')
-            ->times(2)
-            ->andReturn(true);
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        $refreshed = WC_Multi_Store_Cache_Manager::bulk_refresh_after_verification($products);
-
-        $this->assertEquals(2, $refreshed);
-    }
-
     // ── update_remote_product_after_sync ──────────────────────────
 
     public function test_update_remote_product_after_sync_success(): void

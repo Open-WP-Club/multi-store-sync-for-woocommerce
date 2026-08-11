@@ -41,20 +41,6 @@ class ProductTransformerTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test clear_cache resets cached allocation rules
-     */
-    public function test_clear_cache_resets_allocation_rules(): void
-    {
-        $this->transformer->clear_cache();
-
-        // Access private property via reflection
-        $reflection = new ReflectionClass($this->transformer);
-        $property = $reflection->getProperty('cached_allocation_rules');
-
-        $this->assertNull($property->getValue($this->transformer));
-    }
-
-    /**
      * Test apply_store_rules without pricing rules
      */
     public function test_apply_store_rules_no_pricing_rules(): void

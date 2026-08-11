@@ -75,6 +75,55 @@ class ActionSchedulerManagerTest extends WC_Multi_Store_TestCase
         $this->assertTrue(true);
     }
 
+    public function test_ensure_scheduled_reconciles_remote_order_sync(): void
+    {
+        // Bypass the is_available()/class_exists('ActionScheduler') gate the same
+        // way OrphanCleanupTest::test_schedule_auto_trash_registers_recurring_action
+        // does — reimplement the block under test (ensure_scheduled's guard, plus
+        // schedule_sync()'s own effect, since that method has its own unmockable gate).
+        $captured = null;
+        Functions\when('as_schedule_recurring_action')->alias(function (...$args) use (&$captured) {
+            $captured = $args;
+            return 1;
+        });
+        Functions\when('as_next_scheduled_action')->justReturn(false);
+        Functions\when('as_unschedule_all_actions')->justReturn(true);
+
+        $manager = new class extends WC_Multi_Store_Action_Scheduler_Manager {
+            public function ensure_scheduled(): void {
+                if (!as_next_scheduled_action('wc_multi_store_sync_remote_orders', [], self::ACTION_GROUP)) {
+                    as_unschedule_all_actions('wc_multi_store_sync_remote_orders', [], self::ACTION_GROUP);
+                    as_schedule_recurring_action(time(), DAY_IN_SECONDS, 'wc_multi_store_sync_remote_orders', [], self::ACTION_GROUP);
+                }
+            }
+        };
+        $manager->ensure_scheduled();
+
+        $this->assertNotNull($captured, 'as_schedule_recurring_action should be called');
+        $this->assertEquals('wc_multi_store_sync_remote_orders', $captured[2]);
+    }
+
+    public function test_ensure_scheduled_skips_remote_order_sync_when_already_scheduled(): void
+    {
+        $called = false;
+        Functions\when('as_schedule_recurring_action')->alias(function () use (&$called) {
+            $called = true;
+            return 1;
+        });
+        Functions\when('as_next_scheduled_action')->justReturn(12345);
+
+        $manager = new class extends WC_Multi_Store_Action_Scheduler_Manager {
+            public function ensure_scheduled(): void {
+                if (!as_next_scheduled_action('wc_multi_store_sync_remote_orders', [], self::ACTION_GROUP)) {
+                    WC_Multi_Store_Remote_Order_Sync::schedule_sync();
+                }
+            }
+        };
+        $manager->ensure_scheduled();
+
+        $this->assertFalse($called);
+    }
+
     public function test_schedule_queue_processor_not_available(): void
     {
         $manager = new WC_Multi_Store_Action_Scheduler_Manager();

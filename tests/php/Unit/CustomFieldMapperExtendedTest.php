@@ -1,7 +1,7 @@
 <?php
 /**
  * Extended unit tests for WC_Multi_Store_Custom_Field_Mapper
- * Tests get_product_custom_fields, get_available_custom_fields
+ * Tests get_product_custom_fields
  */
 
 use Brain\Monkey;
@@ -71,48 +71,6 @@ class CustomFieldMapperExtendedTest extends WC_Multi_Store_TestCase
 
         $this->assertArrayHasKey('custom_color', $result);
         $this->assertArrayNotHasKey('excluded_by_filter', $result);
-    }
-
-    // ── get_available_custom_fields ──────────────────────────────
-
-    public function test_get_available_custom_fields_returns_labels(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->postmeta = 'wp_postmeta';
-        $wpdb->posts = 'wp_posts';
-        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
-        $wpdb->shouldReceive('get_col')->andReturn([
-            'custom_color',
-            'my_field',
-            'wc_brand_name',
-        ]);
-
-        $result = WC_Multi_Store_Custom_Field_Mapper::get_available_custom_fields();
-
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey('custom_color', $result);
-        $this->assertArrayHasKey('my_field', $result);
-        // Labels should be formatted (underscores → spaces, ucwords)
-        $this->assertEquals('Color', $result['custom_color']); // "custom_" prefix removed
-        $this->assertEquals('My Field', $result['my_field']);
-    }
-
-    public function test_get_available_custom_fields_empty(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->postmeta = 'wp_postmeta';
-        $wpdb->posts = 'wp_posts';
-        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
-        $wpdb->shouldReceive('get_col')->andReturn([]);
-
-        $result = WC_Multi_Store_Custom_Field_Mapper::get_available_custom_fields();
-
-        $this->assertIsArray($result);
-        $this->assertEmpty($result);
     }
 
     // ── sync_custom_fields edge cases ────────────────────────────

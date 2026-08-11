@@ -517,61 +517,6 @@ class ProductExtractorTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test format_images_smart returns images for create
-     */
-    public function test_format_images_smart_for_create(): void
-    {
-        $product = $this->create_mock_product(array(
-            'image_id' => 123,
-            'gallery_image_ids' => array(),
-        ));
-
-        Functions\expect('get_transient')
-            ->andReturn(false);
-
-        Functions\expect('get_option')
-            ->andReturn(array());
-
-        Functions\expect('set_transient')
-            ->andReturn(true);
-
-        Functions\expect('wp_get_attachment_url')
-            ->once()
-            ->andReturn('https://example.com/image.jpg');
-
-        $result = $this->extractor->format_images_smart($product, 'https://store.com', false);
-
-        $this->assertNotNull($result);
-        $this->assertCount(1, $result);
-    }
-
-    /**
-     * Test format_images_smart returns null when unchanged
-     */
-    public function test_format_images_smart_unchanged(): void
-    {
-        $product = $this->create_mock_product(array(
-            'id' => 123,
-            'image_id' => 456,
-            'gallery_image_ids' => array(),
-        ));
-
-        Functions\expect('wp_get_attachment_url')
-            ->once()
-            ->andReturn('https://example.com/image.jpg');
-
-        $expected_hash = md5(serialize(array('image.jpg')));
-
-        Functions\expect('get_post_meta')
-            ->once()
-            ->andReturn($expected_hash);
-
-        $result = $this->extractor->format_images_smart($product, 'https://store.com', true);
-
-        $this->assertNull($result);
-    }
-
-    /**
      * Test have_categories_changed
      */
     public function test_have_categories_changed(): void

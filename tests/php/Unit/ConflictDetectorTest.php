@@ -11,11 +11,7 @@ use Brain\Monkey;
 use Brain\Monkey\Functions;
 
 /**
- * Test stub that exposes WC_Multi_Store_API_Client::get() as public.
- *
- * The real class declares get() private, which makes it impossible to mock
- * with Mockery. A subclass can shadow a private method with a public one of
- * the same name, so we provide a minimal concrete stub here.
+ * Test stub for the get_product() call check_for_conflicts() makes.
  */
 class TestApiClientStub extends WC_Multi_Store_API_Client
 {
@@ -28,8 +24,7 @@ class TestApiClientStub extends WC_Multi_Store_API_Client
         $this->nextReturn = $returnValue;
     }
 
-    // phpcs:ignore PSR1.Methods.CamelCapsMethodName.NotCamelCaps
-    public function get(string $endpoint, array $params = []): array|\WP_Error
+    public function get_product(int $product_id): array|\WP_Error
     {
         return $this->nextReturn;
     }
@@ -139,12 +134,12 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
                 return $default ?? [];
             });
 
-        // Use a stub whose get() would fail if called (it would throw)
+        // Use a stub whose get_product() would fail if called (it would throw)
         $client = new class extends WC_Multi_Store_API_Client {
             public function __construct() {} // skip parent
-            public function get(string $endpoint, array $params = []): array|\WP_Error
+            public function get_product(int $product_id): array|\WP_Error
             {
-                throw new \RuntimeException('client->get() must NOT be called when disabled');
+                throw new \RuntimeException('client->get_product() must NOT be called when disabled');
             }
         };
 

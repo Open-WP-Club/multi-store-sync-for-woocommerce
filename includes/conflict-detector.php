@@ -176,7 +176,7 @@ class WC_Multi_Store_Conflict_Detector {
             return ['has_conflict' => false, 'changed_fields' => [], 'remote_data' => null];
         }
 
-        $remote_product = $client->get('products/' . $remote_product_id);
+        $remote_product = $client->get_product($remote_product_id);
         if (is_wp_error($remote_product)) {
             return ['has_conflict' => false, 'changed_fields' => [], 'remote_data' => null];
         }

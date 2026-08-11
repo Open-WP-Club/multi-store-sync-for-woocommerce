@@ -204,28 +204,6 @@ class ApiClientTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test get_rate_limit_status returns correct structure
-     */
-    public function test_get_rate_limit_status_structure(): void
-    {
-        $api_client = new WC_Multi_Store_API_Client(
-            $this->store_url,
-            $this->consumer_key,
-            $this->consumer_secret
-        );
-
-        $status = $api_client->get_rate_limit_status();
-
-        $this->assertArrayHasKey('requests_in_window', $status);
-        $this->assertArrayHasKey('max_requests', $status);
-        $this->assertArrayHasKey('window_seconds', $status);
-        $this->assertArrayHasKey('available', $status);
-
-        $this->assertEquals(20, $status['max_requests']);
-        $this->assertEquals(10, $status['window_seconds']);
-    }
-
-    /**
      * Test get_products with SKU search
      */
     public function test_get_products_with_sku(): void
@@ -554,80 +532,6 @@ class ApiClientTest extends WC_Multi_Store_TestCase
 
         $this->assertTrue(is_wp_error($result));
         $this->assertEquals('json_decode_error', $result->get_error_code());
-    }
-
-    /**
-     * Test batch_update_products
-     */
-    public function test_batch_update_products(): void
-    {
-        $api_client = new WC_Multi_Store_API_Client(
-            $this->store_url,
-            $this->consumer_key,
-            $this->consumer_secret
-        );
-
-        Functions\expect('wp_remote_post')
-            ->once()
-            ->andReturn(array(
-                'response' => array('code' => 200),
-                'body' => json_encode(array(
-                    'update' => array(
-                        array('id' => 1, 'name' => 'Updated 1'),
-                        array('id' => 2, 'name' => 'Updated 2'),
-                    ),
-                )),
-            ));
-
-        $updates = array(
-            array('id' => 1, 'name' => 'Updated 1'),
-            array('id' => 2, 'name' => 'Updated 2'),
-        );
-
-        $result = $api_client->batch_update_products($updates);
-
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey('update', $result);
-    }
-
-    /**
-     * Test batch_update_products with invalid data
-     */
-    public function test_batch_update_products_invalid_data(): void
-    {
-        $api_client = new WC_Multi_Store_API_Client(
-            $this->store_url,
-            $this->consumer_key,
-            $this->consumer_secret
-        );
-
-        $result = $api_client->batch_update_products(array());
-
-        $this->assertTrue(is_wp_error($result));
-        $this->assertEquals('invalid_batch', $result->get_error_code());
-    }
-
-    /**
-     * Test batch_products limits to 100 items
-     */
-    public function test_batch_products_size_limit(): void
-    {
-        $api_client = new WC_Multi_Store_API_Client(
-            $this->store_url,
-            $this->consumer_key,
-            $this->consumer_secret
-        );
-
-        // Create batch with more than 100 items
-        $batch = array(
-            'create' => array_fill(0, 60, array('name' => 'test')),
-            'update' => array_fill(0, 60, array('id' => 1, 'name' => 'test')),
-        );
-
-        $result = $api_client->batch_products($batch);
-
-        $this->assertTrue(is_wp_error($result));
-        $this->assertEquals('batch_too_large', $result->get_error_code());
     }
 
     /**
