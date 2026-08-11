@@ -518,6 +518,79 @@ class QueueManagerProcessTest extends WC_Multi_Store_TestCase
         $this->assertEquals(1, $result['errors']);
     }
 
+    public function test_process_queue_triggers_sync_failed_notification_on_retryable_failure(): void
+    {
+        $item = $this->makeQueueItem(['sync_type' => 'full_product']);
+
+        $this->setupProcessQueueMocks([$item]);
+
+        $mockProduct = \Mockery::mock('WC_Product');
+        $mockProduct->shouldReceive('get_status')->andReturn('publish');
+        $mockProduct->shouldReceive('is_type')->andReturn(false);
+        $mockProduct->shouldReceive('get_id')->andReturn(100);
+
+        Functions\when('wc_get_product')->justReturn($mockProduct);
+
+        $this->mockSyncEngine->shouldReceive('sync_product_to_store')
+            ->once()
+            ->andReturn(['success' => false, 'message' => 'Remote API timed out']);
+
+        $triggered_args = null;
+        Functions\when('do_action')->alias(function ($hook, ...$args) use (&$triggered_args) {
+            if ($hook === 'wc_mss_sync_failed') {
+                $triggered_args = $args;
+            }
+        });
+
+        WC_MSS()->queue_manager->process_queue(10);
+
+        $this->assertSame([100, 'https://store1.com', 'Remote API timed out'], $triggered_args);
+    }
+
+    public function test_process_queue_triggers_api_error_notification_when_circuit_opens(): void
+    {
+        $item = $this->makeQueueItem(['sync_type' => 'full_product']);
+
+        $this->setupProcessQueueMocks([$item]);
+
+        $mockProduct = \Mockery::mock('WC_Product');
+        $mockProduct->shouldReceive('get_status')->andReturn('publish');
+        $mockProduct->shouldReceive('is_type')->andReturn(false);
+        $mockProduct->shouldReceive('get_id')->andReturn(100);
+
+        Functions\when('wc_get_product')->justReturn($mockProduct);
+
+        $this->mockSyncEngine->shouldReceive('sync_product_to_store')
+            ->once()
+            ->andReturn(['success' => false, 'message' => 'Remote API timed out']);
+
+        // Circuit breaker is one failure away from its default threshold (10) —
+        // this failure should push it over and open the circuit. get_transient/
+        // set_transient are wired to a shared variable so record_failure()'s
+        // write is visible to is_open()'s subsequent read, like real transients.
+        $cb_state = ['consecutive_errors' => 9, 'open_until' => 0, 'opened_at' => 0];
+        Functions\when('get_transient')->alias(function ($key) use (&$cb_state) {
+            return str_starts_with($key, 'wc_mss_cb_') ? $cb_state : false;
+        });
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$cb_state) {
+            if (str_starts_with($key, 'wc_mss_cb_')) {
+                $cb_state = $value;
+            }
+            return true;
+        });
+
+        $api_error_triggered = false;
+        Functions\when('do_action')->alias(function ($hook) use (&$api_error_triggered) {
+            if ($hook === 'wc_mss_api_error') {
+                $api_error_triggered = true;
+            }
+        });
+
+        WC_MSS()->queue_manager->process_queue(10);
+
+        $this->assertTrue($api_error_triggered);
+    }
+
     public function test_process_queue_handles_null_result_from_sync(): void
     {
         $item = $this->makeQueueItem(['sync_type' => 'full_product']);

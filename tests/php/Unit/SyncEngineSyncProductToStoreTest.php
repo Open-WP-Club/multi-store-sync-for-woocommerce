@@ -150,6 +150,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $product->shouldReceive('get_shipping_class_id')->andReturn($o['shipping_class_id']);
         $product->shouldReceive('get_category_ids')->andReturn($o['category_ids']);
         $product->shouldReceive('get_tag_ids')->andReturn($o['tag_ids']);
+        $product->shouldReceive('is_downloadable')->andReturn($o['is_downloadable'] ?? false);
 
         return $product;
     }
@@ -411,6 +412,129 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $this->assertTrue($result['success']);
         $this->assertSame('created', $result['action']);
         $this->assertSame(777, $result['remote_id']);
+    }
+
+    public function test_downloadable_product_files_are_uploaded_via_media_api_on_full_sync(): void
+    {
+        $this->mockWpdbForSyncHistory();
+
+        $source_file = tempnam(sys_get_temp_dir(), 'wc-mss-dl-source-');
+        file_put_contents($source_file, 'fake pdf bytes');
+        $upload_tmp_file = tempnam(sys_get_temp_dir(), 'wc-mss-dl-upload-');
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'enabled' => true,
+                    'sync_type_default' => 'full_product',
+                    'auth_method' => 'query_string',
+                    'match_products_by' => 'sku',
+                    'category_auto_create' => true,
+                    'auto_create_missing_products' => false,
+                    'downloadable_files_sync_enabled' => true,
+                    'downloadable_files_sync_transfer_mode' => 'api',
+                ];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return [
+                    'https://store1.com' => [
+                        'status' => 'active',
+                        'consumer_key' => 'ck_test',
+                        'consumer_secret' => 'cs_test',
+                    ],
+                ];
+            }
+            if ($option === 'wc_multi_store_sync_webhook_settings') {
+                return ['auto_verify' => false];
+            }
+            return $default;
+        });
+
+        $download = \Mockery::mock('WC_Product_Download');
+        $download->shouldReceive('get_name')->andReturn('Manual');
+        $download->shouldReceive('get_file')->andReturn($source_file);
+
+        $product = $this->mockPriceQuantityProduct(['type' => 'simple', 'is_downloadable' => true]);
+        $product->shouldReceive('get_name')->andReturn('Product One');
+        $product->shouldReceive('get_status')->andReturn('publish');
+        $product->shouldReceive('get_description')->andReturn('');
+        $product->shouldReceive('get_short_description')->andReturn('');
+        $product->shouldReceive('get_weight')->andReturn('');
+        $product->shouldReceive('get_length')->andReturn('');
+        $product->shouldReceive('get_width')->andReturn('');
+        $product->shouldReceive('get_height')->andReturn('');
+        $product->shouldReceive('has_weight')->andReturn(false);
+        $product->shouldReceive('has_dimensions')->andReturn(false);
+        $product->shouldReceive('get_reviews_allowed')->andReturn(true);
+        $product->shouldReceive('get_purchase_note')->andReturn('');
+        $product->shouldReceive('get_menu_order')->andReturn(0);
+        $product->shouldReceive('is_virtual')->andReturn(false);
+        $product->shouldReceive('get_downloads')->andReturn(['dl1' => $download]);
+        $product->shouldReceive('get_download_limit')->andReturn(-1);
+        $product->shouldReceive('get_download_expiry')->andReturn(-1);
+        $product->shouldReceive('get_catalog_visibility')->andReturn('visible');
+        $product->shouldReceive('get_tax_status')->andReturn('taxable');
+        $product->shouldReceive('get_tax_class')->andReturn('');
+        $product->shouldReceive('is_sold_individually')->andReturn(false);
+        $product->shouldReceive('get_backorders')->andReturn('no');
+        $product->shouldReceive('get_low_stock_amount')->andReturn('');
+        $product->shouldReceive('get_upsell_ids')->andReturn([]);
+        $product->shouldReceive('get_cross_sell_ids')->andReturn([]);
+        $product->shouldReceive('get_parent_id')->andReturn(0);
+        $product->shouldReceive('get_attributes')->andReturn([]);
+        $product->shouldReceive('get_default_attributes')->andReturn([]);
+        $product->shouldReceive('get_meta_data')->andReturn([]);
+        $product->shouldReceive('is_featured')->andReturn(false);
+        $product->shouldReceive('get_gallery_image_ids')->andReturn([]);
+        $product->shouldReceive('get_image_id')->andReturn(0);
+        $product->shouldReceive('get_children')->andReturn([]);
+
+        Functions\when('wp_get_attachment_url')->justReturn('');
+        Functions\when('get_the_terms')->justReturn([]);
+        Functions\when('wp_get_post_terms')->justReturn([]);
+        Functions\when('wp_check_filetype')->justReturn(['type' => 'application/pdf']);
+        Functions\when('wp_tempnam')->justReturn($upload_tmp_file);
+        Functions\when('wp_delete_file')->alias(fn($path) => @unlink($path));
+
+        // GET (find_remote_product): not found.
+        Functions\when('wp_remote_get')->justReturn([
+            'response' => ['code' => 200],
+            'body' => '[]',
+        ]);
+
+        // POST: the media upload (wp/v2/media) and the product create
+        // (wc/v3/products) both go through wp_remote_post — route by URL.
+        $sent_product_body = null;
+        Functions\when('wp_remote_post')->alias(function ($url, $args) use (&$sent_product_body) {
+            if (str_contains($url, 'wp/v2/media')) {
+                return [
+                    'response' => ['code' => 201],
+                    'body' => json_encode(['id' => 900, 'source_url' => 'https://store1.com/wp-content/uploads/manual.pdf']),
+                ];
+            }
+            $sent_product_body = json_decode($args['body'], true);
+            return [
+                'response' => ['code' => 201],
+                'body' => json_encode(['id' => 777, 'sku' => 'SKU-1']),
+            ];
+        });
+
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'full_product'
+        );
+
+        @unlink($source_file);
+        @unlink($upload_tmp_file);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(
+            'https://store1.com/wp-content/uploads/manual.pdf',
+            $sent_product_body['downloads'][0]['file']
+        );
     }
 
     // ── (d) image-download-error retry path ─────────────────────────

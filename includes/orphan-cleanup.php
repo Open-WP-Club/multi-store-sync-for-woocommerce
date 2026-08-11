@@ -202,7 +202,6 @@ class WC_Multi_Store_Orphan_Cleanup {
             ];
         }
 
-        $api_client = WC_MSS()->api_client;
         $results = [
             'success' => true,
             'deleted' => 0,
@@ -226,15 +225,8 @@ class WC_Multi_Store_Orphan_Cleanup {
             }
 
             // Delete product from remote store
-            $endpoint = sprintf('/wp-json/wc/v3/products/%d?force=true', $product_id);
-
-            $response = $api_client->make_request(
-                $store_url,
-                $endpoint,
-                'DELETE',
-                null,
-                $config
-            );
+            $api_client = WC_Multi_Store_API_Client::for_store($store_url, $config);
+            $response = $api_client->delete_product($product_id, true);
 
             if (is_wp_error($response)) {
                 $results['failed']++;

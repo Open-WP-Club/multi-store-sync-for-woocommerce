@@ -115,8 +115,8 @@ class WC_Multi_Store_Downloadable_Files_Sync {
             return $product_data;
         }
 
-        $settings = WC_Multi_Store_Settings::get_settings();
-        $transfer_enabled = !empty($settings['download_files_transfer_enabled']);
+        $dl_settings = self::get_settings();
+        $transfer_enabled = ($dl_settings['transfer_mode'] ?? 'url') === 'api';
 
         $remote_downloads = [];
         foreach ($downloads as $download) {
@@ -194,13 +194,20 @@ class WC_Multi_Store_Downloadable_Files_Sync {
             return null;
         }
 
-        // Use the image proxy approach but for any file type
-        $response = WC_Multi_Store_Image_Proxy::upload_media_to_remote(
-            $client,
-            $file_content,
-            $filename,
-            $mime_type
-        );
+        // Reuse the API client's WordPress Media REST upload (wp/v2/media) —
+        // the same endpoint/auth path already used for product images.
+        $tmp_path = wp_tempnam($filename);
+        if (!$tmp_path || file_put_contents($tmp_path, $file_content) === false) {
+            return null;
+        }
+
+        $response = $client->upload_image([
+            'file_path' => $tmp_path,
+            'filename' => $filename,
+            'mime_type' => $mime_type,
+        ]);
+
+        wp_delete_file($tmp_path);
 
         if (is_wp_error($response) || empty($response['source_url'])) {
             WC_Multi_Store_Logger::write(sprintf(

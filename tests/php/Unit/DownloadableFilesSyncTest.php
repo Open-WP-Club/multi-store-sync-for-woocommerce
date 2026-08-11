@@ -334,6 +334,52 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         $this->assertSame($originalUrl, $result['downloads'][0]['file']);
     }
 
+    public function test_sync_downloads_uploads_file_via_media_api_when_transfer_enabled(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('get_option')->alias(function ($opt, $default = null) {
+            return match ($opt) {
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'auth_method' => 'basic_auth', 'downloadable_files_sync_enabled' => true, 'downloadable_files_sync_transfer_mode' => 'api'],
+                default                         => $default,
+            };
+        });
+
+        $source_file = tempnam(sys_get_temp_dir(), 'wc-mss-dl-source-');
+        file_put_contents($source_file, 'fake pdf bytes');
+        $upload_tmp_file = tempnam(sys_get_temp_dir(), 'wc-mss-dl-upload-');
+
+        $dl      = $this->makeDownload('Manual', $source_file);
+        $product = $this->makeDownloadableProduct(['dl1' => $dl]);
+
+        Functions\when('wp_check_filetype')->justReturn(['type' => 'application/pdf']);
+        Functions\when('wp_tempnam')->justReturn($upload_tmp_file);
+        Functions\when('wp_delete_file')->alias(fn($path) => @unlink($path));
+        Functions\when('do_action')->justReturn(null);
+        Functions\when('wp_remote_post')->justReturn([
+            'response' => ['code' => 201],
+            'body' => json_encode(['id' => 55, 'source_url' => 'https://store1.com/wp-content/uploads/manual.pdf']),
+        ]);
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code'] ?? 200);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body'] ?? '');
+
+        // A real client (not the get/post/put/delete-only stub) is needed here
+        // since upload_image() is a real WC_Multi_Store_API_Client method that
+        // touches its store_url property directly.
+        $client = WC_Multi_Store_API_Client::for_store('https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs']);
+
+        $result = WC_Multi_Store_Downloadable_Files_Sync::sync_downloads(
+            $client,
+            $product,
+            ['sku' => 'MANUAL-001'],
+            'https://store1.com'
+        );
+
+        @unlink($source_file);
+        @unlink($upload_tmp_file);
+
+        $this->assertSame('https://store1.com/wp-content/uploads/manual.pdf', $result['downloads'][0]['file']);
+    }
+
     // ─── resolve_download_path() tested indirectly via extract_downloads() ─────
 
     public function test_resolve_download_path_via_extract_in_api_mode(): void

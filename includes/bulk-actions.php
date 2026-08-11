@@ -138,9 +138,6 @@ class WC_Multi_Store_Bulk_Actions {
             count($product_ids)
         ));
 
-        // Use performance monitoring
-        WC_Multi_Store_Performance_Monitor::start_timer('bulk_delete');
-
         $queued_count = 0;
 
         // Queue all deletions - don't load product objects
@@ -154,8 +151,6 @@ class WC_Multi_Store_Bulk_Actions {
 
             $queued_count += $result;
         }
-
-        WC_Multi_Store_Performance_Monitor::stop_timer('bulk_delete');
 
         WC_Multi_Store_Logger::write(sprintf(
             'Bulk delete operation completed: %d products queued for deletion',

@@ -63,6 +63,17 @@ class WC_Multi_Store_Product_Transformer {
             $this->maybe_warn_over_allocation($product, $all_allocation_rules);
         }
 
+        // Notify if stock destined for this store is low. Rate-limited and
+        // gated by settings inside send_low_stock_notification() — safe to
+        // call unconditionally here.
+        if (isset($product_data['stock_quantity']) && !empty($store_config['store_url'])) {
+            WC_Multi_Store_Email_Notifications::trigger_low_stock(
+                $product->get_id(),
+                $store_config['store_url'],
+                (int) $product_data['stock_quantity']
+            );
+        }
+
         // Apply category mapping per store
         $store_url = $store_config['store_url'] ?? '';
         if ($store_url) {

@@ -44,6 +44,9 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code'] ?? 200);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body'] ?? '[]');
+        Functions\when('wp_remote_retrieve_headers')->justReturn(new \ArrayObject());
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
@@ -156,19 +159,14 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
     public function test_cleanup_orphans_deletes_successfully(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->once()
-            ->with(
-                'https://store1.com',
-                '/wp-json/wc/v3/products/99?force=true',
-                'DELETE',
-                null,
-                \Mockery::type('array')
-            )
-            ->andReturn(['id' => 99, 'deleted' => true]);
-
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        $sent_url = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_url) {
+            $sent_url = $url;
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode(['id' => 99, 'deleted' => true]),
+            ];
+        });
 
         $cleanup = new WC_Multi_Store_Orphan_Cleanup();
         $result = $cleanup->cleanup_orphans([
@@ -178,16 +176,15 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $this->assertTrue($result['success']);
         $this->assertEquals(1, $result['deleted']);
         $this->assertEquals(0, $result['failed']);
+        $this->assertStringContainsString('products/99', $sent_url);
+        $this->assertStringContainsString('force=1', $sent_url);
     }
 
     public function test_cleanup_orphans_handles_api_error(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->once()
-            ->andReturn(new \WP_Error('api_error', 'Product not found'));
-
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        Functions\when('wp_remote_request')->justReturn(
+            new \WP_Error('api_error', 'Product not found')
+        );
 
         $cleanup = new WC_Multi_Store_Orphan_Cleanup();
         $result = $cleanup->cleanup_orphans([
@@ -222,15 +219,15 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
     public function test_cleanup_orphans_mixed_success_and_failure(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->andReturn(
-                ['id' => 10, 'deleted' => true],
-                new \WP_Error('api_error', 'Timeout'),
-                ['id' => 30, 'deleted' => true]
-            );
-
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        Functions\when('wp_remote_request')->alias(function ($url) {
+            if (str_contains($url, 'products/20')) {
+                return new \WP_Error('api_error', 'Timeout');
+            }
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode(['deleted' => true]),
+            ];
+        });
 
         $cleanup = new WC_Multi_Store_Orphan_Cleanup();
         $result = $cleanup->cleanup_orphans([
@@ -442,10 +439,10 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
     public function test_ajax_cleanup_orphans_success(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->andReturn(['id' => 10, 'deleted' => true]);
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        Functions\when('wp_remote_request')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 10, 'deleted' => true]),
+        ]);
 
         $_POST['orphans'] = json_encode([
             ['store_url' => 'https://store1.com', 'product_id' => 10],

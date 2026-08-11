@@ -1051,8 +1051,12 @@ class WC_Multi_Store_Queue_Manager {
 
                     WC_Multi_Store_Queue_Table::mark_failed($item_id, $error_message, $no_retry);
                     $error_count++;
+                    WC_Multi_Store_Email_Notifications::trigger_sync_failed($product_id, $store_url, $error_message);
                     if (!$no_retry) {
                         WC_Multi_Store_Circuit_Breaker::record_failure($store_url);
+                        if (WC_Multi_Store_Circuit_Breaker::is_open($store_url)) {
+                            WC_Multi_Store_Email_Notifications::trigger_api_error($store_url, $error_message);
+                        }
                     }
                     if ($notify) $notify('error', $error_message);
                 }
@@ -1063,7 +1067,11 @@ class WC_Multi_Store_Queue_Manager {
                 WC_Multi_Store_Queue_Table::mark_failed($item_id, $e->getMessage());
                 $error_count++;
                 $processed++;
+                WC_Multi_Store_Email_Notifications::trigger_sync_failed($product_id, $store_url, $e->getMessage());
                 WC_Multi_Store_Circuit_Breaker::record_failure($store_url);
+                if (WC_Multi_Store_Circuit_Breaker::is_open($store_url)) {
+                    WC_Multi_Store_Email_Notifications::trigger_api_error($store_url, $e->getMessage());
+                }
                 if ($notify) $notify('error', $e->getMessage());
 
                 WC_Multi_Store_Logger::write(sprintf(

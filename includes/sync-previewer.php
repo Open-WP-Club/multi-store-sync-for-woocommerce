@@ -225,12 +225,12 @@ class WC_Multi_Store_Sync_Previewer {
      * @return string|float Modified price
      */
     private function apply_pricing_rules(string|float $price, array $store_config): string|float {
-        if (empty($price) || !class_exists('WC_Multi_Store_Pricing_Rules')) {
+        if (empty($price) || empty($store_config['pricing_rules']) || !class_exists('WC_Multi_Store_Pricing_Rules')) {
             return $price;
         }
 
-        $pricing_rules = new WC_Multi_Store_Pricing_Rules();
-        return $pricing_rules->apply_store_pricing($price, $store_config);
+        $preview = WC_Multi_Store_Pricing_Rules::preview_price((float) $price, $store_config['pricing_rules']);
+        return $preview['adjusted'];
     }
 
     /**
@@ -241,12 +241,11 @@ class WC_Multi_Store_Sync_Previewer {
      * @return int|null Modified stock quantity
      */
     private function apply_stock_allocation(int|null $stock_quantity, array $store_config): int|null {
-        if (empty($stock_quantity) || !class_exists('WC_Multi_Store_Stock_Allocator')) {
+        if (empty($stock_quantity) || empty($store_config['stock_allocation_rules']) || !class_exists('WC_Multi_Store_Stock_Allocator')) {
             return $stock_quantity;
         }
 
-        $stock_allocator = new WC_Multi_Store_Stock_Allocator();
-        return $stock_allocator->allocate_stock($stock_quantity, $store_config);
+        return WC_Multi_Store_Stock_Allocator::calculate_allocation($stock_quantity, $store_config['stock_allocation_rules']);
     }
 
     /**

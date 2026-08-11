@@ -568,6 +568,13 @@ class WC_Multi_Store_Sync_Engine {
         $product_data = $this->build_product_data($product, $sync_type);
         $product_data = $this->apply_store_rules($product_data, $product, $store_config);
 
+        // Upload downloadable files to the remote store's Media API when
+        // configured for API transfer mode (replaces build_product_data()'s
+        // raw URL/embedded-content entries with the uploaded remote URLs).
+        if ($product->is_downloadable()) {
+            $product_data = WC_Multi_Store_Downloadable_Files_Sync::sync_downloads($api, $product, $product_data, $store_url);
+        }
+
         // Catch name/slug drift on lightweight syncs (quantity/price_quantity/
         // price_quantity_categories) using the remote product we already fetched
         // above for matching — no extra API call. full_product already includes
