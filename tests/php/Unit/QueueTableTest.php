@@ -39,7 +39,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
     public function test_has_required_methods(): void
     {
         $methods = [
-            'create_table', 'drop_table', 'add', 'get_next_batch',
+            'create_table', 'add', 'get_next_batch',
             'mark_processing', 'mark_completed', 'mark_failed',
             'get_stats', 'get_recent_items', 'cleanup', 'clear_all',
             'reset_stuck_items',

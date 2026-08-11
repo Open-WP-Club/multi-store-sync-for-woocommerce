@@ -67,16 +67,6 @@ class WC_Multi_Store_Queue_Table {
     }
 
     /**
-     * Drop queue table
-     */
-    public static function drop_table(): void {
-        global $wpdb;
-        $table_name = esc_sql($wpdb->prefix . self::TABLE_NAME);
-        $wpdb->query("DROP TABLE IF EXISTS {$table_name}");
-        delete_option('wc_mss_queue_db_version');
-    }
-
-    /**
      * Add item to queue
      *
      * @param int $product_id Product ID

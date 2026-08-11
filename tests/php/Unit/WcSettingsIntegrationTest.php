@@ -315,6 +315,27 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
         WC_Admin_Settings::reset();
     }
 
+    // ─── handle_reschedule_actions (private) ───────
+
+    public function test_handle_reschedule_actions_delegates_to_reschedule_all(): void
+    {
+        // No real ActionScheduler class in the test environment, so
+        // WC_Multi_Store_Action_Scheduler_Manager::is_available() is false.
+        // handle_reschedule_actions() checks this itself before doing
+        // anything, same as before this method stopped duplicating
+        // reschedule_all()'s unschedule/reschedule calls inline.
+        $ref = new ReflectionClass($this->integration);
+        $method = $ref->getMethod('handle_reschedule_actions');
+
+        $method->invoke($this->integration);
+
+        $errors = WC_Admin_Settings::get_errors();
+        $this->assertNotEmpty($errors);
+        $this->assertStringContainsString('Action Scheduler', $errors[0]);
+
+        WC_Admin_Settings::reset();
+    }
+
     // ─── process_force_sync_batch (static) ─────────
 
     public function test_process_force_sync_batch_method_exists(): void

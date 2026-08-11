@@ -655,24 +655,11 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             return;
         }
 
-        // Use the same constants as Action Scheduler Manager for consistency
-        $queue_hook = WC_Multi_Store_Action_Scheduler_Manager::ACTION_HOOK_QUEUE;
-        $sync_hook = WC_Multi_Store_Action_Scheduler_Manager::ACTION_HOOK_SCHEDULED_SYNC;
-        $group = WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP;
+        WC_Multi_Store_Action_Scheduler_Manager::reschedule_all();
 
-        // Manually unschedule and reschedule to ensure it works
-        as_unschedule_all_actions($queue_hook, [], $group);
-        as_unschedule_all_actions($sync_hook, [], $group);
-
-        // Schedule with current timestamp
-        $now = time();
-        as_schedule_recurring_action($now, 1 * MINUTE_IN_SECONDS, $queue_hook, [], $group);
-        as_schedule_recurring_action($now, 10 * MINUTE_IN_SECONDS, $sync_hook, [], $group);
-
-        WC_Multi_Store_Logger::write('Actions manually rescheduled from admin dashboard');
         WC_Admin_Settings::add_message(sprintf(
             __('Actions rescheduled successfully at %s. Refresh the page to see updated times.', 'wc-multi-store-sync'),
-            date('H:i:s', $now)
+            date('H:i:s', time())
         ));
     }
 
