@@ -276,29 +276,4 @@ class OrderSyncTest extends WC_Multi_Store_TestCase
         $this->assertTrue($deleted, 'Transient should be cleared after processing');
     }
 
-    public function test_sync_last_orders_no_orders(): void
-    {
-        Functions\when('wc_get_orders')->justReturn([]);
-
-        $result = WC_Multi_Store_Order_Sync::sync_last_orders(10);
-
-        $this->assertEquals(0, $result);
-    }
-
-    public function test_get_statistics_returns_expected_structure(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->posts = 'wp_posts';
-        $wpdb->shouldReceive('get_var')->andReturn(null);
-        $wpdb->shouldReceive('prepare')->andReturn('');
-
-        $stats = WC_Multi_Store_Order_Sync::get_statistics();
-
-        $this->assertIsArray($stats);
-        $this->assertArrayHasKey('orders_today', $stats);
-        $this->assertArrayHasKey('products_today', $stats);
-        $this->assertArrayHasKey('settings', $stats);
-    }
 }

@@ -305,21 +305,6 @@ class PricingRulesTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test get rule types returns expected types
-     */
-    public function test_get_rule_types(): void
-    {
-        $types = WC_Multi_Store_Pricing_Rules::get_rule_types();
-
-        $this->assertArrayHasKey('none', $types);
-        $this->assertArrayHasKey('fixed', $types);
-        $this->assertArrayHasKey('percentage', $types);
-        $this->assertArrayHasKey('multiplier', $types);
-        $this->assertArrayHasKey('currency', $types);
-        $this->assertArrayHasKey('custom', $types);
-    }
-
-    /**
      * Test that variations use same pricing logic
      */
     public function test_apply_to_variation(): void

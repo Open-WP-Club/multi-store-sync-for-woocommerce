@@ -348,13 +348,6 @@ class WC_Multi_Store_Conflict_Detector {
     }
 
     /**
-     * Get unresolved conflicts
-     */
-    public static function get_unresolved_conflicts(): array {
-        return self::get_conflicts('', 500, 0, false);
-    }
-
-    /**
      * Get all conflicts with optional filters
      *
      * @param string $store_url  Filter by store URL (empty = all)

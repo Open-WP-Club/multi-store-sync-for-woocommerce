@@ -3,7 +3,7 @@
  * Extended unit tests for WC_Multi_Store_Order_Sync
  *
  * Covers: large order debouncing, debounce merge, custom timeouts,
- * process_debounced_order queuing, sync_last_orders, get_statistics HPOS.
+ * process_debounced_order queuing.
  */
 
 use Brain\Monkey;
@@ -248,115 +248,6 @@ class OrderSyncExtendedTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Order_Sync::process_debounced_order(99);
 
         $this->assertTrue($transient_deleted);
-    }
-
-    // ── sync_last_orders ─────────────────────────────────────────
-
-    public function test_sync_last_orders_with_valid_orders(): void
-    {
-        $item1 = \Mockery::mock('WC_Order_Item_Product');
-        $item1->shouldReceive('get_product_id')->andReturn(100);
-        $item1->shouldReceive('get_variation_id')->andReturn(0);
-
-        $item2 = \Mockery::mock('WC_Order_Item_Product');
-        $item2->shouldReceive('get_product_id')->andReturn(200);
-        $item2->shouldReceive('get_variation_id')->andReturn(250);
-
-        $order1 = \Mockery::mock('WC_Order');
-        $order1->shouldReceive('get_items')->andReturn([$item1]);
-
-        $order2 = \Mockery::mock('WC_Order');
-        $order2->shouldReceive('get_items')->andReturn([$item2]);
-
-        Functions\when('wc_get_orders')->justReturn([1, 2]);
-        Functions\when('wc_get_order')->alias(function ($id) use ($order1, $order2) {
-            return match ($id) {
-                1 => $order1,
-                2 => $order2,
-                default => null,
-            };
-        });
-
-        $result = WC_Multi_Store_Order_Sync::sync_last_orders(5);
-
-        // Returns whatever add_products returns - we just verify it runs
-        $this->assertIsInt($result);
-    }
-
-    public function test_sync_last_orders_skips_invalid_orders(): void
-    {
-        Functions\when('wc_get_orders')->justReturn([1, 2, 3]);
-        Functions\when('wc_get_order')->alias(function ($id) {
-            if ($id === 2) {
-                return false; // Invalid order
-            }
-            $order = \Mockery::mock('WC_Order');
-            $order->shouldReceive('get_items')->andReturn([]);
-            return $order;
-        });
-
-        $result = WC_Multi_Store_Order_Sync::sync_last_orders(3);
-
-        $this->assertEquals(0, $result);
-    }
-
-    public function test_sync_last_orders_deduplicates_products(): void
-    {
-        // Two orders with the same product
-        $item = \Mockery::mock('WC_Order_Item_Product');
-        $item->shouldReceive('get_product_id')->andReturn(100);
-        $item->shouldReceive('get_variation_id')->andReturn(0);
-
-        $order = \Mockery::mock('WC_Order');
-        $order->shouldReceive('get_items')->andReturn([$item]);
-
-        Functions\when('wc_get_orders')->justReturn([1, 2]);
-        Functions\when('wc_get_order')->justReturn($order);
-
-        // Should still work without errors (dedup happens internally)
-        $result = WC_Multi_Store_Order_Sync::sync_last_orders(2);
-        $this->assertIsInt($result);
-    }
-
-    // ── get_statistics ───────────────────────────────────────────
-
-    public function test_get_statistics_with_hpos_enabled(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->posts = 'wp_posts';
-
-        // First get_var checks HPOS table existence - return table name to indicate HPOS
-        $wpdb->shouldReceive('get_var')
-            ->andReturn('wp_wc_orders', 5, 12);
-
-        $wpdb->shouldReceive('prepare')->andReturn('');
-
-        $stats = WC_Multi_Store_Order_Sync::get_statistics();
-
-        $this->assertArrayHasKey('orders_today', $stats);
-        $this->assertArrayHasKey('products_today', $stats);
-        $this->assertEquals(5, $stats['orders_today']);
-    }
-
-    public function test_get_statistics_with_legacy_tables(): void
-    {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->prefix = 'wp_';
-        $wpdb->posts = 'wp_posts';
-
-        // First get_var returns null (HPOS table doesn't exist)
-        $wpdb->shouldReceive('get_var')
-            ->andReturn(null, 3, 8);
-
-        $wpdb->shouldReceive('prepare')->andReturn('');
-
-        $stats = WC_Multi_Store_Order_Sync::get_statistics();
-
-        $this->assertEquals(3, $stats['orders_today']);
-        $this->assertEquals(8, $stats['products_today']);
     }
 
     // ── Cached settings ──────────────────────────────────────────

@@ -497,67 +497,6 @@ class WC_Multi_Store_Health_Check {
         }
     }
 
-    /**
-     * Get last health check results
-     *
-     * @return array|null
-     */
-    public static function get_last_health_check(): ?array {
-        return get_option('wc_mss_last_health_check', null);
-    }
-
-    /**
-     * Get health status summary for all stores
-     *
-     * @return array Summary with counts and status
-     */
-    public static function get_health_summary(): array {
-        $last_check = self::get_last_health_check();
-
-        if (!$last_check) {
-            return [
-                'last_check' => null,
-                'healthy_count' => 0,
-                'warning_count' => 0,
-                'failed_count' => 0,
-                'total_count' => 0,
-            ];
-        }
-
-        $healthy = 0;
-        $warning = 0;
-        $failed = 0;
-
-        foreach ($last_check['results'] as $result) {
-            if ($result['healthy']) {
-                // Check if there are warnings
-                $has_warning = false;
-                if (isset($result['checks'])) {
-                    foreach ($result['checks'] as $check) {
-                        if ($check['status'] === 'warning') {
-                            $has_warning = true;
-                            break;
-                        }
-                    }
-                }
-                if ($has_warning) {
-                    $warning++;
-                } else {
-                    $healthy++;
-                }
-            } else {
-                $failed++;
-            }
-        }
-
-        return [
-            'last_check' => $last_check['timestamp'],
-            'healthy_count' => $healthy,
-            'warning_count' => $warning,
-            'failed_count' => $failed,
-            'total_count' => $healthy + $warning + $failed,
-        ];
-    }
 }
 
 // Initialize

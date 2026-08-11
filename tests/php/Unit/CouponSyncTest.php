@@ -446,7 +446,7 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         $this->assertNull($result);
     }
 
-    // ─── delete_coupon_from_all_stores() ──────────────────────────────────────
+    // ─── delete_coupon_from_all_stores_by_code() ────────────────────────────────
 
     public function test_delete_from_all_stores_skips_when_no_remote_coupon(): void
     {

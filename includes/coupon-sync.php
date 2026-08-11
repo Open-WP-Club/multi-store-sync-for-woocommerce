@@ -252,13 +252,6 @@ class WC_Multi_Store_Coupon_Sync {
     }
 
     /**
-     * Delete a coupon from all remote stores
-     */
-    public function delete_coupon_from_all_stores(WC_Coupon $coupon): array {
-        return $this->delete_coupon_from_all_stores_by_code($coupon->get_code());
-    }
-
-    /**
      * Delete a coupon from all remote stores by code alone — used by the
      * Action Scheduler callback, where the local WC_Coupon post may already
      * be gone by the time the job runs (see on_coupon_deleted()).

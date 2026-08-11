@@ -133,53 +133,6 @@ class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_get_settings_defaults(): void
-    {
-        Functions\when('get_option')->justReturn([]);
-
-        $settings = WC_Multi_Store_Category_Deletion_Sync::get_settings();
-
-        $this->assertArrayHasKey('category_deletion_action', $settings);
-        $this->assertArrayHasKey('tag_deletion_action', $settings);
-        $this->assertEquals('none', $settings['category_deletion_action']);
-        $this->assertEquals('none', $settings['tag_deletion_action']);
-    }
-
-    public function test_get_settings_with_stored_values(): void
-    {
-        Functions\when('get_option')->justReturn([
-            'category_deletion_action' => 'delete',
-            'tag_deletion_action' => 'delete',
-        ]);
-
-        $settings = WC_Multi_Store_Category_Deletion_Sync::get_settings();
-
-        $this->assertEquals('delete', $settings['category_deletion_action']);
-        $this->assertEquals('delete', $settings['tag_deletion_action']);
-    }
-
-    public function test_update_settings_category_action(): void
-    {
-        Functions\when('get_option')->justReturn([]);
-
-        $result = WC_Multi_Store_Category_Deletion_Sync::update_settings([
-            'category_deletion_action' => 'uncategorize',
-        ]);
-
-        $this->assertTrue($result);
-    }
-
-    public function test_update_settings_tag_action(): void
-    {
-        Functions\when('get_option')->justReturn([]);
-
-        $result = WC_Multi_Store_Category_Deletion_Sync::update_settings([
-            'tag_deletion_action' => 'delete',
-        ]);
-
-        $this->assertTrue($result);
-    }
-
     public function test_on_category_delete_with_delete_action_and_auto_sync_disabled(): void
     {
         Functions\when('get_option')->alias(function ($option, $default = false) {

@@ -3,7 +3,7 @@
  * Unit tests for WC_Multi_Store_Conflict_Detector
  *
  * Covers: check_for_conflicts, calculate_hash (indirectly), identify_changed_fields,
- *         resolve_conflict, resolve_all, get_conflicts, get_unresolved_conflicts,
+ *         resolve_conflict, resolve_all, get_conflicts,
  *         get_stats, maybe_migrate_from_options, store_hash, delete_hash.
  */
 
@@ -528,7 +528,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
     }
 
     // =========================================================================
-    // get_conflicts / get_unresolved_conflicts
+    // get_conflicts
     // =========================================================================
 
     public function test_get_conflicts_returns_empty_without_rows(): void
@@ -609,30 +609,6 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         $this->assertCount(1, $result);
         $this->assertIsBool($result[0]['resolved']);
         $this->assertTrue($result[0]['resolved']);
-    }
-
-    public function test_get_unresolved_conflicts_calls_get_conflicts_with_include_resolved_false(): void
-    {
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-
-        $capturedSql = null;
-        $wpdb->shouldReceive('prepare')
-            ->andReturnUsing(function ($sql, ...$args) use (&$capturedSql) {
-                $capturedSql = $sql;
-                return $sql;
-            });
-
-        $wpdb->shouldReceive('get_results')
-            ->once()
-            ->andReturn([]);
-
-        WC_Multi_Store_Conflict_Detector::get_unresolved_conflicts();
-
-        // SQL must contain the resolved = 0 WHERE condition
-        $this->assertStringContainsString('resolved = 0', (string) $capturedSql);
     }
 
     // =========================================================================

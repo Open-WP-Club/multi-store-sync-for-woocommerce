@@ -294,19 +294,6 @@ class WC_Multi_Store_Pricing_Rules {
     }
 
     /**
-     * Get pricing rule types with labels
-     *
-     * @return array Rule types
-     */
-    public static function get_rule_types(): array {
-        $types = [];
-        foreach (WC_Multi_Store_Pricing_Rule_Type::cases() as $type) {
-            $types[$type->value] = $type->label();
-        }
-        return $types;
-    }
-
-    /**
      * Preview pricing changes
      *
      * @param float $original_price Original price

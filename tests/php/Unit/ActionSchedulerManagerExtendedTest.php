@@ -298,6 +298,13 @@ class ActionSchedulerManagerExtendedTest extends WC_Multi_Store_TestCase
         $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('get_var')->andReturn('0');
+        // Needed for step 7 (cleanup_expired_transients) to complete without
+        // throwing, so steps 8-10 after it still run.
+        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => addcslashes($s, '_%\\'));
+
+        // Needed for step 8 (clear_term_cache -> Cache_Manager::clear_remote_terms)
+        // to complete without throwing, so steps 9/10 after it still run.
+        Functions\when('delete_transient')->justReturn(true);
 
         $manager = new WC_Multi_Store_Action_Scheduler_Manager();
         $results = $manager->daily_maintenance_action();
@@ -307,6 +314,8 @@ class ActionSchedulerManagerExtendedTest extends WC_Multi_Store_TestCase
         $this->assertArrayHasKey('history', $results);
         $this->assertArrayHasKey('webhook_logs', $results);
         $this->assertArrayHasKey('transients', $results);
+        $this->assertArrayHasKey('api_usage', $results);
+        $this->assertArrayHasKey('dead_letter_queue', $results);
     }
 
     public function test_daily_maintenance_handles_exception(): void
