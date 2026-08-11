@@ -215,18 +215,6 @@ class WebhookReceiverTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test private get_client_ip method exists
-     */
-    public function test_get_client_ip_method_exists(): void
-    {
-        $reflection = new ReflectionClass('WC_Multi_Store_Webhook_Receiver');
-        $this->assertTrue($reflection->hasMethod('get_client_ip'));
-
-        $method = $reflection->getMethod('get_client_ip');
-        $this->assertTrue($method->isPrivate());
-    }
-
-    /**
      * Test private process_stock_deduction method exists
      */
     public function test_process_stock_deduction_method_exists(): void

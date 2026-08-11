@@ -43,7 +43,7 @@ class WC_Multi_Store_Webhook_Receiver {
      * @return bool|WP_Error True if allowed, WP_Error if rate limited
      */
     private function check_rate_limit(): bool|WP_Error {
-        $client_ip = $this->get_client_ip();
+        $client_ip = WC_Multi_Store_Webhook_Logger::get_client_ip();
         $rate_key = 'wc_mss_webhook_rate_' . md5($client_ip);
 
         // Use wp_cache_add + wp_cache_incr for atomic increment when a persistent
@@ -74,22 +74,6 @@ class WC_Multi_Store_Webhook_Receiver {
         }
 
         return true;
-    }
-
-    /**
-     * Get client IP address
-     *
-     * Only trusts proxy headers when trusted proxies are configured.
-     * Without configuration, falls back to REMOTE_ADDR to prevent
-     * IP spoofing via X-Forwarded-For or similar headers.
-     *
-     * Configure trusted proxies via the 'wc_mss_trusted_proxies' filter
-     * or the WC_MSS_TRUSTED_PROXIES constant (comma-separated IPs).
-     *
-     * @return string
-     */
-    private function get_client_ip(): string {
-        return WC_Multi_Store_Webhook_Logger::get_client_ip();
     }
 
     /**
@@ -131,7 +115,7 @@ class WC_Multi_Store_Webhook_Receiver {
             WC_Multi_Store_Logger::write('Webhook rejected: No webhook secret configured', 'error');
             WC_Multi_Store_Webhook_Logger::log_auth_failed(
                 'Webhook secret not configured',
-                $this->get_client_ip()
+                WC_Multi_Store_Webhook_Logger::get_client_ip()
             );
             return new WP_Error(
                 'webhook_not_configured',
@@ -156,7 +140,7 @@ class WC_Multi_Store_Webhook_Receiver {
                 WC_Multi_Store_Logger::write('Webhook rejected: Invalid WooCommerce signature', 'error');
                 WC_Multi_Store_Webhook_Logger::log_auth_failed(
                     'Invalid WooCommerce signature',
-                    $this->get_client_ip()
+                    WC_Multi_Store_Webhook_Logger::get_client_ip()
                 );
                 return new WP_Error(
                     'invalid_signature',
@@ -170,7 +154,7 @@ class WC_Multi_Store_Webhook_Receiver {
                 WC_Multi_Store_Logger::write('Webhook rejected: Invalid secret', 'error');
                 WC_Multi_Store_Webhook_Logger::log_auth_failed(
                     'Invalid custom secret',
-                    $this->get_client_ip()
+                    WC_Multi_Store_Webhook_Logger::get_client_ip()
                 );
                 return new WP_Error(
                     'invalid_secret',
@@ -182,7 +166,7 @@ class WC_Multi_Store_Webhook_Receiver {
             WC_Multi_Store_Logger::write('Webhook rejected: No signature or secret provided', 'error');
             WC_Multi_Store_Webhook_Logger::log_auth_failed(
                 'Missing signature or secret',
-                $this->get_client_ip()
+                WC_Multi_Store_Webhook_Logger::get_client_ip()
             );
             return new WP_Error(
                 'missing_auth',
@@ -345,7 +329,7 @@ class WC_Multi_Store_Webhook_Receiver {
         ));
 
         // Log order received
-        WC_Multi_Store_Webhook_Logger::log_order_received($order_data, $store_url, $this->get_client_ip());
+        WC_Multi_Store_Webhook_Logger::log_order_received($order_data, $store_url, WC_Multi_Store_Webhook_Logger::get_client_ip());
 
         // Process stock deduction
         try {

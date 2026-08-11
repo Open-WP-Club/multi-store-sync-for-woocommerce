@@ -3,8 +3,9 @@
  * Tests for Webhook Receiver security: IP detection, signature verification,
  * rate limiting, and request validation
  *
- * Covers the actual behavior of get_client_ip, verify_webhook_signature,
- * check_rate_limit, is_store_registered, handle_order_webhook validation
+ * Covers the actual behavior of verify_webhook_signature, check_rate_limit,
+ * is_store_registered, handle_order_webhook validation
+ * (get_client_ip behavior is covered by WebhookLoggerTest, its actual implementation)
  */
 
 use Brain\Monkey;
@@ -44,132 +45,6 @@ class WebhookReceiverSecurityTest extends WC_Multi_Store_TestCase
     {
         $ref = new ReflectionMethod($this->receiver, $method);
         return $ref->invokeArgs($this->receiver, $args);
-    }
-
-    // ─── get_client_ip ───────────────────────────────
-
-    public function test_get_client_ip_returns_remote_addr(): void
-    {
-        $_SERVER['REMOTE_ADDR'] = '192.168.1.100';
-
-        // No trusted proxies configured — apply_filters returns empty array by default
-        $ip = $this->invoke('get_client_ip');
-
-        $this->assertEquals('192.168.1.100', $ip);
-
-        unset($_SERVER['REMOTE_ADDR']);
-    }
-
-    public function test_get_client_ip_returns_fallback_when_no_remote_addr(): void
-    {
-        unset($_SERVER['REMOTE_ADDR']);
-
-        $ip = $this->invoke('get_client_ip');
-
-        $this->assertEquals('0.0.0.0', $ip);
-    }
-
-    public function test_get_client_ip_ignores_proxy_headers_without_trusted_proxies(): void
-    {
-        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
-        $_SERVER['HTTP_X_FORWARDED_FOR'] = '203.0.113.50';
-        $_SERVER['HTTP_CF_CONNECTING_IP'] = '198.51.100.25';
-
-        $ip = $this->invoke('get_client_ip');
-
-        // Without trusted proxies, must use REMOTE_ADDR
-        $this->assertEquals('10.0.0.1', $ip);
-
-        unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['HTTP_CF_CONNECTING_IP']);
-    }
-
-    public function test_get_client_ip_trusts_cloudflare_header_from_trusted_proxy(): void
-    {
-        $_SERVER['REMOTE_ADDR'] = '172.16.0.1';
-        $_SERVER['HTTP_CF_CONNECTING_IP'] = '203.0.113.50';
-
-        // Override apply_filters to return trusted proxies
-        Functions\when('apply_filters')->alias(function ($tag, $value) {
-            if ($tag === 'wc_mss_trusted_proxies') {
-                return ['172.16.0.1'];
-            }
-            return $value;
-        });
-
-        $ip = $this->invoke('get_client_ip');
-
-        $this->assertEquals('203.0.113.50', $ip);
-
-        unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_CF_CONNECTING_IP']);
-    }
-
-    public function test_get_client_ip_uses_first_ip_from_x_forwarded_for(): void
-    {
-        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
-        $_SERVER['HTTP_X_FORWARDED_FOR'] = '203.0.113.50, 70.41.3.18, 150.172.238.178';
-
-        Functions\when('apply_filters')->alias(function ($tag, $value) {
-            if ($tag === 'wc_mss_trusted_proxies') {
-                return ['10.0.0.1'];
-            }
-            return $value;
-        });
-
-        $ip = $this->invoke('get_client_ip');
-
-        $this->assertEquals('203.0.113.50', $ip);
-
-        unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_X_FORWARDED_FOR']);
-    }
-
-    public function test_get_client_ip_rejects_private_ip_from_proxy_header(): void
-    {
-        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
-        $_SERVER['HTTP_X_FORWARDED_FOR'] = '192.168.1.1'; // Private range
-
-        Functions\when('apply_filters')->alias(function ($tag, $value) {
-            if ($tag === 'wc_mss_trusted_proxies') {
-                return ['10.0.0.1'];
-            }
-            return $value;
-        });
-
-        $ip = $this->invoke('get_client_ip');
-
-        // Private IPs are rejected by FILTER_FLAG_NO_PRIV_RANGE, falls back to REMOTE_ADDR
-        $this->assertEquals('10.0.0.1', $ip);
-
-        unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_X_FORWARDED_FOR']);
-    }
-
-    public function test_get_client_ip_rejects_invalid_ip_from_proxy(): void
-    {
-        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
-        $_SERVER['HTTP_CF_CONNECTING_IP'] = 'not-an-ip';
-
-        Functions\when('apply_filters')->alias(function ($tag, $value) {
-            if ($tag === 'wc_mss_trusted_proxies') {
-                return ['10.0.0.1'];
-            }
-            return $value;
-        });
-
-        $ip = $this->invoke('get_client_ip');
-
-        $this->assertEquals('10.0.0.1', $ip);
-
-        unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_CF_CONNECTING_IP']);
-    }
-
-    public function test_get_client_ip_invalid_remote_addr_returns_fallback(): void
-    {
-        $_SERVER['REMOTE_ADDR'] = 'garbage';
-
-        $ip = $this->invoke('get_client_ip');
-
-        $this->assertEquals('0.0.0.0', $ip);
-
-        unset($_SERVER['REMOTE_ADDR']);
     }
 
     // ─── is_store_registered ─────────────────────────

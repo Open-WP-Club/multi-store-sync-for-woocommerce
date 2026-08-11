@@ -114,7 +114,7 @@ class WC_Multi_Store_Weekly_Verification_Comparator {
             $store_name = parse_url($store_url, PHP_URL_HOST);
 
             // Check if this product should be excluded for this store
-            $should_be_excluded = self::should_exclude_product($product, $store);
+            $should_be_excluded = WC_Multi_Store_Product_Exclusion_Filter::should_exclude($product, $store);
 
             try {
                 $remote_product = WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::get_remote_product($product, $store_url, $store);
@@ -122,7 +122,7 @@ class WC_Multi_Store_Weekly_Verification_Comparator {
                 // If product should be excluded but exists on remote - it's an orphan
                 if ($should_be_excluded) {
                     if ($remote_product) {
-                        $excluded_reasons = self::get_exclusion_reasons($product, $store);
+                        $excluded_reasons = WC_Multi_Store_Product_Exclusion_Filter::get_exclusion_reasons($product, $store);
                         $remote_id = $remote_product->id ?? null;
                         $report['discrepancies'][] = [
                             'type' => 'orphan',
@@ -539,25 +539,4 @@ class WC_Multi_Store_Weekly_Verification_Comparator {
         ]];
     }
 
-    /**
-     * Check if product should be excluded for a specific store
-     *
-     * @param WC_Product $product Product object
-     * @param array $store_config Store configuration
-     * @return bool True if product should be excluded
-     */
-    private static function should_exclude_product(WC_Product $product, array $store_config): bool {
-        return WC_Multi_Store_Product_Exclusion_Filter::should_exclude($product, $store_config);
-    }
-
-    /**
-     * Get human-readable exclusion reasons for a product
-     *
-     * @param WC_Product $product Product object
-     * @param array $store_config Store configuration
-     * @return array List of exclusion reasons
-     */
-    private static function get_exclusion_reasons(WC_Product $product, array $store_config): array {
-        return WC_Multi_Store_Product_Exclusion_Filter::get_exclusion_reasons($product, $store_config);
-    }
 }

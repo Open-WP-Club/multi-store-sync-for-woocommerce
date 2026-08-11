@@ -135,42 +135,7 @@ class WC_Multi_Store_Category_Mapper {
             return $product_data;
         }
 
-        $mapped_categories = [];
-        foreach ($product_data['categories'] as $category) {
-            $slug = $category['slug'] ?? '';
-            $name = $category['name'] ?? '';
-
-            if (isset($mappings[$slug])) {
-                $remote_slug = $mappings[$slug];
-
-                // Special case: empty mapping means skip this category
-                if ($remote_slug === '' || $remote_slug === '__skip__') {
-                    WC_Multi_Store_Logger::write(sprintf(
-                        'Category "%s" skipped for store %s (mapped to skip)',
-                        $slug,
-                        $store_url
-                    ));
-                    continue;
-                }
-
-                $mapped_categories[] = [
-                    'slug' => $remote_slug,
-                    'name' => $name,
-                ];
-
-                WC_Multi_Store_Logger::write(sprintf(
-                    'Category "%s" mapped to "%s" for store %s',
-                    $slug,
-                    $remote_slug,
-                    $store_url
-                ));
-            } else {
-                // No mapping: pass through as-is
-                $mapped_categories[] = $category;
-            }
-        }
-
-        $product_data['categories'] = $mapped_categories;
+        $product_data['categories'] = self::apply_term_mappings($product_data['categories'], $mappings, $store_url);
         return $product_data;
     }
 
@@ -195,28 +160,61 @@ class WC_Multi_Store_Category_Mapper {
             return $product_data;
         }
 
-        $mapped_tags = [];
-        foreach ($product_data['tags'] as $tag) {
-            $slug = $tag['slug'] ?? '';
+        $product_data['tags'] = self::apply_term_mappings($product_data['tags'], $mappings);
+        return $product_data;
+    }
 
-            if (isset($mappings[$slug])) {
-                $remote_slug = $mappings[$slug];
+    /**
+     * Map a list of category/tag terms through a slug=>slug mapping, dropping
+     * entries mapped to '' or '__skip__'. Shared by apply_mappings() and
+     * apply_tag_mappings(). Logging (with "Category" wording) only happens
+     * when $store_url is passed, since only category mappings logged originally.
+     *
+     * @param array $terms Terms with 'slug'/'name' keys
+     * @param array $mappings Local slug => remote slug (or '__skip__')
+     * @param string|null $store_url When set, logs each mapping/skip decision
+     * @return array Mapped terms
+     */
+    private static function apply_term_mappings(array $terms, array $mappings, ?string $store_url = null): array {
+        $mapped = [];
 
-                if ($remote_slug === '' || $remote_slug === '__skip__') {
-                    continue;
+        foreach ($terms as $term) {
+            $slug = $term['slug'] ?? '';
+
+            if (!isset($mappings[$slug])) {
+                $mapped[] = $term;
+                continue;
+            }
+
+            $remote_slug = $mappings[$slug];
+
+            if ($remote_slug === '' || $remote_slug === '__skip__') {
+                if ($store_url !== null) {
+                    WC_Multi_Store_Logger::write(sprintf(
+                        'Category "%s" skipped for store %s (mapped to skip)',
+                        $slug,
+                        $store_url
+                    ));
                 }
+                continue;
+            }
 
-                $mapped_tags[] = [
-                    'slug' => $remote_slug,
-                    'name' => $tag['name'] ?? '',
-                ];
-            } else {
-                $mapped_tags[] = $tag;
+            $mapped[] = [
+                'slug' => $remote_slug,
+                'name' => $term['name'] ?? '',
+            ];
+
+            if ($store_url !== null) {
+                WC_Multi_Store_Logger::write(sprintf(
+                    'Category "%s" mapped to "%s" for store %s',
+                    $slug,
+                    $remote_slug,
+                    $store_url
+                ));
             }
         }
 
-        $product_data['tags'] = $mapped_tags;
-        return $product_data;
+        return $mapped;
     }
 
     /**

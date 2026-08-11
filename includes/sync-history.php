@@ -118,6 +118,21 @@ class WC_Multi_Store_Sync_History {
     }
 
     /**
+     * Build a prepared 'store_url LIKE %s' fragment with flexible URL matching
+     * (handles trailing slashes and http/https differences). Shared by
+     * get_history(), get_statistics(), and delete_by_criteria().
+     *
+     * @param wpdb $wpdb WordPress database object
+     * @param string $store_url Store URL to match
+     * @return string Prepared SQL fragment
+     */
+    private static function store_url_like_clause($wpdb, string $store_url): string {
+        $store_url_clean = rtrim(preg_replace('#^https?://#', '', $store_url), '/');
+        $store_url_pattern = '%' . $wpdb->esc_like($store_url_clean) . '%';
+        return $wpdb->prepare('store_url LIKE %s', $store_url_pattern);
+    }
+
+    /**
      * Get sync history with pagination
      *
      * @param array $args Query arguments
@@ -151,10 +166,7 @@ class WC_Multi_Store_Sync_History {
         }
 
         if ($args['store_url']) {
-            // Use LIKE for flexible URL matching (handles trailing slashes, http/https differences)
-            $store_url_clean = rtrim(preg_replace('#^https?://#', '', $args['store_url']), '/');
-            $store_url_pattern = '%' . $wpdb->esc_like($store_url_clean) . '%';
-            $where[] = $wpdb->prepare('store_url LIKE %s', $store_url_pattern);
+            $where[] = self::store_url_like_clause($wpdb, $args['store_url']);
         }
 
         if ($args['status']) {
@@ -231,10 +243,7 @@ class WC_Multi_Store_Sync_History {
         $where[] = $wpdb->prepare('created_at >= DATE_SUB(NOW(), INTERVAL %d DAY)', $args['days']);
 
         if ($args['store_url']) {
-            // Use LIKE for flexible URL matching (handles trailing slashes, http/https differences)
-            $store_url_clean = rtrim(preg_replace('#^https?://#', '', $args['store_url']), '/');
-            $store_url_pattern = '%' . $wpdb->esc_like($store_url_clean) . '%';
-            $where[] = $wpdb->prepare('store_url LIKE %s', $store_url_pattern);
+            $where[] = self::store_url_like_clause($wpdb, $args['store_url']);
         }
 
         $where_clause = implode(' AND ', $where);
@@ -379,9 +388,7 @@ class WC_Multi_Store_Sync_History {
         }
 
         if (!empty($args['store_url'])) {
-            $store_url_clean = rtrim(preg_replace('#^https?://#', '', $args['store_url']), '/');
-            $store_url_pattern = '%' . $wpdb->esc_like($store_url_clean) . '%';
-            $where[] = $wpdb->prepare('store_url LIKE %s', $store_url_pattern);
+            $where[] = self::store_url_like_clause($wpdb, $args['store_url']);
         }
 
         if (!empty($args['sync_type'])) {

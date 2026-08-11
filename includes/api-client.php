@@ -1114,21 +1114,7 @@ class WC_Multi_Store_API_Client {
      * @return array|WP_Error Batch result or WP_Error
      */
     public function batch_categories(array $batch): array|\WP_Error {
-        if (empty($batch) || !is_array($batch)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // WooCommerce batch endpoint limit is 100 items total
-        $total = 0;
-        $total += isset($batch['create']) ? count($batch['create']) : 0;
-        $total += isset($batch['update']) ? count($batch['update']) : 0;
-        $total += isset($batch['delete']) ? count($batch['delete']) : 0;
-
-        if ($total > 100) {
-            return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
-        }
-
-        return $this->post('products/categories/batch', $batch);
+        return self::validate_batch($batch) ?? $this->post('products/categories/batch', $batch);
     }
 
     /**
@@ -1138,11 +1124,22 @@ class WC_Multi_Store_API_Client {
      * @return array|WP_Error Batch result or WP_Error
      */
     public function batch_tags(array $batch): array|\WP_Error {
+        return self::validate_batch($batch) ?? $this->post('products/tags/batch', $batch);
+    }
+
+    /**
+     * Validate a batch payload before sending: must be a non-empty array,
+     * and its combined create/update/delete items must fit the WooCommerce
+     * batch endpoint's 100-item limit. Shared by all batch_*() methods.
+     *
+     * @param array $batch Batch data with 'create', 'update', 'delete' keys
+     * @return WP_Error|null Error if invalid, null if the batch is valid
+     */
+    private static function validate_batch(array $batch): ?WP_Error {
         if (empty($batch) || !is_array($batch)) {
             return new WP_Error('invalid_batch', 'Invalid batch data');
         }
 
-        // WooCommerce batch endpoint limit is 100 items total
         $total = 0;
         $total += isset($batch['create']) ? count($batch['create']) : 0;
         $total += isset($batch['update']) ? count($batch['update']) : 0;
@@ -1152,7 +1149,7 @@ class WC_Multi_Store_API_Client {
             return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
         }
 
-        return $this->post('products/tags/batch', $batch);
+        return null;
     }
 
     // ========================================
@@ -1257,21 +1254,7 @@ class WC_Multi_Store_API_Client {
      * @return array|WP_Error Batch results or WP_Error
      */
     public function batch_products(array $batch): array|\WP_Error {
-        if (empty($batch) || !is_array($batch)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // Ensure total doesn't exceed 100 items
-        $total = 0;
-        $total += isset($batch['create']) ? count($batch['create']) : 0;
-        $total += isset($batch['update']) ? count($batch['update']) : 0;
-        $total += isset($batch['delete']) ? count($batch['delete']) : 0;
-
-        if ($total > 100) {
-            return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
-        }
-
-        return $this->post('products/batch', $batch);
+        return self::validate_batch($batch) ?? $this->post('products/batch', $batch);
     }
 
     /**
@@ -1283,21 +1266,7 @@ class WC_Multi_Store_API_Client {
      * @return array|WP_Error Batch results or WP_Error
      */
     public function batch_product_variations(int $product_id, array $batch): array|\WP_Error {
-        if (empty($batch) || !is_array($batch)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // Ensure total doesn't exceed 100 items
-        $total = 0;
-        $total += isset($batch['create']) ? count($batch['create']) : 0;
-        $total += isset($batch['update']) ? count($batch['update']) : 0;
-        $total += isset($batch['delete']) ? count($batch['delete']) : 0;
-
-        if ($total > 100) {
-            return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
-        }
-
-        return $this->post('products/' . $product_id . '/variations/batch', $batch);
+        return self::validate_batch($batch) ?? $this->post('products/' . $product_id . '/variations/batch', $batch);
     }
 
     // ========================================

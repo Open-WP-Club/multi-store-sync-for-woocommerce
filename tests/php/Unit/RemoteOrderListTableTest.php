@@ -170,6 +170,7 @@ class RemoteOrderListTableTest extends WC_Multi_Store_TestCase
     public function test_column_status_renders_mark_element(): void
     {
         Functions\when('esc_html')->alias(fn($v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'));
+        Functions\when('wc_get_order_status_name')->alias(fn($status) => ucfirst($status));
 
         $ref = new ReflectionClass($this->table);
         $method = $ref->getMethod('column_status');
@@ -186,6 +187,7 @@ class RemoteOrderListTableTest extends WC_Multi_Store_TestCase
     public function test_column_status_strips_wc_prefix(): void
     {
         Functions\when('esc_html')->alias(fn($v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'));
+        Functions\when('wc_get_order_status_name')->alias(fn($status) => ucfirst($status));
 
         $ref = new ReflectionClass($this->table);
         $method = $ref->getMethod('column_status');

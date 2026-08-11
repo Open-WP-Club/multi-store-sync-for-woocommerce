@@ -29,13 +29,6 @@ class WC_Multi_Store_Remote_Order_Sync {
     }
 
     /**
-     * Create an API client for a specific store
-     */
-    private function create_api_client(string $store_url, array $store_config): WC_Multi_Store_API_Client {
-        return WC_Multi_Store_API_Client::for_store($store_url, $store_config);
-    }
-
-    /**
      * Sync orders from all configured stores
      *
      * @param array $args Sync arguments
@@ -97,7 +90,7 @@ class WC_Multi_Store_Remote_Order_Sync {
         WC_Multi_Store_Logger::write(sprintf('Starting order sync from %s', $store_url));
 
         // Create a per-store API client with proper credentials
-        $api = $this->create_api_client($store_url, $store);
+        $api = WC_Multi_Store_API_Client::for_store($store_url, $store);
 
         $synced = 0;
         $updated = 0;

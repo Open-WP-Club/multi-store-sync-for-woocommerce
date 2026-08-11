@@ -71,21 +71,7 @@ class WC_Multi_Store_Pricing_Rules {
             return $product_data;
         }
 
-        // Apply to regular price
-        if (isset($product_data['regular_price']) && !empty($product_data['regular_price'])) {
-            $product_data['regular_price'] = self::format_price(
-                floatval($product_data['regular_price']) + $adjustment
-            );
-        }
-
-        // Apply to sale price
-        if (isset($product_data['sale_price']) && !empty($product_data['sale_price'])) {
-            $product_data['sale_price'] = self::format_price(
-                floatval($product_data['sale_price']) + $adjustment
-            );
-        }
-
-        return $product_data;
+        return self::apply_adjustment($product_data, fn(float $price): float => $price + $adjustment);
     }
 
     /**
@@ -104,21 +90,7 @@ class WC_Multi_Store_Pricing_Rules {
 
         $multiplier = 1 + ($percentage / 100);
 
-        // Apply to regular price
-        if (isset($product_data['regular_price']) && !empty($product_data['regular_price'])) {
-            $product_data['regular_price'] = self::format_price(
-                floatval($product_data['regular_price']) * $multiplier
-            );
-        }
-
-        // Apply to sale price
-        if (isset($product_data['sale_price']) && !empty($product_data['sale_price'])) {
-            $product_data['sale_price'] = self::format_price(
-                floatval($product_data['sale_price']) * $multiplier
-            );
-        }
-
-        return $product_data;
+        return self::apply_adjustment($product_data, fn(float $price): float => $price * $multiplier);
     }
 
     /**
@@ -135,21 +107,7 @@ class WC_Multi_Store_Pricing_Rules {
             return $product_data;
         }
 
-        // Apply to regular price
-        if (isset($product_data['regular_price']) && !empty($product_data['regular_price'])) {
-            $product_data['regular_price'] = self::format_price(
-                floatval($product_data['regular_price']) * $multiplier
-            );
-        }
-
-        // Apply to sale price
-        if (isset($product_data['sale_price']) && !empty($product_data['sale_price'])) {
-            $product_data['sale_price'] = self::format_price(
-                floatval($product_data['sale_price']) * $multiplier
-            );
-        }
-
-        return $product_data;
+        return self::apply_adjustment($product_data, fn(float $price): float => $price * $multiplier);
     }
 
     /**
@@ -166,33 +124,27 @@ class WC_Multi_Store_Pricing_Rules {
             return $product_data;
         }
 
-        // Apply to regular price
-        if (isset($product_data['regular_price']) && !empty($product_data['regular_price'])) {
-            $product_data['regular_price'] = self::format_price(
-                floatval($product_data['regular_price']) * $exchange_rate
-            );
-        }
-
-        // Apply to sale price
-        if (isset($product_data['sale_price']) && !empty($product_data['sale_price'])) {
-            $product_data['sale_price'] = self::format_price(
-                floatval($product_data['sale_price']) * $exchange_rate
-            );
-        }
-
-        return $product_data;
+        return self::apply_adjustment($product_data, fn(float $price): float => $price * $exchange_rate);
     }
 
     /**
-     * Apply pricing rules to variation data
+     * Apply a price transform to regular_price/sale_price, formatting the result.
+     * Shared by all adjustment types above — they only differ in the transform.
      *
-     * @param array $variation_data Variation data
-     * @param array $pricing_rules Pricing rules configuration
-     * @return array Modified variation data
+     * @param array $product_data Product data
+     * @param callable $transform Takes and returns a float price
+     * @return array Modified product data
      */
-    public static function apply_to_variation(array $variation_data, array $pricing_rules): array {
-        // Use the same logic as main product
-        return self::apply_pricing_rules($variation_data, $pricing_rules);
+    private static function apply_adjustment(array $product_data, callable $transform): array {
+        if (isset($product_data['regular_price']) && !empty($product_data['regular_price'])) {
+            $product_data['regular_price'] = self::format_price($transform(floatval($product_data['regular_price'])));
+        }
+
+        if (isset($product_data['sale_price']) && !empty($product_data['sale_price'])) {
+            $product_data['sale_price'] = self::format_price($transform(floatval($product_data['sale_price'])));
+        }
+
+        return $product_data;
     }
 
     /**

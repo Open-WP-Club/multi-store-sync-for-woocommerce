@@ -103,7 +103,7 @@ class WC_Multi_Store_Product_Transformer {
      */
     public function apply_variation_pricing_rules(array $variation_data, array $store_config): array {
         if (isset($store_config['pricing_rules'])) {
-            $variation_data = WC_Multi_Store_Pricing_Rules::apply_to_variation(
+            $variation_data = WC_Multi_Store_Pricing_Rules::apply_pricing_rules(
                 $variation_data,
                 $store_config['pricing_rules']
             );

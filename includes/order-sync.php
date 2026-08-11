@@ -28,19 +28,9 @@ class WC_Multi_Store_Order_Sync {
     const int DEBOUNCE_TIMEOUT = 30;
 
     /**
-     * PERFORMANCE FIX: Cached settings to avoid repeated get_option() calls
-     *
-     * @var array|null
-     */
-    private static ?array $cached_order_settings = null;
-
-    /**
      * Initialize order sync
      */
     public function __construct() {
-        // PERFORMANCE FIX: Cache settings on initialization
-        self::$cached_order_settings = get_option('wc_multi_store_sync_orders', []);
-
         // Hook into order status changes
         add_action('woocommerce_order_status_changed', $this->on_order_status_changed(...), 10, 4);
 
@@ -49,16 +39,13 @@ class WC_Multi_Store_Order_Sync {
     }
 
     /**
-     * Get cached order settings
-     * PERFORMANCE FIX: Reduces repeated get_option() database calls
+     * Get order sync settings. get_option() is already backed by WP's options
+     * cache, so no extra caching layer is needed here.
      *
      * @return array
      */
     private static function get_order_settings(): array {
-        if (self::$cached_order_settings === null) {
-            self::$cached_order_settings = get_option('wc_multi_store_sync_orders', []);
-        }
-        return self::$cached_order_settings;
+        return get_option('wc_multi_store_sync_orders', []);
     }
 
     /**
@@ -70,7 +57,6 @@ class WC_Multi_Store_Order_Sync {
      * @param WC_Order $order Order object
      */
     public function on_order_status_changed(int $order_id, string $old_status, string $new_status, WC_Order $order): void {
-        // PERFORMANCE FIX: Use cached settings instead of get_option()
         $settings = self::get_order_settings();
         $enabled = $settings['auto_sync_enabled'] ?? false;
 
@@ -102,7 +88,6 @@ class WC_Multi_Store_Order_Sync {
      * @param int $order_id Order ID
      */
     public function on_new_order(int $order_id): void {
-        // PERFORMANCE FIX: Use cached settings instead of get_option()
         $settings = self::get_order_settings();
         $enabled = $settings['auto_sync_enabled'] ?? false;
 
@@ -166,7 +151,6 @@ class WC_Multi_Store_Order_Sync {
      * @param array $product_ids Product IDs
      */
     private function queue_large_order_products(int $order_id, array $product_ids): void {
-        // PERFORMANCE FIX: Use cached settings
         $settings = self::get_order_settings();
         $debounce_timeout = isset($settings['debounce_timeout']) ? (int) $settings['debounce_timeout'] : self::DEBOUNCE_TIMEOUT;
 

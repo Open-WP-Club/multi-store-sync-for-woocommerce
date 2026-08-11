@@ -305,28 +305,6 @@ class PricingRulesTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test that variations use same pricing logic
-     */
-    public function test_apply_to_variation(): void
-    {
-        $variation_data = [
-            'regular_price' => '50.00',
-            'sale_price' => '40.00',
-        ];
-
-        $pricing_rules = [
-            'enabled' => true,
-            'type' => 'fixed',
-            'fixed_amount' => 5,
-        ];
-
-        $result = WC_Multi_Store_Pricing_Rules::apply_to_variation($variation_data, $pricing_rules);
-
-        $this->assertEquals('55.00', $result['regular_price']);
-        $this->assertEquals('45.00', $result['sale_price']);
-    }
-
-    /**
      * Test zero percentage doesn't modify prices
      */
     public function test_zero_percentage_no_change(): void

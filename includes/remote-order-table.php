@@ -398,6 +398,46 @@ class WC_Multi_Store_Remote_Order_Table {
     }
 
     /**
+     * Build the WHERE clause + prepared values shared by get_orders(),
+     * get_count(), and get_statistics() — each filters on a subset of the
+     * same keys (missing keys are simply skipped).
+     *
+     * @param array $args May contain store_url, status, customer_email, date_from, date_to
+     * @return array{0: string, 1: array} [$where_clause, $where_values]
+     */
+    private static function build_where_clause(array $args): array {
+        $where = ['1=1'];
+        $where_values = [];
+
+        if (!empty($args['store_url'])) {
+            $where[] = 'remote_store_url = %s';
+            $where_values[] = $args['store_url'];
+        }
+
+        if (!empty($args['status'])) {
+            $where[] = 'status = %s';
+            $where_values[] = $args['status'];
+        }
+
+        if (!empty($args['customer_email'])) {
+            $where[] = 'customer_email = %s';
+            $where_values[] = $args['customer_email'];
+        }
+
+        if (!empty($args['date_from'])) {
+            $where[] = 'date_created >= %s';
+            $where_values[] = $args['date_from'];
+        }
+
+        if (!empty($args['date_to'])) {
+            $where[] = 'date_created <= %s';
+            $where_values[] = $args['date_to'];
+        }
+
+        return [implode(' AND ', $where), $where_values];
+    }
+
+    /**
      * Get orders with filters
      *
      * @param array $args Query arguments
@@ -422,36 +462,7 @@ class WC_Multi_Store_Remote_Order_Table {
 
         $args = wp_parse_args($args, $defaults);
 
-        // Build WHERE clause
-        $where = ['1=1'];
-        $where_values = [];
-
-        if ($args['store_url']) {
-            $where[] = 'remote_store_url = %s';
-            $where_values[] = $args['store_url'];
-        }
-
-        if ($args['status']) {
-            $where[] = 'status = %s';
-            $where_values[] = $args['status'];
-        }
-
-        if ($args['customer_email']) {
-            $where[] = 'customer_email = %s';
-            $where_values[] = $args['customer_email'];
-        }
-
-        if ($args['date_from']) {
-            $where[] = 'date_created >= %s';
-            $where_values[] = $args['date_from'];
-        }
-
-        if ($args['date_to']) {
-            $where[] = 'date_created <= %s';
-            $where_values[] = $args['date_to'];
-        }
-
-        $where_clause = implode(' AND ', $where);
+        [$where_clause, $where_values] = self::build_where_clause($args);
 
         // Build ORDER BY clause
         $allowed_orderby = ['id', 'date_created', 'date_modified', 'total', 'status', 'customer_email'];
@@ -503,36 +514,7 @@ class WC_Multi_Store_Remote_Order_Table {
 
         $args = wp_parse_args($args, $defaults);
 
-        // Build WHERE clause
-        $where = ['1=1'];
-        $where_values = [];
-
-        if ($args['store_url']) {
-            $where[] = 'remote_store_url = %s';
-            $where_values[] = $args['store_url'];
-        }
-
-        if ($args['status']) {
-            $where[] = 'status = %s';
-            $where_values[] = $args['status'];
-        }
-
-        if ($args['customer_email']) {
-            $where[] = 'customer_email = %s';
-            $where_values[] = $args['customer_email'];
-        }
-
-        if ($args['date_from']) {
-            $where[] = 'date_created >= %s';
-            $where_values[] = $args['date_from'];
-        }
-
-        if ($args['date_to']) {
-            $where[] = 'date_created <= %s';
-            $where_values[] = $args['date_to'];
-        }
-
-        $where_clause = implode(' AND ', $where);
+        [$where_clause, $where_values] = self::build_where_clause($args);
 
         $query = "SELECT COUNT(*) FROM {$table_name} WHERE {$where_clause}";
 
@@ -663,26 +645,7 @@ class WC_Multi_Store_Remote_Order_Table {
 
         $args = wp_parse_args($args, $defaults);
 
-        // Build WHERE clause
-        $where = ['1=1'];
-        $where_values = [];
-
-        if ($args['store_url']) {
-            $where[] = 'remote_store_url = %s';
-            $where_values[] = $args['store_url'];
-        }
-
-        if ($args['date_from']) {
-            $where[] = 'date_created >= %s';
-            $where_values[] = $args['date_from'];
-        }
-
-        if ($args['date_to']) {
-            $where[] = 'date_created <= %s';
-            $where_values[] = $args['date_to'];
-        }
-
-        $where_clause = implode(' AND ', $where);
+        [$where_clause, $where_values] = self::build_where_clause($args);
 
         // Get statistics
         $query = "SELECT

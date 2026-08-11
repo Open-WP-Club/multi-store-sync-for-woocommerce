@@ -405,6 +405,7 @@ require_once $plugin_root . '/includes/config-manager.php';
 require_once $plugin_root . '/includes/dashboard-widget.php';
 require_once $plugin_root . '/includes/toggleable-feature-trait.php';
 require_once $plugin_root . '/includes/ajax-auth-guard-trait.php';
+require_once $plugin_root . '/includes/async-sync-trait.php';
 require_once $plugin_root . '/includes/shipping-class-sync.php';
 require_once $plugin_root . '/includes/coupon-sync.php';
 require_once $plugin_root . '/includes/downloadable-files-sync.php';
