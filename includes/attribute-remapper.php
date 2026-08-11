@@ -15,11 +15,6 @@ class WC_Multi_Store_Attribute_Remapper {
     use WC_Multi_Store_Toggleable_Feature;
 
     /**
-     * Option key for attribute remapping settings
-     */
-    const SETTINGS_KEY = 'wc_mss_attribute_remapping_settings';
-
-    /**
      * Option key for attribute name mappings
      */
     const NAME_MAPPING_KEY = 'wc_mss_attribute_name_mappings';

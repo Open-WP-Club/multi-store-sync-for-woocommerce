@@ -289,20 +289,6 @@ class WC_Multi_Store_Sync {
             WC_Multi_Store_Webhook_Logger::create_table();
             WC_Multi_Store_Dead_Letter_Queue::create_table();
 
-            // Migrate toggleable-feature settings (category mapper, attribute
-            // remapper, shipping class sync, downloadable files sync) from
-            // their own legacy get_option() keys into the central
-            // WC_Multi_Store_Settings store. See migrate_settings_to_central_store()
-            // in includes/toggleable-feature-trait.php — remove in v5.0.
-            foreach ([
-                'WC_Multi_Store_Category_Mapper',
-                'WC_Multi_Store_Attribute_Remapper',
-                'WC_Multi_Store_Shipping_Class_Sync',
-                'WC_Multi_Store_Downloadable_Files_Sync',
-            ] as $toggleable_feature_class) {
-                $toggleable_feature_class::migrate_settings_to_central_store();
-            }
-
             update_option('wc_mss_db_version', $current_version);
             WC_Multi_Store_Logger::write('Database upgraded to version ' . $current_version);
         }

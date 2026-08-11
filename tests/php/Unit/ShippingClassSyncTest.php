@@ -178,53 +178,6 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
         $this->assertEquals('kept', $saved['unrelated_setting'], 'Unrelated central-store keys must be preserved');
     }
 
-    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
-    {
-        WC_Multi_Store_Settings::clear_static_cache();
-
-        // Central option storage is stateful across the migration's per-key
-        // update() loop, mirroring real get_option()/update_option() persistence.
-        $central_option = [];
-        Functions\when('get_option')->alias(function ($key, $default = false) use (&$central_option) {
-            if ($key === WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY) {
-                return ['enabled' => true, 'auto_sync_on_change' => false];
-            }
-            if ($key === 'wc_multi_store_sync_settings') {
-                return $central_option;
-            }
-            return $default;
-        });
-
-        Functions\when('update_option')->alias(function ($key, $value) use (&$central_option) {
-            if ($key === 'wc_multi_store_sync_settings') {
-                $central_option = $value;
-            }
-            return true;
-        });
-
-        Functions\expect('delete_option')
-            ->once()
-            ->with(WC_Multi_Store_Shipping_Class_Sync::SETTINGS_KEY)
-            ->andReturn(true);
-
-        WC_Multi_Store_Shipping_Class_Sync::migrate_settings_to_central_store();
-
-        $this->assertTrue($central_option['shipping_class_sync_enabled']);
-        $this->assertFalse($central_option['shipping_class_sync_auto_sync_on_change']);
-    }
-
-    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
-    {
-        Functions\when('get_option')->justReturn(false);
-
-        Functions\expect('delete_option')->never();
-        Functions\expect('update_option')->never();
-
-        WC_Multi_Store_Shipping_Class_Sync::migrate_settings_to_central_store();
-
-        $this->addToAssertionCount(1);
-    }
-
     // ═══════════════════════════════════════════════════════════════
     // sync_shipping_class_to_store
     // ═══════════════════════════════════════════════════════════════

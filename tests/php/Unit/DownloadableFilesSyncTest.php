@@ -129,55 +129,6 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         $this->assertTrue(WC_Multi_Store_Downloadable_Files_Sync::is_enabled());
     }
 
-    // ─── migrate_settings_to_central_store() ────────────────────────────────
-
-    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
-    {
-        WC_Multi_Store_Settings::clear_static_cache();
-
-        // Central option storage is stateful across the migration's per-key
-        // update() loop, mirroring real get_option()/update_option() persistence.
-        $central_option = [];
-        Functions\when('get_option')->alias(function ($opt, $default = null) use (&$central_option) {
-            if ($opt === WC_Multi_Store_Downloadable_Files_Sync::SETTINGS_KEY) {
-                return ['enabled' => true, 'transfer_mode' => 'api'];
-            }
-            if ($opt === 'wc_multi_store_sync_settings') {
-                return $central_option;
-            }
-            return $default;
-        });
-
-        Functions\when('update_option')->alias(function ($key, $value) use (&$central_option) {
-            if ($key === 'wc_multi_store_sync_settings') {
-                $central_option = $value;
-            }
-            return true;
-        });
-
-        Functions\expect('delete_option')
-            ->once()
-            ->with(WC_Multi_Store_Downloadable_Files_Sync::SETTINGS_KEY)
-            ->andReturn(true);
-
-        WC_Multi_Store_Downloadable_Files_Sync::migrate_settings_to_central_store();
-
-        $this->assertTrue($central_option['downloadable_files_sync_enabled']);
-        $this->assertEquals('api', $central_option['downloadable_files_sync_transfer_mode']);
-    }
-
-    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
-    {
-        Functions\when('get_option')->justReturn(false);
-
-        Functions\expect('delete_option')->never();
-        Functions\expect('update_option')->never();
-
-        WC_Multi_Store_Downloadable_Files_Sync::migrate_settings_to_central_store();
-
-        $this->addToAssertionCount(1);
-    }
-
     // ─── extract_downloads() ──────────────────────────────────────────────────
 
     public function test_extract_returns_empty_when_disabled(): void

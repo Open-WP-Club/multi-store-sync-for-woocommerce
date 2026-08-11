@@ -14,11 +14,6 @@ class WC_Multi_Store_Downloadable_Files_Sync {
     use WC_Multi_Store_Toggleable_Feature;
 
     /**
-     * Settings option key
-     */
-    const SETTINGS_KEY = 'wc_mss_downloadable_files_sync_settings';
-
-    /**
      * @return array
      */
     public static function default_settings(): array {

@@ -63,52 +63,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     }
 
     // -------------------------------------------------------------------------
-    // migrate_settings_to_central_store()
-    // -------------------------------------------------------------------------
-
-    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
-    {
-        Functions\when('get_option')->alias(function ($opt, $default = null) {
-            if ($opt === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
-            if ($opt === 'wc_multi_store_sync_settings') {
-                return [];
-            }
-            return $default;
-        });
-
-        $saved = null;
-        Functions\when('update_option')->alias(function ($key, $value) use (&$saved) {
-            if ($key === 'wc_multi_store_sync_settings') {
-                $saved = $value;
-            }
-            return true;
-        });
-
-        Functions\expect('delete_option')
-            ->once()
-            ->with(WC_Multi_Store_Category_Mapper::SETTINGS_KEY)
-            ->andReturn(true);
-
-        WC_Multi_Store_Category_Mapper::migrate_settings_to_central_store();
-
-        $this->assertTrue($saved['category_mapper_enabled']);
-    }
-
-    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
-    {
-        Functions\when('get_option')->justReturn(false);
-
-        Functions\expect('delete_option')->never();
-        Functions\expect('update_option')->never();
-
-        WC_Multi_Store_Category_Mapper::migrate_settings_to_central_store();
-
-        $this->addToAssertionCount(1);
-    }
-
-    // -------------------------------------------------------------------------
     // get_mappings() / set_mappings()
     // -------------------------------------------------------------------------
 
@@ -233,9 +187,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     public function test_apply_mappings_returns_unchanged_when_no_categories(): void
     {
         Functions\when('get_option')->alias(function (string $option, mixed $default = []): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -251,9 +202,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     public function test_apply_mappings_returns_unchanged_when_no_mappings_for_store(): void
     {
         Functions\when('get_option')->alias(function (string $option, mixed $default = []): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -271,9 +219,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -296,9 +241,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -319,9 +261,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -342,9 +281,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -367,9 +303,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -419,9 +352,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $options_read = [];
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key, &$options_read): mixed {
             $options_read[] = $option;
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -443,9 +373,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -466,9 +393,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }

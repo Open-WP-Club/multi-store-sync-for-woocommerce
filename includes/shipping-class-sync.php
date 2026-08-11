@@ -14,11 +14,6 @@ class WC_Multi_Store_Shipping_Class_Sync {
     use WC_Multi_Store_Toggleable_Feature;
 
     /**
-     * Settings option key
-     */
-    const SETTINGS_KEY = 'wc_mss_shipping_class_sync_settings';
-
-    /**
      * Cache key prefix for shipping classes
      */
     const CACHE_PREFIX = 'wc_mss_shipping_class_';

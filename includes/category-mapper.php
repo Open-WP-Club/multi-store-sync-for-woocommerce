@@ -14,11 +14,6 @@ class WC_Multi_Store_Category_Mapper {
     use WC_Multi_Store_Toggleable_Feature;
 
     /**
-     * Settings option key
-     */
-    const SETTINGS_KEY = 'wc_mss_category_mapper_settings';
-
-    /**
      * Option key for storing category mappings
      */
     const OPTION_KEY = 'wc_mss_category_mappings';
