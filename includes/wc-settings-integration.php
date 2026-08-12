@@ -58,6 +58,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'history'             => __('History', 'wc-multi-store-sync'),
             'api-usage'           => __('API Usage', 'wc-multi-store-sync'),
             'discrepancies'       => __('Discrepancies', 'wc-multi-store-sync'),
+            'conflicts'           => __('Conflicts', 'wc-multi-store-sync'),
             'deletion-audit'      => __('Deletion Audit', 'wc-multi-store-sync'),
             'orphan-cleanup'      => __('Orphan Cleanup', 'wc-multi-store-sync'),
             'dead-letter-queue'   => __('Dead Letters', 'wc-multi-store-sync'),
@@ -121,6 +122,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'history'             => $this->output_history(),
             'api-usage'           => $this->output_api_usage(),
             'discrepancies'       => $this->output_discrepancies(),
+            'conflicts'           => $this->output_conflicts(),
             'deletion-audit'      => $this->output_deletion_audit(),
             'orphan-cleanup'      => $this->output_orphan_cleanup(),
             'dead-letter-queue'   => $this->output_dead_letter_queue(),
@@ -250,6 +252,14 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function output_discrepancies(): void {
         include WC_MSS_PLUGIN_DIR . 'admin/views/discrepancies.php';
+    }
+
+    /**
+     * Output conflicts section
+     */
+    private function output_conflicts(): void {
+        $stores = WC_Multi_Store_Settings::get_stores();
+        include WC_MSS_PLUGIN_DIR . 'admin/views/conflicts.php';
     }
 
     /**
@@ -934,6 +944,33 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     'queuing' => __('Queuing…', 'wc-multi-store-sync'),
                     'queued' => __('Queued ✓', 'wc-multi-store-sync'),
                     'failed' => __('Failed', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
+
+        // Strings for the conflicts page
+        if ($section === 'conflicts') {
+            wp_localize_script('wc-mss-admin', 'wcMssConflictsData', [
+                'i18n' => [
+                    'loading' => __('Loading…', 'wc-multi-store-sync'),
+                    'load_failed' => __('Failed to load conflicts.', 'wc-multi-store-sync'),
+                    'no_conflicts' => __('No conflicts found.', 'wc-multi-store-sync'),
+                    'th_product' => __('Product', 'wc-multi-store-sync'),
+                    'th_store' => __('Store', 'wc-multi-store-sync'),
+                    'th_changed_fields' => __('Changed Fields', 'wc-multi-store-sync'),
+                    'th_detected' => __('Detected', 'wc-multi-store-sync'),
+                    'th_status' => __('Status', 'wc-multi-store-sync'),
+                    'th_actions' => __('Actions', 'wc-multi-store-sync'),
+                    'resolved' => __('Resolved', 'wc-multi-store-sync'),
+                    'unresolved' => __('Unresolved', 'wc-multi-store-sync'),
+                    'overwrite' => __('Overwrite', 'wc-multi-store-sync'),
+                    'keep_remote' => __('Keep Remote', 'wc-multi-store-sync'),
+                    'merge' => __('Merge', 'wc-multi-store-sync'),
+                    'resolving' => __('Resolving…', 'wc-multi-store-sync'),
+                    'resolve_failed' => __('Failed to resolve conflict.', 'wc-multi-store-sync'),
+                    'confirm_resolve_all' => __('Resolve all unresolved conflicts shown below as "%s"?', 'wc-multi-store-sync'),
+                    'resolve_all' => __('Resolve All', 'wc-multi-store-sync'),
+                    'product_not_found' => __('(Product not found)', 'wc-multi-store-sync'),
                 ],
             ]);
         }

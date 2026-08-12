@@ -389,6 +389,151 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $this->assertSame(2, $conflict_hash_writes);
     }
 
+    public function test_sync_skipped_when_conflict_detected_and_action_is_block(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql) => $sql);
+        $wpdb->shouldReceive('insert')->andReturn(1);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('get_row')->andReturn(null);
+        $wpdb->shouldReceive('update')->andReturn(1);
+        // A stale stored hash (never matches the freshly-computed one below) plus
+        // a snapshot forces check_for_conflicts() down the "conflict detected"
+        // branch instead of the first-sighting bootstrap branch.
+        $wpdb->shouldReceive('get_var')->andReturn(
+            md5('stale-hash-does-not-match-anything'),
+            json_encode(['name' => null, 'sku' => null])
+        );
+        $wpdb->shouldReceive('query')->andReturn(1);
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'enabled' => true,
+                    'sync_type_default' => 'full_product',
+                    'auth_method' => 'query_string',
+                    'match_products_by' => 'sku',
+                    'category_auto_create' => true,
+                    'auto_create_missing_products' => false,
+                ];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return [
+                    'https://store1.com' => [
+                        'status' => 'active',
+                        'consumer_key' => 'ck_test',
+                        'consumer_secret' => 'cs_test',
+                    ],
+                ];
+            }
+            if ($option === 'wc_mss_conflict_settings') {
+                return ['enabled' => true, 'action_on_conflict' => 'block'];
+            }
+            return $default;
+        });
+
+        $product = $this->mockPriceQuantityProduct();
+
+        Functions\when('wp_remote_get')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+        ]);
+
+        $put_calls = 0;
+        Functions\when('wp_remote_request')->alias(function () use (&$put_calls) {
+            $put_calls++;
+            return ['response' => ['code' => 200], 'body' => '{}'];
+        });
+
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity'
+        );
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($result['skipped']);
+        $this->assertStringContainsString('conflict', $result['message']);
+        $this->assertSame(0, $put_calls, 'sync must not push to the remote store while a conflict is unresolved and action_on_conflict is "block"');
+    }
+
+    public function test_sync_proceeds_when_conflict_detected_and_action_is_warn(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql) => $sql);
+        $wpdb->shouldReceive('insert')->andReturn(1);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('get_row')->andReturn(null);
+        $wpdb->shouldReceive('update')->andReturn(1);
+        $wpdb->shouldReceive('get_var')->andReturn(
+            md5('stale-hash-does-not-match-anything'),
+            json_encode(['name' => null, 'sku' => null])
+        );
+        $wpdb->shouldReceive('query')->andReturn(1);
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'enabled' => true,
+                    'sync_type_default' => 'full_product',
+                    'auth_method' => 'query_string',
+                    'match_products_by' => 'sku',
+                    'category_auto_create' => true,
+                    'auto_create_missing_products' => false,
+                ];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return [
+                    'https://store1.com' => [
+                        'status' => 'active',
+                        'consumer_key' => 'ck_test',
+                        'consumer_secret' => 'cs_test',
+                    ],
+                ];
+            }
+            if ($option === 'wc_mss_conflict_settings') {
+                // Default policy: log and continue.
+                return ['enabled' => true, 'action_on_conflict' => 'warn'];
+            }
+            return $default;
+        });
+
+        $product = $this->mockPriceQuantityProduct();
+
+        Functions\when('wp_remote_get')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+        ]);
+        Functions\when('wp_remote_request')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+        ]);
+
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity'
+        );
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('updated', $result['action']);
+        $this->assertArrayNotHasKey('skipped', $result);
+    }
+
     public function test_saves_remote_product_id_mapping_after_successful_sync(): void
     {
         $this->mockWpdbForSyncHistory();

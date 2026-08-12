@@ -198,6 +198,8 @@ class WC_Multi_Store_Conflict_Detector {
 
         self::log_conflict($local_product_id, $remote_product_id, $store_url, $changed_fields);
 
+        WC_Multi_Store_Email_Notifications::trigger_conflict_detected($local_product_id, $remote_product_id, $store_url, $changed_fields);
+
         WC_Multi_Store_Logger::write(sprintf(
             'CONFLICT DETECTED: Product #%d on %s was modified remotely. Changed fields: %s',
             $local_product_id,
@@ -457,8 +459,10 @@ class WC_Multi_Store_Conflict_Detector {
      * Get conflict detection settings
      */
     public static function get_settings(): array {
-        return get_option('wc_mss_conflict_settings', [
+        return wp_parse_args(get_option('wc_mss_conflict_settings', []), [
             'enabled' => false,
+            'action_on_conflict' => 'warn',
+            'notify_email' => true,
         ]);
     }
 
@@ -498,12 +502,26 @@ class WC_Multi_Store_Conflict_Detector {
             return;
         }
 
-        $store_url = sanitize_text_field($_GET['store_url'] ?? '');
-        $limit     = absint($_GET['limit'] ?? 50);
-        $offset    = absint($_GET['offset'] ?? 0);
+        $store_url        = sanitize_text_field($_GET['store_url'] ?? '');
+        $limit             = absint($_GET['limit'] ?? 50);
+        $offset            = absint($_GET['offset'] ?? 0);
+        $include_resolved = sanitize_text_field($_GET['status'] ?? 'unresolved') !== 'unresolved';
+
+        $conflicts = self::get_conflicts($store_url, $limit, $offset, $include_resolved);
+
+        // Enrich with product display data — get_conflicts() stays a thin DB
+        // read (and keeps its existing test coverage) since this is purely
+        // a presentation concern of the admin table.
+        foreach ($conflicts as &$conflict) {
+            $product = wc_get_product($conflict['local_product_id']);
+            $conflict['product_name'] = $product ? $product->get_name() : __('(Product not found)', 'wc-multi-store-sync');
+            $conflict['product_sku']  = $product ? $product->get_sku() : '';
+            $conflict['edit_url']     = $product ? get_edit_post_link($conflict['local_product_id']) : '';
+        }
+        unset($conflict);
 
         wp_send_json_success([
-            'conflicts' => self::get_conflicts($store_url, $limit, $offset),
+            'conflicts' => $conflicts,
             'stats'     => self::get_stats(),
         ]);
     }

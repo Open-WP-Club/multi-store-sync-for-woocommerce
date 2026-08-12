@@ -2258,6 +2258,179 @@
             });
         });
 
+        /**
+         * Conflicts Page
+         */
+        if (document.getElementById('wc-mss-conflicts-results') && typeof jQuery !== 'undefined' && typeof wcMssConflictsData !== 'undefined') {
+            jQuery(function ($) {
+                var i18n = wcMssConflictsData.i18n;
+                var resultsEl = document.getElementById('wc-mss-conflicts-results');
+                var noticesEl = document.getElementById('wc-mss-conflicts-notices');
+                var statusFilter = document.getElementById('wc-mss-conflicts-status-filter');
+                var storeFilter = document.getElementById('wc-mss-conflicts-store-filter');
+                var resolutionSelect = document.getElementById('wc-mss-conflicts-resolution');
+                var resolveAllBtn = document.getElementById('wc-mss-conflicts-resolve-all-btn');
+
+                function escapeHtml(str) {
+                    return $('<div>').text(str === null || str === undefined ? '' : String(str)).html();
+                }
+
+                function showNotice(message, type) {
+                    var cls = type === 'error' ? 'notice-error' : 'notice-success';
+                    $(noticesEl).html('<div class="notice ' + cls + ' is-dismissible"><p>' + escapeHtml(message) + '</p></div>');
+                }
+
+                function renderTable(conflicts) {
+                    if (!conflicts.length) {
+                        resultsEl.innerHTML = '<div class="notice notice-info inline"><p>' + escapeHtml(i18n.no_conflicts) + '</p></div>';
+                        return;
+                    }
+
+                    var html = '<table class="wp-list-table widefat fixed striped"><thead><tr>'
+                        + '<th>' + escapeHtml(i18n.th_product) + '</th>'
+                        + '<th>' + escapeHtml(i18n.th_store) + '</th>'
+                        + '<th>' + escapeHtml(i18n.th_changed_fields) + '</th>'
+                        + '<th>' + escapeHtml(i18n.th_detected) + '</th>'
+                        + '<th>' + escapeHtml(i18n.th_status) + '</th>'
+                        + '<th>' + escapeHtml(i18n.th_actions) + '</th>'
+                        + '</tr></thead><tbody>';
+
+                    conflicts.forEach(function (c) {
+                        var productCell = c.edit_url
+                            ? '<a href="' + escapeHtml(c.edit_url) + '" target="_blank"><strong>' + escapeHtml(c.product_name) + '</strong></a>'
+                            : '<strong>' + escapeHtml(c.product_name) + '</strong>';
+                        if (c.product_sku) {
+                            productCell += '<br><code>' + escapeHtml(c.product_sku) + '</code>';
+                        }
+
+                        var fieldsHtml = (c.changed_fields || []).map(function (f) {
+                            return '<span class="wc-mss-changed-field-tag">' + escapeHtml(f) + '</span>';
+                        }).join(' ');
+
+                        var statusHtml = c.resolved
+                            ? '<span class="wc-mss-status-badge wc-mss-status-resolved">' + escapeHtml(i18n.resolved) + (c.resolution ? ' (' + escapeHtml(c.resolution) + ')' : '') + '</span>'
+                            : '<span class="wc-mss-status-badge wc-mss-status-unresolved">' + escapeHtml(i18n.unresolved) + '</span>';
+
+                        var safeId = escapeHtml(c.id);
+                        var actionsHtml = '';
+                        if (!c.resolved) {
+                            actionsHtml = '<button type="button" class="button button-primary button-small wc-mss-resolve-conflict-btn" data-id="' + safeId + '" data-resolution="overwrite">' + escapeHtml(i18n.overwrite) + '</button> '
+                                + '<button type="button" class="button button-small wc-mss-resolve-conflict-btn" data-id="' + safeId + '" data-resolution="keep_remote">' + escapeHtml(i18n.keep_remote) + '</button> '
+                                + '<button type="button" class="button button-small wc-mss-resolve-conflict-btn" data-id="' + safeId + '" data-resolution="merge">' + escapeHtml(i18n.merge) + '</button>';
+                        }
+
+                        html += '<tr id="wc-mss-conflict-row-' + safeId + '">'
+                            + '<td>' + productCell + '</td>'
+                            + '<td>' + escapeHtml(c.store_url) + '</td>'
+                            + '<td>' + fieldsHtml + '</td>'
+                            + '<td>' + escapeHtml(c.detected_at) + '</td>'
+                            + '<td>' + statusHtml + '</td>'
+                            + '<td>' + actionsHtml + '</td>'
+                            + '</tr>';
+                    });
+
+                    html += '</tbody></table>';
+                    resultsEl.innerHTML = html;
+                }
+
+                function loadConflicts() {
+                    resultsEl.innerHTML = '<p>' + escapeHtml(i18n.loading) + '</p>';
+
+                    var params = new URLSearchParams({
+                        action: 'wc_mss_get_conflicts',
+                        nonce: wcMssAdmin.nonce,
+                        status: statusFilter.value,
+                        store_url: storeFilter.value
+                    });
+
+                    fetch(wcMssAdmin.ajax_url + '?' + params.toString())
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            if (response.success) {
+                                renderTable(response.data.conflicts);
+                            } else {
+                                resultsEl.innerHTML = '<div class="notice notice-error inline"><p>' + escapeHtml(i18n.load_failed) + '</p></div>';
+                            }
+                        })
+                        .catch(function () {
+                            resultsEl.innerHTML = '<div class="notice notice-error inline"><p>' + escapeHtml(i18n.load_failed) + '</p></div>';
+                        });
+                }
+
+                $(statusFilter).on('change', loadConflicts);
+                $(storeFilter).on('change', loadConflicts);
+
+                $(resultsEl).on('click', '.wc-mss-resolve-conflict-btn', function () {
+                    var $btn = $(this);
+                    var id = $btn.data('id');
+                    var resolution = $btn.data('resolution');
+                    var $row = $('#wc-mss-conflict-row-' + id);
+
+                    $row.find('button').prop('disabled', true);
+
+                    fetch(wcMssAdmin.ajax_url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'wc_mss_resolve_conflict',
+                            nonce: wcMssAdmin.nonce,
+                            id: id,
+                            resolution: resolution
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            if (response.success) {
+                                $row.fadeOut(300, function () { $(this).remove(); });
+                            } else {
+                                showNotice((response.data && response.data.message) || i18n.resolve_failed, 'error');
+                                $row.find('button').prop('disabled', false);
+                            }
+                        })
+                        .catch(function () {
+                            showNotice(i18n.resolve_failed, 'error');
+                            $row.find('button').prop('disabled', false);
+                        });
+                });
+
+                $(resolveAllBtn).on('click', function () {
+                    var resolution = resolutionSelect.value;
+                    if (!confirm(i18n.confirm_resolve_all.replace('%s', resolution))) {
+                        return;
+                    }
+
+                    var $btn = $(this).prop('disabled', true);
+
+                    fetch(wcMssAdmin.ajax_url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'wc_mss_resolve_all_conflicts',
+                            nonce: wcMssAdmin.nonce,
+                            store_url: storeFilter.value,
+                            resolution: resolution
+                        }),
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (response) {
+                            $btn.prop('disabled', false);
+                            if (response.success) {
+                                showNotice(response.data.message);
+                                loadConflicts();
+                            } else {
+                                showNotice((response.data && response.data.message) || i18n.resolve_failed, 'error');
+                            }
+                        })
+                        .catch(function () {
+                            $btn.prop('disabled', false);
+                            showNotice(i18n.resolve_failed, 'error');
+                        });
+                });
+
+                loadConflicts();
+            });
+        }
+
     });
 
     /**

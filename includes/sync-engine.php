@@ -573,7 +573,22 @@ class WC_Multi_Store_Sync_Engine {
         // opts into the toggle, so not worth plumbing the already-fetched data
         // through for a feature that's off by default.
         if ($is_update) {
-            WC_Multi_Store_Conflict_Detector::check_for_conflicts($api, $remote_product['id'], $product->get_id(), $store_url);
+            $conflict_result = WC_Multi_Store_Conflict_Detector::check_for_conflicts($api, $remote_product['id'], $product->get_id(), $store_url);
+
+            if ($conflict_result['has_conflict'] && WC_Multi_Store_Conflict_Detector::get_settings()['action_on_conflict'] === 'block') {
+                $this->logger->warning(sprintf(
+                    'Sync blocked for %s on %s — unresolved conflict (changed fields: %s)',
+                    $product->get_sku(),
+                    $store_url,
+                    implode(', ', $conflict_result['changed_fields'])
+                ));
+
+                return [
+                    'success' => true,
+                    'skipped' => true,
+                    'message' => 'Sync skipped — unresolved conflict on remote store',
+                ];
+            }
         }
 
         // Build and apply rules to product data

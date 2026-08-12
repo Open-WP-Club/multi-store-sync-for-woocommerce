@@ -832,7 +832,11 @@ if (!defined('ABSPATH')) {
                         $conflict_stats = WC_Multi_Store_Conflict_Detector::get_stats();
                         if ($conflict_stats['unresolved'] > 0): ?>
                         <p style="margin-top: 5px; color: #d63638;">
-                            <strong><?php printf(__('%d unresolved conflict(s)', 'wc-multi-store-sync'), $conflict_stats['unresolved']); ?></strong>
+                            <strong>
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=conflicts')); ?>" style="color: #d63638;">
+                                    <?php printf(__('%d unresolved conflict(s)', 'wc-multi-store-sync'), $conflict_stats['unresolved']); ?>
+                                </a>
+                            </strong>
                         </p>
                         <?php endif; ?>
                     </td>

@@ -104,6 +104,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->justReturn([]);
         Functions\when('update_option')->justReturn(true);
         Functions\when('delete_option')->justReturn(true);
+        Functions\when('do_action')->justReturn(null);
     }
 
     protected function tearDown(): void
@@ -265,6 +266,92 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         $this->assertSame($product, $result['remote_data']);
     }
 
+    public function test_check_detects_conflict_fires_conflict_detected_action(): void
+    {
+        Functions\when('get_option')
+            ->alias(function ($key, $default = null) {
+                if ($key === 'wc_mss_conflict_settings') {
+                    return ['enabled' => true];
+                }
+                return $default ?? [];
+            });
+
+        $product   = $this->makeProduct(['name' => 'Modified Name']);
+        $staleHash = md5('intentionally-stale-hash');
+        $client    = new TestApiClientStub($product);
+
+        $oldSnapshot = $this->makeSnapshot($this->makeProduct(['name' => 'Original Name']));
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+
+        $wpdb->shouldReceive('prepare')
+            ->andReturnUsing(fn($sql, ...$args) => $sql);
+
+        $wpdb->shouldReceive('get_var')
+            ->twice()
+            ->andReturn($staleHash, json_encode($oldSnapshot));
+
+        $wpdb->shouldReceive('insert')->once()->andReturn(1);
+
+        $triggeredArgs = null;
+        Functions\when('do_action')
+            ->alias(function ($hook, ...$args) use (&$triggeredArgs) {
+                if ($hook === 'wc_mss_conflict_detected') {
+                    $triggeredArgs = $args;
+                }
+            });
+
+        WC_Multi_Store_Conflict_Detector::check_for_conflicts($client, 123, 1, 'https://remote.store');
+
+        $this->assertNotNull($triggeredArgs, 'wc_mss_conflict_detected was not fired');
+        $this->assertSame(1, $triggeredArgs[0]);
+        $this->assertSame(123, $triggeredArgs[1]);
+        $this->assertSame('https://remote.store', $triggeredArgs[2]);
+        $this->assertContains('name', $triggeredArgs[3]);
+    }
+
+    public function test_check_no_conflict_does_not_fire_conflict_detected_action(): void
+    {
+        Functions\when('get_option')
+            ->alias(function ($key, $default = null) {
+                if ($key === 'wc_mss_conflict_settings') {
+                    return ['enabled' => true];
+                }
+                return $default ?? [];
+            });
+
+        $product    = $this->makeProduct();
+        $storedHash = $this->expectedHash($product);
+        $client     = new TestApiClientStub($product);
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+
+        $wpdb->shouldReceive('prepare')
+            ->andReturnUsing(fn($sql, ...$args) => $sql);
+
+        $wpdb->shouldReceive('get_var')
+            ->once()
+            ->andReturn($storedHash);
+
+        $fired = false;
+        Functions\when('do_action')
+            ->alias(function ($hook) use (&$fired) {
+                if ($hook === 'wc_mss_conflict_detected') {
+                    $fired = true;
+                }
+            });
+
+        WC_Multi_Store_Conflict_Detector::check_for_conflicts($client, 123, 1, 'https://remote.store');
+
+        $this->assertFalse($fired);
+    }
+
     public function test_check_returns_no_conflict_on_api_error(): void
     {
         Functions\when('get_option')
@@ -283,6 +370,39 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         $this->assertFalse($result['has_conflict']);
         $this->assertSame([], $result['changed_fields']);
         $this->assertNull($result['remote_data']);
+    }
+
+    // =========================================================================
+    // get_settings
+    // =========================================================================
+
+    public function test_get_settings_defaults_when_option_missing(): void
+    {
+        Functions\when('get_option')->justReturn([]);
+
+        $settings = WC_Multi_Store_Conflict_Detector::get_settings();
+
+        $this->assertFalse($settings['enabled']);
+        $this->assertSame('warn', $settings['action_on_conflict']);
+        $this->assertTrue($settings['notify_email']);
+    }
+
+    public function test_get_settings_merges_partial_stored_values(): void
+    {
+        Functions\when('get_option')
+            ->alias(function ($key, $default = null) {
+                if ($key === 'wc_mss_conflict_settings') {
+                    return ['enabled' => true, 'action_on_conflict' => 'block'];
+                }
+                return $default ?? [];
+            });
+
+        $settings = WC_Multi_Store_Conflict_Detector::get_settings();
+
+        $this->assertTrue($settings['enabled']);
+        $this->assertSame('block', $settings['action_on_conflict']);
+        // notify_email wasn't stored — default must still be present
+        $this->assertTrue($settings['notify_email']);
     }
 
     // =========================================================================
@@ -648,6 +768,143 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         $this->assertSame(3, $stats['unresolved']);
         $this->assertSame(7, $stats['resolved']);    // 10 - 3
         $this->assertSame(4, $stats['stores_affected']);
+    }
+
+    // =========================================================================
+    // ajax_get_conflicts
+    // =========================================================================
+
+    public function test_ajax_get_conflicts_enriches_rows_with_product_data(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_results')->once()->andReturn([
+            [
+                'id'               => 1,
+                'local_product_id' => 10,
+                'store_url'        => 'https://store.com',
+                'changed_fields'   => '["name"]',
+                'resolved'         => '0',
+                'detected_at'      => '2024-01-15 12:00:00',
+            ],
+        ]);
+        $wpdb->shouldReceive('get_var')->andReturn('1', '0', '1');
+
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('get_name')->andReturn('Widget');
+        $product->shouldReceive('get_sku')->andReturn('WDG-1');
+        Functions\when('wc_get_product')->justReturn($product);
+        Functions\when('get_edit_post_link')->justReturn('https://site.test/wp-admin/post.php?post=10&action=edit');
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_get_conflicts();
+
+        $this->assertSame('Widget', $sent['conflicts'][0]['product_name']);
+        $this->assertSame('WDG-1', $sent['conflicts'][0]['product_sku']);
+        $this->assertStringContainsString('post=10', $sent['conflicts'][0]['edit_url']);
+        $this->assertArrayHasKey('stats', $sent);
+    }
+
+    public function test_ajax_get_conflicts_marks_missing_product(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_results')->once()->andReturn([
+            [
+                'id'               => 1,
+                'local_product_id' => 999,
+                'store_url'        => 'https://store.com',
+                'changed_fields'   => '["name"]',
+                'resolved'         => '0',
+                'detected_at'      => '2024-01-15 12:00:00',
+            ],
+        ]);
+        $wpdb->shouldReceive('get_var')->andReturn('1', '1', '1');
+
+        Functions\when('wc_get_product')->justReturn(false);
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_get_conflicts();
+
+        $this->assertSame('(Product not found)', $sent['conflicts'][0]['product_name']);
+        $this->assertSame('', $sent['conflicts'][0]['product_sku']);
+        $this->assertSame('', $sent['conflicts'][0]['edit_url']);
+    }
+
+    public function test_ajax_get_conflicts_defaults_to_unresolved_only(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('wp_send_json_success')->justReturn(null);
+        Functions\when('wc_get_product')->justReturn(false);
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+
+        $capturedSql = null;
+        $wpdb->shouldReceive('prepare')->andReturnUsing(function ($sql, ...$args) use (&$capturedSql) {
+            $capturedSql = $sql;
+            return $sql;
+        });
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('get_var')->andReturn('0', '0', '0');
+
+        WC_Multi_Store_Conflict_Detector::ajax_get_conflicts();
+
+        $this->assertStringContainsString('resolved = 0', (string) $capturedSql);
+    }
+
+    public function test_ajax_get_conflicts_status_all_includes_resolved(): void
+    {
+        $_GET['status'] = 'all';
+
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('wp_send_json_success')->justReturn(null);
+        Functions\when('wc_get_product')->justReturn(false);
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+
+        $capturedSql = null;
+        $wpdb->shouldReceive('prepare')->andReturnUsing(function ($sql, ...$args) use (&$capturedSql) {
+            $capturedSql = $sql;
+            return $sql;
+        });
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('get_var')->andReturn('0', '0', '0');
+
+        WC_Multi_Store_Conflict_Detector::ajax_get_conflicts();
+
+        unset($_GET['status']);
+
+        $this->assertStringNotContainsString('resolved = 0', (string) $capturedSql);
     }
 
     // =========================================================================

@@ -38,6 +38,7 @@ class WC_Multi_Store_Email_Notifications {
         add_action('wc_mss_sync_failed', $this->send_failed_sync_notification(...), 10, 3);
         add_action('wc_mss_api_error', $this->send_api_error_notification(...), 10, 2);
         add_action('wc_mss_low_stock_detected', $this->send_low_stock_notification(...), 10, 3);
+        add_action('wc_mss_conflict_detected', $this->send_conflict_notification(...), 10, 4);
     }
 
     /**
@@ -258,6 +259,57 @@ class WC_Multi_Store_Email_Notifications {
     }
 
     /**
+     * Send conflict detected notification
+     *
+     * Gated on both the global Email Notifications 'enabled' toggle and the
+     * Conflict Detector's own 'notify_email' setting — matches the two-key
+     * gating already used by check_for_conflicts() itself (feature toggle +
+     * this notification toggle are independent knobs).
+     *
+     * @param int $local_product_id Local product ID
+     * @param int $remote_product_id Remote product ID
+     * @param string $store_url Remote store URL
+     * @param array $changed_fields Fields that changed on the remote product
+     */
+    public function send_conflict_notification(int $local_product_id, int $remote_product_id, string $store_url, array $changed_fields): void {
+        $settings = self::get_settings();
+
+        if (!self::is_enabled() || empty(WC_Multi_Store_Conflict_Detector::get_settings()['notify_email'])) {
+            return;
+        }
+
+        if (!$this->claim_daily_slot('conflict_detected')) {
+            return;
+        }
+
+        $product = wc_get_product($local_product_id);
+        if (!$product) {
+            return;
+        }
+
+        $subject = sprintf(
+            __('[%s] Sync Conflict Detected', 'wc-multi-store-sync'),
+            get_bloginfo('name')
+        );
+
+        $data = [
+            'product_id'       => $local_product_id,
+            'product_name'     => $product->get_name(),
+            'product_sku'      => $product->get_sku(),
+            'remote_product_id' => $remote_product_id,
+            'store_url'        => $store_url,
+            'changed_fields'   => implode(', ', $changed_fields),
+            'timestamp'        => current_time('mysql'),
+            'edit_url'         => function_exists('admin_url') ? admin_url("post.php?post={$local_product_id}&action=edit") : '',
+            'conflicts_url'    => function_exists('admin_url') ? admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=conflicts') : '',
+        ];
+
+        $message = $this->load_template('conflict-detected', $data);
+
+        $this->send_email($settings['recipient_email'], $subject, $message);
+    }
+
+    /**
      * Send daily summary email
      */
     public function send_daily_summary(): void {
@@ -365,6 +417,7 @@ class WC_Multi_Store_Email_Notifications {
             'api-error' => $this->get_api_error_template($data),
             'low-stock' => $this->get_low_stock_template($data),
             'daily-summary' => $this->get_daily_summary_template($data),
+            'conflict-detected' => $this->get_conflict_detected_template($data),
             default => '',
         };
     }
@@ -531,6 +584,49 @@ class WC_Multi_Store_Email_Notifications {
     }
 
     /**
+     * Get conflict detected template
+     *
+     * @param array $data Template data
+     * @return string Email content
+     */
+    private function get_conflict_detected_template(array $data): string {
+        $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
+            . __('A product was <strong>modified directly on a remote store</strong> since our last sync. Review the change before it gets overwritten.', 'wc-multi-store-sync')
+            . '</p>';
+
+        $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            . 'style="border-collapse:collapse;margin:0 0 24px;border-radius:6px;overflow:hidden;border:1px solid #dcdcde;">'
+            . $this->data_row(__('Product', 'wc-multi-store-sync'), esc_html($data['product_name']))
+            . $this->data_row('SKU',
+                '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;font-size:12px;">'
+                . esc_html($data['product_sku']) . '</code>')
+            . $this->data_row(__('Remote Store', 'wc-multi-store-sync'), esc_html($data['store_url']))
+            . $this->data_row(__('Changed Fields', 'wc-multi-store-sync'), esc_html($data['changed_fields']), '#d63638')
+            . $this->data_row(__('Detected at', 'wc-multi-store-sync'), esc_html($data['timestamp']))
+            . '</table>';
+
+        $buttons = '';
+        if (!empty($data['edit_url']) || !empty($data['conflicts_url'])) {
+            $buttons = '<p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#646970;text-transform:uppercase;letter-spacing:.5px;">'
+                . __('Quick Actions', 'wc-multi-store-sync') . '</p><p style="margin:0;">';
+            if (!empty($data['conflicts_url'])) {
+                $buttons .= $this->action_button($data['conflicts_url'], __('Review Conflict', 'wc-multi-store-sync'), '#2271b1');
+            }
+            if (!empty($data['edit_url'])) {
+                $buttons .= $this->action_button($data['edit_url'], __('Edit Product', 'wc-multi-store-sync'), '#646970');
+            }
+            $buttons .= '</p>';
+        }
+
+        return $this->wrap_email(
+            __('Sync Conflict Detected', 'wc-multi-store-sync'),
+            __('Conflict Alert', 'wc-multi-store-sync'),
+            '#9a5001',
+            $lead . $table . $buttons
+        );
+    }
+
+    /**
      * Get daily summary template
      *
      * @param array $data Template data
@@ -673,5 +769,17 @@ class WC_Multi_Store_Email_Notifications {
      */
     public static function trigger_low_stock(int $product_id, string $store_url, int $stock_quantity): void {
         do_action('wc_mss_low_stock_detected', $product_id, $store_url, $stock_quantity);
+    }
+
+    /**
+     * Trigger conflict detected notification
+     *
+     * @param int $local_product_id Local product ID
+     * @param int $remote_product_id Remote product ID
+     * @param string $store_url Remote store URL
+     * @param array $changed_fields Fields that changed on the remote product
+     */
+    public static function trigger_conflict_detected(int $local_product_id, int $remote_product_id, string $store_url, array $changed_fields): void {
+        do_action('wc_mss_conflict_detected', $local_product_id, $remote_product_id, $store_url, $changed_fields);
     }
 }
