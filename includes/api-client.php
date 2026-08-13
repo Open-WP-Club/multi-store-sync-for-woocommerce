@@ -372,40 +372,6 @@ class WC_Multi_Store_API_Client {
         return $this->store_url;
     }
 
-    /**
-     * Get current rate limit status for debugging.
-     * Reflects the merged (cross-process) view, same as enforce_rate_limit().
-     *
-     * @return array Rate limit info
-     */
-    public function get_rate_limit_status(): array {
-        $store_key = md5($this->store_url);
-        $now       = microtime(true);
-
-        if (function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()) {
-            $bucket    = (int) floor($now / self::RATE_LIMIT_WINDOW);
-            $cache_key = 'rl_' . $store_key . '_' . $bucket;
-            $count     = (int) wp_cache_get($cache_key, self::RATE_LIMIT_CACHE_GROUP);
-        } else {
-            $transient_key = self::RATE_LIMIT_TRANSIENT_PREFIX . $store_key;
-            $window_start  = $now - self::RATE_LIMIT_WINDOW;
-
-            $local     = self::$request_timestamps[$store_key] ?? [];
-            $persisted = get_transient($transient_key);
-            $persisted = is_array($persisted) ? $persisted : [];
-
-            $merged = array_values(array_unique(array_merge($local, $persisted)));
-            $recent = array_filter($merged, fn($ts) => $ts > $window_start);
-            $count  = count($recent);
-        }
-
-        return [
-            'requests_in_window' => $count,
-            'max_requests'       => self::RATE_LIMIT_REQUESTS,
-            'window_seconds'     => self::RATE_LIMIT_WINDOW,
-            'available'          => max(0, self::RATE_LIMIT_REQUESTS - $count),
-        ];
-    }
 
     /**
      * Make GET request
@@ -842,17 +808,6 @@ class WC_Multi_Store_API_Client {
     }
 
     /**
-     * Get single product variation
-     *
-     * @param int $product_id Product ID
-     * @param int $variation_id Variation ID
-     * @return array|WP_Error Variation data or WP_Error
-     */
-    public function get_product_variation(int $product_id, int $variation_id): array|\WP_Error {
-        return $this->get('products/' . $product_id . '/variations/' . $variation_id);
-    }
-
-    /**
      * Create product variation
      *
      * @param int $product_id Product ID
@@ -861,18 +816,6 @@ class WC_Multi_Store_API_Client {
      */
     public function create_product_variation(int $product_id, array $data): array|\WP_Error {
         return $this->post('products/' . $product_id . '/variations', $data);
-    }
-
-    /**
-     * Update product variation
-     *
-     * @param int $product_id Product ID
-     * @param int $variation_id Variation ID
-     * @param array $data Variation data
-     * @return array|WP_Error Updated variation data or WP_Error
-     */
-    public function update_product_variation(int $product_id, int $variation_id, array $data): array|\WP_Error {
-        return $this->put('products/' . $product_id . '/variations/' . $variation_id, $data);
     }
 
     /**
@@ -993,16 +936,6 @@ class WC_Multi_Store_API_Client {
     }
 
     /**
-     * Get single category
-     *
-     * @param int $category_id Category ID
-     * @return array|WP_Error Category data or WP_Error
-     */
-    public function get_category(int $category_id): array|\WP_Error {
-        return $this->get('products/categories/' . $category_id);
-    }
-
-    /**
      * Create category
      *
      * @param array $data Category data
@@ -1010,17 +943,6 @@ class WC_Multi_Store_API_Client {
      */
     public function create_category(array $data): array|\WP_Error {
         return $this->post('products/categories', $data);
-    }
-
-    /**
-     * Update category
-     *
-     * @param int $category_id Category ID
-     * @param array $data Category data
-     * @return array|WP_Error Updated category data or WP_Error
-     */
-    public function update_category(int $category_id, array $data): array|\WP_Error {
-        return $this->put('products/categories/' . $category_id, $data);
     }
 
     /**
@@ -1061,16 +983,6 @@ class WC_Multi_Store_API_Client {
     }
 
     /**
-     * Get single tag
-     *
-     * @param int $tag_id Tag ID
-     * @return array|WP_Error Tag data or WP_Error
-     */
-    public function get_tag(int $tag_id): array|\WP_Error {
-        return $this->get('products/tags/' . $tag_id);
-    }
-
-    /**
      * Create tag
      *
      * @param array $data Tag data
@@ -1078,17 +990,6 @@ class WC_Multi_Store_API_Client {
      */
     public function create_tag(array $data): array|\WP_Error {
         return $this->post('products/tags', $data);
-    }
-
-    /**
-     * Update tag
-     *
-     * @param int $tag_id Tag ID
-     * @param array $data Tag data
-     * @return array|WP_Error Updated tag data or WP_Error
-     */
-    public function update_tag(int $tag_id, array $data): array|\WP_Error {
-        return $this->put('products/tags/' . $tag_id, $data);
     }
 
     /**
@@ -1104,6 +1005,26 @@ class WC_Multi_Store_API_Client {
     }
 
     // ========================================
+    // Attribute Operations
+    // ========================================
+
+    /**
+     * Get global product attributes (e.g. Color, Size)
+     *
+     * @param array $params Additional parameters
+     * @return array|WP_Error Attributes array or WP_Error
+     */
+    public function get_attributes(array $params = []): array|\WP_Error {
+        $default_params = [
+            'per_page' => self::DEFAULT_BATCH_SIZE,
+        ];
+
+        $params = wp_parse_args($params, $default_params);
+
+        return $this->get('products/attributes', $params);
+    }
+
+    // ========================================
     // Batch Term Operations
     // ========================================
 
@@ -1114,21 +1035,7 @@ class WC_Multi_Store_API_Client {
      * @return array|WP_Error Batch result or WP_Error
      */
     public function batch_categories(array $batch): array|\WP_Error {
-        if (empty($batch) || !is_array($batch)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // WooCommerce batch endpoint limit is 100 items total
-        $total = 0;
-        $total += isset($batch['create']) ? count($batch['create']) : 0;
-        $total += isset($batch['update']) ? count($batch['update']) : 0;
-        $total += isset($batch['delete']) ? count($batch['delete']) : 0;
-
-        if ($total > 100) {
-            return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
-        }
-
-        return $this->post('products/categories/batch', $batch);
+        return self::validate_batch($batch) ?? $this->post('products/categories/batch', $batch);
     }
 
     /**
@@ -1138,11 +1045,22 @@ class WC_Multi_Store_API_Client {
      * @return array|WP_Error Batch result or WP_Error
      */
     public function batch_tags(array $batch): array|\WP_Error {
+        return self::validate_batch($batch) ?? $this->post('products/tags/batch', $batch);
+    }
+
+    /**
+     * Validate a batch payload before sending: must be a non-empty array,
+     * and its combined create/update/delete items must fit the WooCommerce
+     * batch endpoint's 100-item limit. Shared by all batch_*() methods.
+     *
+     * @param array $batch Batch data with 'create', 'update', 'delete' keys
+     * @return WP_Error|null Error if invalid, null if the batch is valid
+     */
+    private static function validate_batch(array $batch): ?WP_Error {
         if (empty($batch) || !is_array($batch)) {
             return new WP_Error('invalid_batch', 'Invalid batch data');
         }
 
-        // WooCommerce batch endpoint limit is 100 items total
         $total = 0;
         $total += isset($batch['create']) ? count($batch['create']) : 0;
         $total += isset($batch['update']) ? count($batch['update']) : 0;
@@ -1152,7 +1070,7 @@ class WC_Multi_Store_API_Client {
             return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
         }
 
-        return $this->post('products/tags/batch', $batch);
+        return null;
     }
 
     // ========================================
@@ -1175,104 +1093,9 @@ class WC_Multi_Store_API_Client {
         return $this->get('orders', $params);
     }
 
-    /**
-     * Get single order
-     *
-     * @param int $order_id Order ID
-     * @return array|WP_Error Order data or WP_Error
-     */
-    public function get_order(int $order_id): array|\WP_Error {
-        return $this->get('orders/' . $order_id);
-    }
-
     // ========================================
     // Batch Operations
     // ========================================
-
-    /**
-     * Batch update products
-     *
-     * @param array $updates Array of product updates (max 100)
-     * @return array|WP_Error Batch results or WP_Error
-     */
-    public function batch_update_products(array $updates): array|\WP_Error {
-        if (empty($updates) || !is_array($updates)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // WooCommerce batch endpoint accepts max 100 items
-        $updates = array_slice($updates, 0, 100);
-
-        return $this->post('products/batch', ['update' => $updates]);
-    }
-
-    /**
-     * Batch create products
-     *
-     * @param array $creates Array of product data (max 100)
-     * @return array|WP_Error Batch results or WP_Error
-     */
-    public function batch_create_products(array $creates): array|\WP_Error {
-        if (empty($creates) || !is_array($creates)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // WooCommerce batch endpoint accepts max 100 items
-        $creates = array_slice($creates, 0, 100);
-
-        return $this->post('products/batch', ['create' => $creates]);
-    }
-
-    /**
-     * Batch delete products
-     *
-     * @param array $product_ids Array of product IDs to delete (max 100)
-     * @param bool $force Force delete
-     * @return array|WP_Error Batch results or WP_Error
-     */
-    public function batch_delete_products(array $product_ids, bool $force = false): array|\WP_Error {
-        if (empty($product_ids) || !is_array($product_ids)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // WooCommerce batch endpoint accepts max 100 items
-        $product_ids = array_slice($product_ids, 0, 100);
-
-        $deletes = array_map(fn($id) => ['id' => $id], $product_ids);
-
-        $params = ['delete' => $deletes];
-        if ($force) {
-            foreach ($params['delete'] as &$item) {
-                $item['force'] = true;
-            }
-        }
-
-        return $this->post('products/batch', $params);
-    }
-
-    /**
-     * Batch operations (mixed create/update/delete)
-     *
-     * @param array $batch Batch data with 'create', 'update', 'delete' keys
-     * @return array|WP_Error Batch results or WP_Error
-     */
-    public function batch_products(array $batch): array|\WP_Error {
-        if (empty($batch) || !is_array($batch)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // Ensure total doesn't exceed 100 items
-        $total = 0;
-        $total += isset($batch['create']) ? count($batch['create']) : 0;
-        $total += isset($batch['update']) ? count($batch['update']) : 0;
-        $total += isset($batch['delete']) ? count($batch['delete']) : 0;
-
-        if ($total > 100) {
-            return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
-        }
-
-        return $this->post('products/batch', $batch);
-    }
 
     /**
      * Batch operations for product variations (mixed create/update/delete)
@@ -1283,21 +1106,7 @@ class WC_Multi_Store_API_Client {
      * @return array|WP_Error Batch results or WP_Error
      */
     public function batch_product_variations(int $product_id, array $batch): array|\WP_Error {
-        if (empty($batch) || !is_array($batch)) {
-            return new WP_Error('invalid_batch', 'Invalid batch data');
-        }
-
-        // Ensure total doesn't exceed 100 items
-        $total = 0;
-        $total += isset($batch['create']) ? count($batch['create']) : 0;
-        $total += isset($batch['update']) ? count($batch['update']) : 0;
-        $total += isset($batch['delete']) ? count($batch['delete']) : 0;
-
-        if ($total > 100) {
-            return new WP_Error('batch_too_large', 'Batch size exceeds 100 items');
-        }
-
-        return $this->post('products/' . $product_id . '/variations/batch', $batch);
+        return self::validate_batch($batch) ?? $this->post('products/' . $product_id . '/variations/batch', $batch);
     }
 
     // ========================================

@@ -254,19 +254,6 @@ class WC_Multi_Store_Stock_Allocator {
     }
 
     /**
-     * Get allocation types with labels
-     *
-     * @return array Allocation types
-     */
-    public static function get_allocation_types(): array {
-        $types = [];
-        foreach (WC_Multi_Store_Stock_Allocation_Type::cases() as $type) {
-            $types[$type->value] = $type->label();
-        }
-        return $types;
-    }
-
-    /**
      * Preview stock allocation
      *
      * @param int $total_stock Total stock

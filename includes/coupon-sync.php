@@ -12,6 +12,7 @@ if (!defined('ABSPATH')) {
 
 class WC_Multi_Store_Coupon_Sync {
     use WC_Multi_Store_Ajax_Auth_Guard;
+    use WC_Multi_Store_Async_Sync;
 
     /**
      * TTL for the per-store SKU→remote-product-ID / slug→remote-category-ID
@@ -128,18 +129,6 @@ class WC_Multi_Store_Coupon_Sync {
      * ships with WooCommerce, which this plugin already requires, so the
      * unavailable case should only happen on a broken install.
      */
-    private function schedule_async(string $hook, array $args): void {
-        if (!WC_Multi_Store_Action_Scheduler_Manager::is_available()) {
-            WC_Multi_Store_Logger::write(
-                "Action Scheduler unavailable — skipped queuing {$hook}",
-                'warning'
-            );
-            return;
-        }
-
-        as_schedule_single_action(time(), $hook, $args, WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
-    }
-
     /**
      * Extract coupon data for the WooCommerce REST API
      */
@@ -249,13 +238,6 @@ class WC_Multi_Store_Coupon_Sync {
         ));
 
         return true;
-    }
-
-    /**
-     * Delete a coupon from all remote stores
-     */
-    public function delete_coupon_from_all_stores(WC_Coupon $coupon): array {
-        return $this->delete_coupon_from_all_stores_by_code($coupon->get_code());
     }
 
     /**
@@ -515,16 +497,7 @@ class WC_Multi_Store_Coupon_Sync {
     private static function get_coupon_settings(): array {
         return get_option('wc_multi_store_sync_coupon_settings', [
             'enabled' => false,
-            'auto_sync_on_save' => true,
-            'auto_sync_deletions' => true,
         ]);
-    }
-
-    /**
-     * Create an API client for a store
-     */
-    private static function get_api_client(array $store): WC_Multi_Store_API_Client {
-        return WC_Multi_Store_API_Client::for_store($store['store_url'], $store);
     }
 
     /**

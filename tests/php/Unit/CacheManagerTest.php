@@ -122,77 +122,6 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test refresh_remote_product_expiration returns false for empty search value
-     */
-    public function test_refresh_remote_product_expiration_empty_value_returns_false(): void
-    {
-        $result = WC_Multi_Store_Cache_Manager::refresh_remote_product_expiration('https://example.com', '', 'sku');
-        $this->assertFalse($result);
-    }
-
-    /**
-     * Test refresh_remote_product_expiration returns false when no cached data
-     */
-    public function test_refresh_remote_product_expiration_no_cache_returns_false(): void
-    {
-        Functions\expect('get_transient')
-            ->once()
-            ->andReturn(false);
-
-        $result = WC_Multi_Store_Cache_Manager::refresh_remote_product_expiration('https://example.com', 'SKU123', 'sku');
-
-        $this->assertFalse($result);
-    }
-
-    /**
-     * Test refresh_remote_product_expiration refreshes existing cache
-     */
-    public function test_refresh_remote_product_expiration_refreshes_cache(): void
-    {
-        $cached_data = array('id' => 123);
-
-        Functions\expect('get_transient')
-            ->once()
-            ->andReturn($cached_data);
-
-        Functions\expect('set_transient')
-            ->once()
-            ->with(
-                \Mockery::type('string'),
-                $cached_data,
-                WC_Multi_Store_Cache_Manager::REMOTE_PRODUCT_EXPIRATION
-            )
-            ->andReturn(true);
-
-        $result = WC_Multi_Store_Cache_Manager::refresh_remote_product_expiration('https://example.com', 'SKU123', 'sku');
-
-        $this->assertTrue($result);
-    }
-
-    /**
-     * Test bulk_refresh_after_verification handles empty array
-     */
-    public function test_bulk_refresh_after_verification_empty_array(): void
-    {
-        $result = WC_Multi_Store_Cache_Manager::bulk_refresh_after_verification(array());
-        $this->assertEquals(0, $result);
-    }
-
-    /**
-     * Test bulk_refresh_after_verification skips invalid products
-     */
-    public function test_bulk_refresh_after_verification_skips_invalid(): void
-    {
-        $products = array(
-            array('sku' => '', 'store_url' => 'https://example.com'),
-            array('sku' => 'SKU123', 'store_url' => ''),
-        );
-
-        $result = WC_Multi_Store_Cache_Manager::bulk_refresh_after_verification($products);
-        $this->assertEquals(0, $result);
-    }
-
-    /**
      * Test get_remote_variations calls get_transient
      */
     public function test_get_remote_variations_calls_transient(): void
@@ -320,57 +249,6 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
     {
         $result = WC_Multi_Store_Cache_Manager::set_taxonomy_terms('product_cat', array(), array());
         $this->assertFalse($result);
-    }
-
-    /**
-     * Test get_active_stores calls get_transient
-     */
-    public function test_get_active_stores_calls_transient(): void
-    {
-        $expected_stores = array('https://store1.com' => array('status' => 'active'));
-
-        Functions\expect('get_transient')
-            ->once()
-            ->andReturn($expected_stores);
-
-        $result = WC_Multi_Store_Cache_Manager::get_active_stores();
-
-        $this->assertEquals($expected_stores, $result);
-    }
-
-    /**
-     * Test set_active_stores uses correct expiration
-     */
-    public function test_set_active_stores_uses_correct_expiration(): void
-    {
-        $stores = array('https://store1.com' => array('status' => 'active'));
-
-        Functions\expect('set_transient')
-            ->once()
-            ->with(
-                \Mockery::type('string'),
-                $stores,
-                WC_Multi_Store_Cache_Manager::STORE_CONFIG_EXPIRATION
-            )
-            ->andReturn(true);
-
-        $result = WC_Multi_Store_Cache_Manager::set_active_stores($stores);
-
-        $this->assertTrue($result);
-    }
-
-    /**
-     * Test clear_active_stores calls delete_transient
-     */
-    public function test_clear_active_stores_calls_delete_transient(): void
-    {
-        Functions\expect('delete_transient')
-            ->once()
-            ->andReturn(true);
-
-        $result = WC_Multi_Store_Cache_Manager::clear_active_stores();
-
-        $this->assertTrue($result);
     }
 
     /**

@@ -23,7 +23,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
         // Default stubs — individual tests override as needed.
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [],
@@ -69,52 +68,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
         });
 
         $this->assertTrue(WC_Multi_Store_Attribute_Remapper::is_enabled());
-    }
-
-    // -------------------------------------------------------------------------
-    // migrate_settings_to_central_store()
-    // -------------------------------------------------------------------------
-
-    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
-    {
-        Functions\when('get_option')->alias(function ($opt, $default = null) {
-            if ($opt === WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
-            if ($opt === 'wc_multi_store_sync_settings') {
-                return [];
-            }
-            return $default;
-        });
-
-        $saved = null;
-        Functions\when('update_option')->alias(function ($key, $value) use (&$saved) {
-            if ($key === 'wc_multi_store_sync_settings') {
-                $saved = $value;
-            }
-            return true;
-        });
-
-        Functions\expect('delete_option')
-            ->once()
-            ->with(WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY)
-            ->andReturn(true);
-
-        WC_Multi_Store_Attribute_Remapper::migrate_settings_to_central_store();
-
-        $this->assertTrue($saved['attribute_remapping_enabled']);
-    }
-
-    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
-    {
-        Functions\when('get_option')->justReturn(false);
-
-        Functions\expect('delete_option')->never();
-        Functions\expect('update_option')->never();
-
-        WC_Multi_Store_Attribute_Remapper::migrate_settings_to_central_store();
-
-        $this->addToAssertionCount(1);
     }
 
     // -------------------------------------------------------------------------
@@ -244,9 +197,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
     public function test_apply_mappings_returns_unchanged_when_disabled(): void
     {
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            if ($opt === WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY) {
-                return ['enabled' => false];
-            }
             return $default;
         });
 
@@ -292,7 +242,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
     {
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Цвят' => 'Color']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [],
@@ -316,7 +265,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
         // Mapping key is lowercase 'цвят', attribute name has leading capital 'Цвят'.
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['цвят' => 'Color']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [],
@@ -344,7 +292,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
         // sanitize_title('Color') → 'color' (our stub)
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Цвят' => 'Color']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [
@@ -387,7 +334,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($attrSlug) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Farbe']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [
@@ -416,7 +362,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($attrSlug) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Color']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [
@@ -452,7 +397,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($attrSlug) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 // No name mappings for this store.
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [],
@@ -484,7 +428,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($attrSlug) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Farbe']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [],
@@ -520,9 +463,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
     public function test_apply_variation_mappings_returns_unchanged_when_disabled(): void
     {
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            if ($opt === WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY) {
-                return ['enabled' => false];
-            }
             return $default;
         });
 
@@ -541,7 +481,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
     {
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Farbe']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [],
@@ -567,7 +506,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($attrSlug) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Farbe']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [
@@ -593,7 +531,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
     {
         Functions\when('get_option')->alias(function ($opt, $default = null) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Farbe']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [],
@@ -620,7 +557,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($attrSlug) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Color']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [
@@ -648,9 +584,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
     public function test_apply_default_attribute_mappings_returns_unchanged_when_disabled(): void
     {
         Functions\when('get_option')->alias(function ($opt, $default = null) {
-            if ($opt === WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY) {
-                return ['enabled' => false];
-            }
             return $default;
         });
 
@@ -672,7 +605,6 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_option')->alias(function ($opt, $default = null) use ($attrSlug) {
             return match ($opt) {
-                WC_Multi_Store_Attribute_Remapper::SETTINGS_KEY     => ['enabled' => true],
                 'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
                 WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY  => [$this->storeKey => ['Color' => 'Farbe']],
                 WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [
@@ -703,5 +635,165 @@ class AttributeRemapperTest extends WC_Multi_Store_TestCase
         $result = WC_Multi_Store_Attribute_Remapper::apply_default_attribute_mappings($product_data, self::STORE_URL);
 
         $this->assertSame($product_data, $result);
+    }
+
+    // -------------------------------------------------------------------------
+    // get_local_attributes()
+    // -------------------------------------------------------------------------
+
+    private function stubLocalColorAttribute(): void
+    {
+        $taxonomy = (object) [
+            'attribute_id' => 1,
+            'attribute_label' => 'Color',
+            'attribute_name' => 'color',
+            'attribute_type' => 'select',
+        ];
+        Functions\when('wc_get_attribute_taxonomies')->justReturn([$taxonomy]);
+        Functions\when('wc_attribute_taxonomy_name')->alias(fn($name) => 'pa_' . $name);
+
+        $term = (object) ['name' => 'Red'];
+        Functions\when('get_terms')->justReturn([$term]);
+    }
+
+    public function test_get_local_attributes_maps_taxonomies_and_terms(): void
+    {
+        $this->stubLocalColorAttribute();
+
+        $result = WC_Multi_Store_Attribute_Remapper::get_local_attributes();
+
+        $this->assertSame([
+            ['id' => 1, 'name' => 'Color', 'slug' => 'color', 'type' => 'select', 'values' => ['Red']],
+        ], $result);
+    }
+
+    public function test_get_local_attributes_returns_empty_values_on_wp_error(): void
+    {
+        $taxonomy = (object) [
+            'attribute_id' => 1,
+            'attribute_label' => 'Color',
+            'attribute_name' => 'color',
+            'attribute_type' => 'select',
+        ];
+        Functions\when('wc_get_attribute_taxonomies')->justReturn([$taxonomy]);
+        Functions\when('wc_attribute_taxonomy_name')->alias(fn($name) => 'pa_' . $name);
+        Functions\when('get_terms')->justReturn(new \WP_Error('bad_taxonomy', 'nope'));
+
+        $result = WC_Multi_Store_Attribute_Remapper::get_local_attributes();
+
+        $this->assertSame([], $result[0]['values']);
+    }
+
+    // -------------------------------------------------------------------------
+    // get_remote_attributes() — pagination
+    // -------------------------------------------------------------------------
+
+    /**
+     * Real API client with wp_remote_get() stubbed to return queued
+     * responses in order (mirrors CategoryMapperTest's equivalent helper).
+     */
+    private function makeClientWithQueuedResponses(array $bodies): WC_Multi_Store_API_Client
+    {
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body'] ?? '[]');
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->justReturn(true);
+        Functions\when('add_query_arg')->alias(function ($args, $url) {
+            return $url . '?' . http_build_query($args);
+        });
+        Functions\when('wp_remote_get')->alias(function () use (&$bodies) {
+            $body = array_shift($bodies);
+            if ($body instanceof \WP_Error) {
+                return $body;
+            }
+            return ['response' => ['code' => 200], 'body' => json_encode($body)];
+        });
+
+        return WC_Multi_Store_API_Client::for_store(self::STORE_URL, [
+            'consumer_key' => 'ck', 'consumer_secret' => 'cs',
+        ]);
+    }
+
+    public function test_get_remote_attributes_stops_when_fewer_than_100_returned(): void
+    {
+        $page1 = array_fill(0, 3, ['id' => 1, 'name' => 'Color', 'slug' => 'color']);
+        $client = $this->makeClientWithQueuedResponses([$page1]);
+
+        $result = WC_Multi_Store_Attribute_Remapper::get_remote_attributes($client);
+
+        $this->assertCount(3, $result);
+        $this->assertSame(['id' => 1, 'name' => 'Color', 'slug' => 'color'], $result[0]);
+    }
+
+    public function test_get_remote_attributes_paginates_when_exactly_100_returned(): void
+    {
+        $page1 = array_fill(0, 100, ['id' => 1, 'name' => 'Color', 'slug' => 'color']);
+        $page2 = array_fill(0, 2, ['id' => 2, 'name' => 'Size', 'slug' => 'size']);
+        $client = $this->makeClientWithQueuedResponses([$page1, $page2]);
+
+        $result = WC_Multi_Store_Attribute_Remapper::get_remote_attributes($client);
+
+        $this->assertCount(102, $result);
+    }
+
+    public function test_get_remote_attributes_handles_api_error(): void
+    {
+        $client = $this->makeClientWithQueuedResponses([
+            new \WP_Error('api_error', 'Connection refused'),
+        ]);
+
+        $result = WC_Multi_Store_Attribute_Remapper::get_remote_attributes($client);
+
+        $this->assertSame([], $result);
+    }
+
+    // -------------------------------------------------------------------------
+    // ajax_get_mappings()
+    // -------------------------------------------------------------------------
+
+    public function test_ajax_get_mappings_keys_value_mappings_by_attribute_name(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        $this->stubLocalColorAttribute();
+
+        Functions\when('get_option')->alias(function ($opt, $default = null) {
+            return match ($opt) {
+                'wc_multi_store_sync_settings' => ['attribute_remapping_enabled' => true],
+                WC_Multi_Store_Attribute_Remapper::NAME_MAPPING_KEY => [$this->storeKey => ['Color' => 'Farbe']],
+                WC_Multi_Store_Attribute_Remapper::VALUE_MAPPING_KEY => [$this->storeKey => ['color' => ['Red' => 'Rot']]],
+                default => $default,
+            };
+        });
+
+        $_POST['store_url'] = self::STORE_URL;
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Attribute_Remapper::ajax_get_mappings();
+
+        $this->assertSame(['Color' => 'Farbe'], $sent['name_mappings']);
+        $this->assertSame(['Red' => 'Rot'], $sent['value_mappings']['Color']);
+        $this->assertSame('Color', $sent['local_attributes'][0]['name']);
+
+        unset($_POST['store_url']);
+    }
+
+    public function test_ajax_get_mappings_requires_store_url(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        WC_Multi_Store_Attribute_Remapper::ajax_get_mappings();
+
+        $this->assertNotNull($error);
     }
 }

@@ -398,18 +398,6 @@ class CategoryDeletionSyncExtendedTest extends WC_Multi_Store_TestCase
         $this->assertTrue(true);
     }
 
-    public function test_update_settings_both_actions(): void
-    {
-        Functions\when('get_option')->justReturn([]);
-
-        $result = WC_Multi_Store_Category_Deletion_Sync::update_settings([
-            'category_deletion_action' => 'delete',
-            'tag_deletion_action' => 'delete',
-        ]);
-
-        $this->assertTrue($result);
-    }
-
     public function test_get_products_by_term_with_null_post(): void
     {
         Functions\when('get_post')->justReturn(null);

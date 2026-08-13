@@ -14,11 +14,6 @@ class WC_Multi_Store_Category_Mapper {
     use WC_Multi_Store_Toggleable_Feature;
 
     /**
-     * Settings option key
-     */
-    const SETTINGS_KEY = 'wc_mss_category_mapper_settings';
-
-    /**
      * Option key for storing category mappings
      */
     const OPTION_KEY = 'wc_mss_category_mappings';
@@ -95,31 +90,6 @@ class WC_Multi_Store_Category_Mapper {
     }
 
     /**
-     * Add a single category mapping for a store
-     *
-     * @param string $store_url Remote store URL
-     * @param string $local_slug Local category slug
-     * @param string $remote_slug Remote category slug to map to
-     */
-    public static function add_mapping(string $store_url, string $local_slug, string $remote_slug): void {
-        $mappings = self::get_mappings($store_url);
-        $mappings[$local_slug] = $remote_slug;
-        self::set_mappings($store_url, $mappings);
-    }
-
-    /**
-     * Remove a single category mapping for a store
-     *
-     * @param string $store_url Remote store URL
-     * @param string $local_slug Local category slug to unmap
-     */
-    public static function remove_mapping(string $store_url, string $local_slug): void {
-        $mappings = self::get_mappings($store_url);
-        unset($mappings[$local_slug]);
-        self::set_mappings($store_url, $mappings);
-    }
-
-    /**
      * Apply category mappings to product data before sending to a remote store
      *
      * @param array $product_data Product data array (with 'categories' key)
@@ -140,42 +110,7 @@ class WC_Multi_Store_Category_Mapper {
             return $product_data;
         }
 
-        $mapped_categories = [];
-        foreach ($product_data['categories'] as $category) {
-            $slug = $category['slug'] ?? '';
-            $name = $category['name'] ?? '';
-
-            if (isset($mappings[$slug])) {
-                $remote_slug = $mappings[$slug];
-
-                // Special case: empty mapping means skip this category
-                if ($remote_slug === '' || $remote_slug === '__skip__') {
-                    WC_Multi_Store_Logger::write(sprintf(
-                        'Category "%s" skipped for store %s (mapped to skip)',
-                        $slug,
-                        $store_url
-                    ));
-                    continue;
-                }
-
-                $mapped_categories[] = [
-                    'slug' => $remote_slug,
-                    'name' => $name,
-                ];
-
-                WC_Multi_Store_Logger::write(sprintf(
-                    'Category "%s" mapped to "%s" for store %s',
-                    $slug,
-                    $remote_slug,
-                    $store_url
-                ));
-            } else {
-                // No mapping: pass through as-is
-                $mapped_categories[] = $category;
-            }
-        }
-
-        $product_data['categories'] = $mapped_categories;
+        $product_data['categories'] = self::apply_term_mappings($product_data['categories'], $mappings, $store_url);
         return $product_data;
     }
 
@@ -200,28 +135,61 @@ class WC_Multi_Store_Category_Mapper {
             return $product_data;
         }
 
-        $mapped_tags = [];
-        foreach ($product_data['tags'] as $tag) {
-            $slug = $tag['slug'] ?? '';
+        $product_data['tags'] = self::apply_term_mappings($product_data['tags'], $mappings);
+        return $product_data;
+    }
 
-            if (isset($mappings[$slug])) {
-                $remote_slug = $mappings[$slug];
+    /**
+     * Map a list of category/tag terms through a slug=>slug mapping, dropping
+     * entries mapped to '' or '__skip__'. Shared by apply_mappings() and
+     * apply_tag_mappings(). Logging (with "Category" wording) only happens
+     * when $store_url is passed, since only category mappings logged originally.
+     *
+     * @param array $terms Terms with 'slug'/'name' keys
+     * @param array $mappings Local slug => remote slug (or '__skip__')
+     * @param string|null $store_url When set, logs each mapping/skip decision
+     * @return array Mapped terms
+     */
+    private static function apply_term_mappings(array $terms, array $mappings, ?string $store_url = null): array {
+        $mapped = [];
 
-                if ($remote_slug === '' || $remote_slug === '__skip__') {
-                    continue;
+        foreach ($terms as $term) {
+            $slug = $term['slug'] ?? '';
+
+            if (!isset($mappings[$slug])) {
+                $mapped[] = $term;
+                continue;
+            }
+
+            $remote_slug = $mappings[$slug];
+
+            if ($remote_slug === '' || $remote_slug === '__skip__') {
+                if ($store_url !== null) {
+                    WC_Multi_Store_Logger::write(sprintf(
+                        'Category "%s" skipped for store %s (mapped to skip)',
+                        $slug,
+                        $store_url
+                    ));
                 }
+                continue;
+            }
 
-                $mapped_tags[] = [
-                    'slug' => $remote_slug,
-                    'name' => $tag['name'] ?? '',
-                ];
-            } else {
-                $mapped_tags[] = $tag;
+            $mapped[] = [
+                'slug' => $remote_slug,
+                'name' => $term['name'] ?? '',
+            ];
+
+            if ($store_url !== null) {
+                WC_Multi_Store_Logger::write(sprintf(
+                    'Category "%s" mapped to "%s" for store %s',
+                    $slug,
+                    $remote_slug,
+                    $store_url
+                ));
             }
         }
 
-        $product_data['tags'] = $mapped_tags;
-        return $product_data;
+        return $mapped;
     }
 
     /**
@@ -263,6 +231,29 @@ class WC_Multi_Store_Category_Mapper {
     }
 
     /**
+     * Get all local tags for the mapping UI
+     */
+    public static function get_local_tags(): array {
+        $terms = get_terms([
+            'taxonomy' => 'product_tag',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+
+        if (is_wp_error($terms)) {
+            return [];
+        }
+
+        return array_map(fn(WP_Term $term) => [
+            'id' => $term->term_id,
+            'name' => $term->name,
+            'slug' => $term->slug,
+            'count' => $term->count,
+        ], $terms);
+    }
+
+    /**
      * Get remote categories for the mapping UI (fetches from remote store)
      */
     public static function get_remote_categories(WC_Multi_Store_API_Client $client): array {
@@ -270,7 +261,7 @@ class WC_Multi_Store_Category_Mapper {
         $all_categories = [];
 
         do {
-            $response = $client->get('products/categories', [
+            $response = $client->get_categories('', [
                 'per_page' => 100,
                 'page' => $page,
             ]);
@@ -290,6 +281,35 @@ class WC_Multi_Store_Category_Mapper {
             'parent' => $cat['parent'],
             'count' => $cat['count'],
         ], $all_categories);
+    }
+
+    /**
+     * Get remote tags for the mapping UI (fetches from remote store)
+     */
+    public static function get_remote_tags(WC_Multi_Store_API_Client $client): array {
+        $page = 1;
+        $all_tags = [];
+
+        do {
+            $response = $client->get_tags('', [
+                'per_page' => 100,
+                'page' => $page,
+            ]);
+
+            if (is_wp_error($response) || empty($response)) {
+                break;
+            }
+
+            $all_tags = array_merge($all_tags, $response);
+            $page++;
+        } while (count($response) === 100);
+
+        return array_map(fn($tag) => [
+            'id' => $tag['id'],
+            'name' => $tag['name'],
+            'slug' => $tag['slug'],
+            'count' => $tag['count'],
+        ], $all_tags);
     }
 
     /**
@@ -335,7 +355,9 @@ class WC_Multi_Store_Category_Mapper {
     }
 
     /**
-     * AJAX handler: Get category mappings for a store
+     * AJAX handler: Get category and tag mappings for a store, plus the
+     * local category/tag lists the mapping UI needs to render both tables
+     * in one request.
      */
     public static function ajax_get_mappings(): void {
         check_ajax_referer('wc_mss_admin', 'nonce');
@@ -345,21 +367,18 @@ class WC_Multi_Store_Category_Mapper {
             return;
         }
 
-        $store_url = sanitize_text_field($_GET['store_url'] ?? '');
-        $mapping_type = sanitize_text_field($_GET['mapping_type'] ?? 'category');
+        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
             return;
         }
 
-        $mappings = $mapping_type === 'tag'
-            ? self::get_tag_mappings($store_url)
-            : self::get_mappings($store_url);
-
         wp_send_json_success([
-            'mappings' => $mappings,
+            'category_mappings' => self::get_mappings($store_url),
+            'tag_mappings' => self::get_tag_mappings($store_url),
             'local_categories' => self::get_local_categories(),
+            'local_tags' => self::get_local_tags(),
         ]);
     }
 }

@@ -12,11 +12,8 @@ if (!defined('ABSPATH')) {
 
 class WC_Multi_Store_Shipping_Class_Sync {
     use WC_Multi_Store_Toggleable_Feature;
-
-    /**
-     * Settings option key
-     */
-    const SETTINGS_KEY = 'wc_mss_shipping_class_sync_settings';
+    use WC_Multi_Store_Ajax_Auth_Guard;
+    use WC_Multi_Store_Async_Sync;
 
     /**
      * Cache key prefix for shipping classes
@@ -160,25 +157,6 @@ class WC_Multi_Store_Shipping_Class_Sync {
      */
     public function delete_shipping_class_by_data(string $name, string $slug): void {
         $this->delete_shipping_class_from_all_stores_by_data($name, $slug);
-    }
-
-    /**
-     * Defer a hook to run via Action Scheduler instead of inline in the
-     * current request. Skips (with a logged warning) rather than falling
-     * back to synchronous execution if Action Scheduler is unavailable —
-     * matches WC_Multi_Store_Stock_Verifier::schedule_verification() and
-     * WC_Multi_Store_Coupon_Sync::schedule_async().
-     */
-    private function schedule_async(string $hook, array $args): void {
-        if (!WC_Multi_Store_Action_Scheduler_Manager::is_available()) {
-            WC_Multi_Store_Logger::write(
-                "Action Scheduler unavailable — skipped queuing {$hook}",
-                'warning'
-            );
-            return;
-        }
-
-        as_schedule_single_action(time(), $hook, $args, WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
     }
 
     /**
@@ -376,18 +354,11 @@ class WC_Multi_Store_Shipping_Class_Sync {
     /**
      * Create an API client for a store
      */
-    private static function get_api_client(array $store): WC_Multi_Store_API_Client {
-        return WC_Multi_Store_API_Client::for_store($store['store_url'], $store);
-    }
-
     /**
      * AJAX handler: Sync all shipping classes
      */
     public static function ajax_sync_all(): void {
-        check_ajax_referer('wc_mss_admin', 'nonce');
-
-        if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
             return;
         }
 

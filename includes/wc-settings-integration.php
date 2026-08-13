@@ -50,12 +50,15 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         return [
             ''                    => __('Dashboard', 'wc-multi-store-sync'),
             'stores'              => __('Stores', 'wc-multi-store-sync'),
+            'category-mapping'    => __('Category Mapping', 'wc-multi-store-sync'),
+            'attribute-mapping'   => __('Attribute Mapping', 'wc-multi-store-sync'),
             'settings'            => __('Settings', 'wc-multi-store-sync'),
             'queue'               => __('Queue', 'wc-multi-store-sync'),
             'weekly-verification' => __('Weekly Verification', 'wc-multi-store-sync'),
             'history'             => __('History', 'wc-multi-store-sync'),
             'api-usage'           => __('API Usage', 'wc-multi-store-sync'),
             'discrepancies'       => __('Discrepancies', 'wc-multi-store-sync'),
+            'conflicts'           => __('Conflicts', 'wc-multi-store-sync'),
             'deletion-audit'      => __('Deletion Audit', 'wc-multi-store-sync'),
             'orphan-cleanup'      => __('Orphan Cleanup', 'wc-multi-store-sync'),
             'dead-letter-queue'   => __('Dead Letters', 'wc-multi-store-sync'),
@@ -111,12 +114,15 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         match ($current_section) {
             ''                    => $this->output_dashboard(),
             'stores'              => $this->output_stores(),
+            'category-mapping'    => $this->output_category_mapping(),
+            'attribute-mapping'   => $this->output_attribute_mapping(),
             'settings'            => $this->output_settings(),
             'queue'               => $this->output_queue(),
             'weekly-verification' => $this->output_weekly_verification(),
             'history'             => $this->output_history(),
             'api-usage'           => $this->output_api_usage(),
             'discrepancies'       => $this->output_discrepancies(),
+            'conflicts'           => $this->output_conflicts(),
             'deletion-audit'      => $this->output_deletion_audit(),
             'orphan-cleanup'      => $this->output_orphan_cleanup(),
             'dead-letter-queue'   => $this->output_dead_letter_queue(),
@@ -179,6 +185,20 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
     }
 
     /**
+     * Output category/tag mapping section
+     */
+    private function output_category_mapping(): void {
+        include WC_MSS_PLUGIN_DIR . 'admin/views/category-mapping.php';
+    }
+
+    /**
+     * Output attribute name/value mapping section
+     */
+    private function output_attribute_mapping(): void {
+        include WC_MSS_PLUGIN_DIR . 'admin/views/attribute-mapping.php';
+    }
+
+    /**
      * Output settings section
      */
     private function output_settings(): void {
@@ -232,6 +252,14 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function output_discrepancies(): void {
         include WC_MSS_PLUGIN_DIR . 'admin/views/discrepancies.php';
+    }
+
+    /**
+     * Output conflicts section
+     */
+    private function output_conflicts(): void {
+        $stores = WC_Multi_Store_Settings::get_stores();
+        include WC_MSS_PLUGIN_DIR . 'admin/views/conflicts.php';
     }
 
     /**
@@ -637,24 +665,11 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             return;
         }
 
-        // Use the same constants as Action Scheduler Manager for consistency
-        $queue_hook = WC_Multi_Store_Action_Scheduler_Manager::ACTION_HOOK_QUEUE;
-        $sync_hook = WC_Multi_Store_Action_Scheduler_Manager::ACTION_HOOK_SCHEDULED_SYNC;
-        $group = WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP;
+        WC_Multi_Store_Action_Scheduler_Manager::reschedule_all();
 
-        // Manually unschedule and reschedule to ensure it works
-        as_unschedule_all_actions($queue_hook, [], $group);
-        as_unschedule_all_actions($sync_hook, [], $group);
-
-        // Schedule with current timestamp
-        $now = time();
-        as_schedule_recurring_action($now, 1 * MINUTE_IN_SECONDS, $queue_hook, [], $group);
-        as_schedule_recurring_action($now, 10 * MINUTE_IN_SECONDS, $sync_hook, [], $group);
-
-        WC_Multi_Store_Logger::write('Actions manually rescheduled from admin dashboard');
         WC_Admin_Settings::add_message(sprintf(
             __('Actions rescheduled successfully at %s. Refresh the page to see updated times.', 'wc-multi-store-sync'),
-            date('H:i:s', $now)
+            date('H:i:s', time())
         ));
     }
 
@@ -791,7 +806,15 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             WC_MSS_VERSION
         );
 
-        $script_deps = [];
+        wp_enqueue_script(
+            'wc-mss-conflict-utils',
+            WC_MSS_PLUGIN_URL . 'admin/js/conflict-utils.js',
+            [],
+            WC_MSS_VERSION,
+            true
+        );
+
+        $script_deps = ['wc-mss-conflict-utils'];
 
         $chart_section = sanitize_text_field($_GET['section'] ?? '');
         if (in_array($chart_section, ['api-usage', ''], true)) {
@@ -933,6 +956,33 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             ]);
         }
 
+        // Strings for the conflicts page
+        if ($section === 'conflicts') {
+            wp_localize_script('wc-mss-admin', 'wcMssConflictsData', [
+                'i18n' => [
+                    'loading' => __('Loading…', 'wc-multi-store-sync'),
+                    'load_failed' => __('Failed to load conflicts.', 'wc-multi-store-sync'),
+                    'no_conflicts' => __('No conflicts found.', 'wc-multi-store-sync'),
+                    'th_product' => __('Product', 'wc-multi-store-sync'),
+                    'th_store' => __('Store', 'wc-multi-store-sync'),
+                    'th_changed_fields' => __('Changed Fields', 'wc-multi-store-sync'),
+                    'th_detected' => __('Detected', 'wc-multi-store-sync'),
+                    'th_status' => __('Status', 'wc-multi-store-sync'),
+                    'th_actions' => __('Actions', 'wc-multi-store-sync'),
+                    'resolved' => __('Resolved', 'wc-multi-store-sync'),
+                    'unresolved' => __('Unresolved', 'wc-multi-store-sync'),
+                    'overwrite' => __('Overwrite', 'wc-multi-store-sync'),
+                    'keep_remote' => __('Keep Remote', 'wc-multi-store-sync'),
+                    'merge' => __('Merge', 'wc-multi-store-sync'),
+                    'resolving' => __('Resolving…', 'wc-multi-store-sync'),
+                    'resolve_failed' => __('Failed to resolve conflict.', 'wc-multi-store-sync'),
+                    'confirm_resolve_all' => __('Resolve all unresolved conflicts shown below as "%s"?', 'wc-multi-store-sync'),
+                    'resolve_all' => __('Resolve All', 'wc-multi-store-sync'),
+                    'product_not_found' => __('(Product not found)', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
+
         // Strings for the sync-profiles page
         if ($section === 'sync-profiles') {
             wp_localize_script('wc-mss-admin', 'wcMssSyncProfilesData', [
@@ -947,6 +997,37 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     'error_applying_profile' => __('Error applying profile.', 'wc-multi-store-sync'),
                     'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'wc-multi-store-sync'),
                     'error_deleting_profile' => __('Error deleting profile.', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
+
+        // Strings for the category/tag mapping page
+        if ($section === 'category-mapping') {
+            wp_localize_script('wc-mss-admin', 'wcMssCategoryMappingData', [
+                'i18n' => [
+                    'loading' => __('Loading…', 'wc-multi-store-sync'),
+                    'load_failed' => __('Failed to load categories/tags for this store.', 'wc-multi-store-sync'),
+                    'no_mapping' => __('— Don\'t map (send as-is) —', 'wc-multi-store-sync'),
+                    'skip' => __('— Skip (don\'t sync) —', 'wc-multi-store-sync'),
+                    'saving' => __('Saving…', 'wc-multi-store-sync'),
+                    'saved' => __('Saved ✓', 'wc-multi-store-sync'),
+                    'save_failed' => __('Failed to save', 'wc-multi-store-sync'),
+                ],
+            ]);
+        }
+
+        // Strings for the attribute name/value mapping page
+        if ($section === 'attribute-mapping') {
+            wp_localize_script('wc-mss-admin', 'wcMssAttributeMappingData', [
+                'i18n' => [
+                    'loading' => __('Loading…', 'wc-multi-store-sync'),
+                    'load_failed' => __('Failed to load attributes for this store.', 'wc-multi-store-sync'),
+                    'no_mapping' => __('— Don\'t map (send as-is) —', 'wc-multi-store-sync'),
+                    'skip' => __('— Skip (don\'t sync) —', 'wc-multi-store-sync'),
+                    'saving' => __('Saving…', 'wc-multi-store-sync'),
+                    'saved' => __('Saved ✓', 'wc-multi-store-sync'),
+                    'save_failed' => __('Failed to save', 'wc-multi-store-sync'),
+                    'no_values' => __('This attribute has no terms to map.', 'wc-multi-store-sync'),
                 ],
             ]);
         }

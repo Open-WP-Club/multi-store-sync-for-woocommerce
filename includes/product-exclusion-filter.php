@@ -165,35 +165,4 @@ class WC_Multi_Store_Product_Exclusion_Filter {
         return $all_ids;
     }
 
-    /**
-     * Check if a single category is excluded for a store, including via a parent category
-     *
-     * @param int $category_id Category ID
-     * @param array $store_config Store configuration
-     * @return bool True if category is excluded
-     */
-    public static function is_category_excluded(int $category_id, array $store_config): bool {
-        if (empty($store_config['exclude_categories'])) {
-            return false;
-        }
-
-        $ids_with_ancestors = self::expand_with_ancestors([$category_id]);
-
-        return (bool) array_intersect($ids_with_ancestors, $store_config['exclude_categories']);
-    }
-
-    /**
-     * Check if a single tag is excluded for a store
-     *
-     * @param int $tag_id Tag ID
-     * @param array $store_config Store configuration
-     * @return bool True if tag is excluded
-     */
-    public static function is_tag_excluded(int $tag_id, array $store_config): bool {
-        if (empty($store_config['exclude_tags'])) {
-            return false;
-        }
-
-        return in_array($tag_id, $store_config['exclude_tags']);
-    }
 }

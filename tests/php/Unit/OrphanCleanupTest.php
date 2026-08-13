@@ -44,6 +44,9 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code'] ?? 200);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body'] ?? '[]');
+        Functions\when('wp_remote_retrieve_headers')->justReturn(new \ArrayObject());
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
@@ -156,19 +159,14 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
     public function test_cleanup_orphans_deletes_successfully(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->once()
-            ->with(
-                'https://store1.com',
-                '/wp-json/wc/v3/products/99?force=true',
-                'DELETE',
-                null,
-                \Mockery::type('array')
-            )
-            ->andReturn(['id' => 99, 'deleted' => true]);
-
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        $sent_url = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_url) {
+            $sent_url = $url;
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode(['id' => 99, 'deleted' => true]),
+            ];
+        });
 
         $cleanup = new WC_Multi_Store_Orphan_Cleanup();
         $result = $cleanup->cleanup_orphans([
@@ -178,16 +176,15 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $this->assertTrue($result['success']);
         $this->assertEquals(1, $result['deleted']);
         $this->assertEquals(0, $result['failed']);
+        $this->assertStringContainsString('products/99', $sent_url);
+        $this->assertStringContainsString('force=1', $sent_url);
     }
 
     public function test_cleanup_orphans_handles_api_error(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->once()
-            ->andReturn(new \WP_Error('api_error', 'Product not found'));
-
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        Functions\when('wp_remote_request')->justReturn(
+            new \WP_Error('api_error', 'Product not found')
+        );
 
         $cleanup = new WC_Multi_Store_Orphan_Cleanup();
         $result = $cleanup->cleanup_orphans([
@@ -222,15 +219,15 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
     public function test_cleanup_orphans_mixed_success_and_failure(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->andReturn(
-                ['id' => 10, 'deleted' => true],
-                new \WP_Error('api_error', 'Timeout'),
-                ['id' => 30, 'deleted' => true]
-            );
-
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        Functions\when('wp_remote_request')->alias(function ($url) {
+            if (str_contains($url, 'products/20')) {
+                return new \WP_Error('api_error', 'Timeout');
+            }
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode(['deleted' => true]),
+            ];
+        });
 
         $cleanup = new WC_Multi_Store_Orphan_Cleanup();
         $result = $cleanup->cleanup_orphans([
@@ -442,10 +439,10 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
     public function test_ajax_cleanup_orphans_success(): void
     {
-        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
-        $mock_api->shouldReceive('make_request')
-            ->andReturn(['id' => 10, 'deleted' => true]);
-        WC_Multi_Store_Sync::instance()->api_client = $mock_api;
+        Functions\when('wp_remote_request')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 10, 'deleted' => true]),
+        ]);
 
         $_POST['orphans'] = json_encode([
             ['store_url' => 'https://store1.com', 'product_id' => 10],
@@ -967,5 +964,222 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
         $this->assertStringContainsString('0 orphan', $mail_args['subject']);
         $this->assertStringContainsString('No Orphan Products Found', $mail_args['body']);
+    }
+
+    // ── auto-trash: is_enabled() / toggle ────────────────────────
+
+    public function test_auto_trash_is_disabled_by_default(): void
+    {
+        $this->assertFalse(WC_Multi_Store_Orphan_Cleanup::is_enabled());
+    }
+
+    public function test_auto_trash_is_enabled_when_setting_set(): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['orphan_auto_trash_enabled' => true];
+            }
+            return $default;
+        });
+
+        $this->assertTrue(WC_Multi_Store_Orphan_Cleanup::is_enabled());
+    }
+
+    // ── auto-trash: schedule / unschedule ────────────────────────
+
+    public function test_schedule_auto_trash_does_nothing_when_as_unavailable(): void
+    {
+        // No real ActionScheduler class in the test environment, so
+        // is_available() is false — schedule_auto_trash() must no-op.
+        $called = false;
+        Functions\when('as_schedule_recurring_action')->alias(function () use (&$called) {
+            $called = true;
+            return 1;
+        });
+
+        WC_Multi_Store_Orphan_Cleanup::schedule_auto_trash();
+
+        $this->assertFalse($called);
+    }
+
+    public function test_schedule_auto_trash_registers_recurring_action(): void
+    {
+        // Bypass the is_available() gate the same way
+        // test_schedule_background_scan_sets_scheduled_status does — Brain
+        // Monkey can't fake class_exists('ActionScheduler').
+        $captured = null;
+        Functions\when('as_schedule_recurring_action')->alias(function (...$args) use (&$captured) {
+            $captured = $args;
+            return 1;
+        });
+
+        $cleanup = new class extends WC_Multi_Store_Orphan_Cleanup {
+            public static function schedule_auto_trash(): void {
+                as_schedule_recurring_action(
+                    time() + self::AUTO_TRASH_INTERVAL,
+                    self::AUTO_TRASH_INTERVAL,
+                    self::AUTO_TRASH_HOOK,
+                    [],
+                    WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP
+                );
+            }
+        };
+        $cleanup::schedule_auto_trash();
+
+        $this->assertNotNull($captured, 'as_schedule_recurring_action should be called');
+        $this->assertEquals(WC_Multi_Store_Orphan_Cleanup::AUTO_TRASH_INTERVAL, $captured[1]);
+        $this->assertEquals(WC_Multi_Store_Orphan_Cleanup::AUTO_TRASH_HOOK, $captured[2]);
+        $this->assertEquals(14 * DAY_IN_SECONDS, WC_Multi_Store_Orphan_Cleanup::AUTO_TRASH_INTERVAL);
+    }
+
+    public function test_unschedule_auto_trash_calls_as_unschedule_all_actions(): void
+    {
+        $called_hook = null;
+        Functions\when('as_unschedule_all_actions')->alias(function ($hook) use (&$called_hook) {
+            $called_hook = $hook;
+        });
+
+        WC_Multi_Store_Orphan_Cleanup::unschedule_auto_trash();
+
+        $this->assertSame(WC_Multi_Store_Orphan_Cleanup::AUTO_TRASH_HOOK, $called_hook);
+    }
+
+    // ── auto-trash: run_auto_trash() ─────────────────────────────
+
+    public function test_run_auto_trash_does_nothing_when_disabled(): void
+    {
+        // Base mocks leave orphan_auto_trash_enabled unset (false).
+        $update_option_called = false;
+        Functions\when('update_option')->alias(function () use (&$update_option_called) {
+            $update_option_called = true;
+            return true;
+        });
+
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $cleanup->run_auto_trash();
+
+        $this->assertFalse($update_option_called, 'Should not scan or write status when disabled');
+    }
+
+    public function test_run_auto_trash_trashes_found_orphans_and_records_status(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('get_col')->andReturn([], []); // no local products/SKUs
+
+        $remote = [['id' => 42, 'name' => 'Orphan', 'sku' => 'ORPHAN-SKU', 'price' => '10', 'stock_quantity' => 2]];
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            return match ($option) {
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'orphan_auto_trash_enabled' => true],
+                'wc_multi_store_sync_stores' => [
+                    'https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'name' => 'Store 1'],
+                ],
+                'wc_multi_store_sync_email_settings' => ['recipient_email' => 'a@b.com'],
+                'admin_email' => 'a@b.com',
+                default => $default,
+            };
+        });
+
+        Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body']);
+        Functions\when('wp_remote_retrieve_header')->justReturn(0);
+
+        $delete_url = null;
+        Functions\when('wp_remote_request')->alias(function ($url) use (&$delete_url) {
+            $delete_url = $url;
+            return ['response' => ['code' => 200], 'body' => json_encode(['id' => 42, 'status' => 'trash'])];
+        });
+
+        Functions\when('wp_mail')->justReturn(true);
+        Functions\when('get_bloginfo')->justReturn('Test Site');
+        Functions\when('esc_html')->alias(fn($s) => $s);
+
+        $status_saved = null;
+        Functions\when('update_option')->alias(function ($name, $value) use (&$status_saved) {
+            if ($name === WC_Multi_Store_Orphan_Cleanup::AUTO_TRASH_STATUS_OPTION) {
+                $status_saved = $value;
+            }
+            return true;
+        });
+
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $cleanup->run_auto_trash();
+
+        $this->assertNotNull($status_saved);
+        $this->assertEquals(1, $status_saved['trashed']);
+        $this->assertEquals(0, $status_saved['failed']);
+        // force=0 (trash), never force=1 (permanent), from the auto-trash path.
+        $this->assertStringContainsString('force=0', $delete_url);
+        $this->assertStringNotContainsString('force=1', $delete_url);
+    }
+
+    public function test_run_auto_trash_sends_no_email_when_nothing_found(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('get_col')->andReturn([], []);
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            return match ($option) {
+                'wc_multi_store_sync_settings' => ['enabled' => true, 'orphan_auto_trash_enabled' => true],
+                'wc_multi_store_sync_stores' => [
+                    'https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'name' => 'Store 1'],
+                ],
+                default => $default,
+            };
+        });
+
+        Functions\when('wp_remote_get')->justReturn(['body' => '[]', 'response' => ['code' => 200]]);
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
+        Functions\when('wp_remote_retrieve_body')->justReturn('[]');
+        Functions\when('wp_remote_retrieve_header')->justReturn(0);
+
+        $mail_sent = false;
+        Functions\when('wp_mail')->alias(function () use (&$mail_sent) {
+            $mail_sent = true;
+            return true;
+        });
+        Functions\when('update_option')->justReturn(true);
+
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $cleanup->run_auto_trash();
+
+        $this->assertFalse($mail_sent, 'No email when there was nothing to trash');
+    }
+
+    // ── cleanup_orphans() force parameter ────────────────────────
+
+    public function test_cleanup_orphans_with_force_false_requests_trash(): void
+    {
+        $sent_url = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_url) {
+            $sent_url = $url;
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode(['id' => 42, 'status' => 'trash']),
+            ];
+        });
+
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $result = $cleanup->cleanup_orphans([
+            ['store_url' => 'https://store1.com', 'product_id' => 42],
+        ], force: false);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals(1, $result['deleted']);
+        $this->assertStringContainsString('force=', $sent_url);
+        $this->assertStringNotContainsString('force=1', $sent_url);
     }
 }

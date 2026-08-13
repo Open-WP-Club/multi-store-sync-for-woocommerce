@@ -356,19 +356,4 @@ class StockAllocatorTest extends WC_Multi_Store_TestCase
         $this->assertFalse($validation['valid']);
         $this->assertNotEmpty($validation['warnings']);
     }
-
-    /**
-     * Test get_allocation_types returns expected types
-     */
-    public function test_get_allocation_types(): void
-    {
-        $types = WC_Multi_Store_Stock_Allocator::get_allocation_types();
-
-        $this->assertArrayHasKey('none', $types);
-        $this->assertArrayHasKey('percentage', $types);
-        $this->assertArrayHasKey('fixed', $types);
-        $this->assertArrayHasKey('priority', $types);
-        $this->assertArrayHasKey('reserve', $types);
-        $this->assertArrayHasKey('equal', $types);
-    }
 }

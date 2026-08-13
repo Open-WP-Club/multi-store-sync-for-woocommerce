@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Multi-Store Sync
  * Plugin URI: https://gkanev.com
  * Description: Professional multi-store product synchronization for WooCommerce - standalone implementation with advanced features
- * Version: 4.0.1
+ * Version: 4.1.0
  * Author: Gkanev.com
  * Author URI: https://gkanev.com
  * License: GPLv3 or later
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_MSS_VERSION', '4.0.1');
+define('WC_MSS_VERSION', '4.1.0');
 define('WC_MSS_PLUGIN_FILE', __FILE__);
 define('WC_MSS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_MSS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -250,9 +250,6 @@ class WC_Multi_Store_Sync {
         // Stock verification triggered by scheduled Action Scheduler job
         add_action('wc_multi_store_verify_stock', WC_Multi_Store_Stock_Verifier::verify_product_stock(...), 10, 3);
 
-        // Cache warmup — fires after screens are initialized so get_current_screen() works
-        add_action('current_screen', $this->warmup_cache(...), 20);
-
         // Database upgrades (admin / cron / AJAX only, gated inside the method)
         add_action('init', $this->maybe_upgrade_database(...), 5);
 
@@ -288,20 +285,6 @@ class WC_Multi_Store_Sync {
             WC_Multi_Store_Weekly_Sync_Verifier::create_table();
             WC_Multi_Store_Webhook_Logger::create_table();
             WC_Multi_Store_Dead_Letter_Queue::create_table();
-
-            // Migrate toggleable-feature settings (category mapper, attribute
-            // remapper, shipping class sync, downloadable files sync) from
-            // their own legacy get_option() keys into the central
-            // WC_Multi_Store_Settings store. See migrate_settings_to_central_store()
-            // in includes/toggleable-feature-trait.php — remove in v5.0.
-            foreach ([
-                'WC_Multi_Store_Category_Mapper',
-                'WC_Multi_Store_Attribute_Remapper',
-                'WC_Multi_Store_Shipping_Class_Sync',
-                'WC_Multi_Store_Downloadable_Files_Sync',
-            ] as $toggleable_feature_class) {
-                $toggleable_feature_class::migrate_settings_to_central_store();
-            }
 
             update_option('wc_mss_db_version', $current_version);
             WC_Multi_Store_Logger::write('Database upgraded to version ' . $current_version);
@@ -604,35 +587,6 @@ class WC_Multi_Store_Sync {
         return WC_MSS_VERSION;
     }
 
-    /**
-     * Warm up cache on init
-     *
-     * @return void
-     */
-    public function warmup_cache() {
-        // Only warm up cache on plugin admin pages to avoid performance impact
-        // Check if we're on one of our admin pages
-        if (!is_admin() || wp_doing_ajax()) {
-            return;
-        }
-
-        // Only warm up on our plugin pages
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        if (!$screen || !str_contains($screen->id, 'wc-settings')) {
-            return;
-        }
-
-        // Use transient to prevent warming up too frequently
-        $warmup_key = 'wc_mss_cache_warmed';
-        if (get_transient($warmup_key)) {
-            return;
-        }
-
-        WC_Multi_Store_Cache_Manager::warmup();
-
-        // Set transient for 5 minutes
-        set_transient($warmup_key, true, 5 * MINUTE_IN_SECONDS);
-    }
 }
 
 /**

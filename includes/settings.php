@@ -340,7 +340,6 @@ class WC_Multi_Store_Settings {
         // Clear cache when stores are updated
         if ($result) {
             self::$active_stores_cache = null;
-            WC_Multi_Store_Cache_Manager::clear_active_stores();
             WC_Multi_Store_Cache_Manager::clear_store_cache($store_url);
         }
 
@@ -362,7 +361,6 @@ class WC_Multi_Store_Settings {
             // Clear cache when store is deleted
             if ($result) {
                 self::$active_stores_cache = null;
-                WC_Multi_Store_Cache_Manager::clear_active_stores();
                 WC_Multi_Store_Cache_Manager::clear_store_cache($store_url);
             }
 
@@ -378,18 +376,12 @@ class WC_Multi_Store_Settings {
      * @return array Active stores
      */
     public static function get_active_stores(bool $use_cache = true): array {
-        // Try in-memory static cache first (fastest)
+        // In-memory static cache only — no transient/object-cache layer on
+        // top: get_stores() is already served from WP's own options cache,
+        // so a second cache here would only add an invalidation path to
+        // keep in sync for no real benefit (same reasoning as get() above).
         if ($use_cache && self::$active_stores_cache !== null) {
             return self::$active_stores_cache;
-        }
-
-        // Try transient cache next
-        if ($use_cache) {
-            $cached = WC_Multi_Store_Cache_Manager::get_active_stores();
-            if ($cached !== false && $cached !== null) {
-                self::$active_stores_cache = $cached; // Store in static cache
-                return $cached;
-            }
         }
 
         $stores = self::get_stores();
@@ -401,10 +393,8 @@ class WC_Multi_Store_Settings {
             }
         }
 
-        // Store in both caches
         if ($use_cache) {
             self::$active_stores_cache = $active;
-            WC_Multi_Store_Cache_Manager::set_active_stores($active);
         }
 
         return $active;

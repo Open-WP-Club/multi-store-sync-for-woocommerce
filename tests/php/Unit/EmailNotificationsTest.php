@@ -313,6 +313,26 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('Gadget', $html);
     }
 
+    public function test_get_default_template_conflict_detected(): void
+    {
+        $notifier = new WC_Multi_Store_Email_Notifications();
+        $method = new ReflectionMethod($notifier, 'get_default_template');
+
+        $data = [
+            'product_name' => 'Widget',
+            'product_sku' => 'WDG-001',
+            'store_url' => 'https://store.com',
+            'changed_fields' => 'name, regular_price',
+            'timestamp' => '2024-01-15 12:00:00',
+        ];
+
+        $html = $method->invoke($notifier, 'conflict-detected', $data);
+
+        $this->assertStringContainsString('Sync Conflict Detected', $html);
+        $this->assertStringContainsString('Widget', $html);
+        $this->assertStringContainsString('name, regular_price', $html);
+    }
+
     public function test_get_default_template_unknown_returns_empty(): void
     {
         $notifier = new WC_Multi_Store_Email_Notifications();
@@ -360,5 +380,108 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
 
         WC_Multi_Store_Email_Notifications::trigger_low_stock(42, 'https://store.com', 5);
         $this->assertTrue($called);
+    }
+
+    public function test_trigger_conflict_detected_calls_do_action(): void
+    {
+        $triggeredArgs = null;
+        Functions\when('do_action')->alias(function ($hook, ...$args) use (&$triggeredArgs) {
+            if ($hook === 'wc_mss_conflict_detected') {
+                $triggeredArgs = $args;
+            }
+        });
+
+        WC_Multi_Store_Email_Notifications::trigger_conflict_detected(1, 123, 'https://store.com', ['name']);
+
+        $this->assertSame([1, 123, 'https://store.com', ['name']], $triggeredArgs);
+    }
+
+    public function test_send_conflict_notification_disabled(): void
+    {
+        // Notifications disabled by default, should return without sending
+        $notifier = new WC_Multi_Store_Email_Notifications();
+        $notifier->send_conflict_notification(1, 123, 'https://store.com', ['name']);
+        $this->assertTrue(true);
+    }
+
+    public function test_send_conflict_notification_notify_email_setting_disabled(): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'admin_email') return 'admin@example.com';
+            if ($option === 'wc_multi_store_sync_email_settings') {
+                return ['enabled' => true];
+            }
+            if ($option === 'wc_mss_conflict_settings') {
+                return ['notify_email' => false];
+            }
+            return $default;
+        });
+
+        $emailSent = false;
+        Functions\when('wp_mail')->alias(function (...$args) use (&$emailSent) {
+            $emailSent = true;
+            return true;
+        });
+
+        $notifier = new WC_Multi_Store_Email_Notifications();
+        $notifier->send_conflict_notification(1, 123, 'https://store.com', ['name']);
+
+        $this->assertFalse($emailSent);
+    }
+
+    public function test_send_conflict_notification_sends_email(): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'admin_email') return 'admin@example.com';
+            if ($option === 'wc_multi_store_sync_email_settings') {
+                return [
+                    'enabled' => true,
+                    'recipient_email' => 'admin@example.com',
+                ];
+            }
+            if ($option === 'wc_mss_conflict_settings') {
+                return ['notify_email' => true];
+            }
+            return $default;
+        });
+
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('get_name')->andReturn('Test Product');
+        $product->shouldReceive('get_sku')->andReturn('SKU-001');
+        Functions\when('wc_get_product')->justReturn($product);
+
+        $emailSent = false;
+        Functions\when('wp_mail')->alias(function ($to, $subject, $message) use (&$emailSent) {
+            $emailSent = true;
+            $this->assertEquals('admin@example.com', $to);
+            $this->assertStringContainsString('Conflict Detected', $subject);
+            $this->assertStringContainsString('Test Product', $message);
+            return true;
+        });
+
+        $notifier = new WC_Multi_Store_Email_Notifications();
+        $notifier->send_conflict_notification(1, 123, 'https://store.com', ['name', 'regular_price']);
+
+        $this->assertTrue($emailSent);
+    }
+
+    public function test_send_conflict_notification_product_not_found(): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'admin_email') return 'admin@example.com';
+            if ($option === 'wc_multi_store_sync_email_settings') {
+                return ['enabled' => true];
+            }
+            if ($option === 'wc_mss_conflict_settings') {
+                return ['notify_email' => true];
+            }
+            return $default;
+        });
+
+        Functions\when('wc_get_product')->justReturn(false);
+
+        $notifier = new WC_Multi_Store_Email_Notifications();
+        $notifier->send_conflict_notification(999, 123, 'https://store.com', ['name']);
+        $this->assertTrue(true);
     }
 }

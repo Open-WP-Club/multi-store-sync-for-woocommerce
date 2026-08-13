@@ -263,37 +263,4 @@ class WC_Multi_Store_Category_Deletion_Sync {
         return $result['term_id'];
     }
 
-    /**
-     * Get settings for category/tag deletion
-     *
-     * @return array Settings
-     */
-    public static function get_settings(): array {
-        $settings = get_option('wc_multi_store_sync_settings', []);
-
-        return [
-            'category_deletion_action' => $settings['category_deletion_action'] ?? 'none',
-            'tag_deletion_action' => $settings['tag_deletion_action'] ?? 'none',
-        ];
-    }
-
-    /**
-     * Update settings for category/tag deletion
-     *
-     * @param array $new_settings New settings
-     * @return bool Success
-     */
-    public static function update_settings(array $new_settings): bool {
-        $settings = get_option('wc_multi_store_sync_settings', []);
-
-        if (isset($new_settings['category_deletion_action'])) {
-            $settings['category_deletion_action'] = sanitize_text_field($new_settings['category_deletion_action']);
-        }
-
-        if (isset($new_settings['tag_deletion_action'])) {
-            $settings['tag_deletion_action'] = sanitize_text_field($new_settings['tag_deletion_action']);
-        }
-
-        return update_option('wc_multi_store_sync_settings', $settings);
-    }
 }

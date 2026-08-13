@@ -246,9 +246,6 @@ class WC_Multi_Store_Variation_Synchronizer {
      */
     private function chunk_batch_operations(array $creates, array $updates, array $deletes, int $max_per_batch = 100): array {
         $chunks = [];
-        $create_chunks = array_chunk($creates, $max_per_batch);
-        $update_chunks = array_chunk($updates, $max_per_batch);
-        $delete_chunks = array_chunk($deletes, $max_per_batch);
 
         // Merge all items into a flat list with their operation type
         $all_items = [];
@@ -311,73 +308,6 @@ class WC_Multi_Store_Variation_Synchronizer {
                 }
             }
         }
-    }
-
-    /**
-     * Delete variation from remote store
-     *
-     * @param WC_Multi_Store_API_Client $api API client
-     * @param string $variation_sku Variation SKU
-     * @param int $remote_parent_id Remote parent product ID
-     * @param bool $force_delete Whether to permanently delete (true) or trash (false)
-     * @return array Result with 'success', 'action', 'remote_id', 'message', 'api_calls'
-     */
-    public function delete_variation(WC_Multi_Store_API_Client $api, string $variation_sku, int $remote_parent_id, bool $force_delete = false): array {
-        $api_calls = 0;
-
-        // Server-side SKU filter avoids fetching every variation when product has many variants
-        $remote_variations = $api->get_product_variations($remote_parent_id, ['sku' => $variation_sku]);
-        $api_calls++;
-
-        if (is_wp_error($remote_variations)) {
-            return [
-                'success' => false,
-                'message' => 'Failed to get variations: ' . $remote_variations->get_error_message(),
-                'api_calls' => $api_calls,
-            ];
-        }
-
-        // Find the variation by SKU
-        $remote_variation_id = null;
-        foreach ($remote_variations as $remote_var) {
-            if (!empty($remote_var['sku']) && $remote_var['sku'] === $variation_sku) {
-                $remote_variation_id = $remote_var['id'];
-                break;
-            }
-        }
-
-        if (!$remote_variation_id) {
-            return [
-                'success' => true,
-                'message' => 'Variation not found on remote store (nothing to delete)',
-                'action' => 'skipped',
-                'api_calls' => $api_calls,
-            ];
-        }
-
-        // Delete the variation
-        $delete_result = $api->delete_product_variation($remote_parent_id, $remote_variation_id, $force_delete);
-        $api_calls++;
-
-        if (is_wp_error($delete_result)) {
-            return [
-                'success' => false,
-                'message' => 'Failed to delete variation: ' . $delete_result->get_error_message(),
-                'remote_id' => $remote_variation_id,
-                'api_calls' => $api_calls,
-            ];
-        }
-
-        $action = $force_delete ? 'deleted permanently' : 'moved to trash';
-
-        return [
-            'success' => true,
-            'action' => $action,
-            'remote_id' => $remote_variation_id,
-            'remote_parent_id' => $remote_parent_id,
-            'message' => 'Variation ' . $action . ' successfully',
-            'api_calls' => $api_calls,
-        ];
     }
 
     /**

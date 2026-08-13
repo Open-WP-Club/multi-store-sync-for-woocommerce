@@ -53,6 +53,10 @@ if (!defined('DAY_IN_SECONDS')) {
     define('DAY_IN_SECONDS', 86400);
 }
 
+if (!defined('MB_IN_BYTES')) {
+    define('MB_IN_BYTES', 1048576);
+}
+
 if (!defined('WEEK_IN_SECONDS')) {
     define('WEEK_IN_SECONDS', 604800);
 }
@@ -379,7 +383,6 @@ require_once $plugin_root . '/includes/variation-synchronizer.php';
 require_once $plugin_root . '/includes/stock-update-tracker.php';
 require_once $plugin_root . '/includes/stock-verifier.php';
 require_once $plugin_root . '/includes/sync-engine.php';
-require_once $plugin_root . '/includes/performance-monitor.php';
 require_once $plugin_root . '/includes/api-usage-tracker.php';
 require_once $plugin_root . '/includes/image-proxy.php';
 require_once $plugin_root . '/includes/action-scheduler-manager.php';
@@ -402,6 +405,7 @@ require_once $plugin_root . '/includes/config-manager.php';
 require_once $plugin_root . '/includes/dashboard-widget.php';
 require_once $plugin_root . '/includes/toggleable-feature-trait.php';
 require_once $plugin_root . '/includes/ajax-auth-guard-trait.php';
+require_once $plugin_root . '/includes/async-sync-trait.php';
 require_once $plugin_root . '/includes/shipping-class-sync.php';
 require_once $plugin_root . '/includes/coupon-sync.php';
 require_once $plugin_root . '/includes/downloadable-files-sync.php';

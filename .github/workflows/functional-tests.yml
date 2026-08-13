@@ -56,3 +56,11 @@ jobs:
 
       - name: Run PHPUnit tests
         run: vendor/bin/phpunit --testsuite Unit
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Run JS tests
+        run: npm test

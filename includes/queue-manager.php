@@ -680,16 +680,6 @@ class WC_Multi_Store_Queue_Manager {
     }
 
     /**
-     * Get queue count
-     *
-     * @return int Number of items in queue
-     */
-    public function get_queue_count(): int {
-        $stats = WC_Multi_Store_Queue_Table::get_stats();
-        return $stats['pending'];
-    }
-
-    /**
      * Process the queue
      *
      * @param int $batch_size Number of products to process (0 = use time-based batch size)
@@ -1051,8 +1041,12 @@ class WC_Multi_Store_Queue_Manager {
 
                     WC_Multi_Store_Queue_Table::mark_failed($item_id, $error_message, $no_retry);
                     $error_count++;
+                    WC_Multi_Store_Email_Notifications::trigger_sync_failed($product_id, $store_url, $error_message);
                     if (!$no_retry) {
                         WC_Multi_Store_Circuit_Breaker::record_failure($store_url);
+                        if (WC_Multi_Store_Circuit_Breaker::is_open($store_url)) {
+                            WC_Multi_Store_Email_Notifications::trigger_api_error($store_url, $error_message);
+                        }
                     }
                     if ($notify) $notify('error', $error_message);
                 }
@@ -1063,7 +1057,11 @@ class WC_Multi_Store_Queue_Manager {
                 WC_Multi_Store_Queue_Table::mark_failed($item_id, $e->getMessage());
                 $error_count++;
                 $processed++;
+                WC_Multi_Store_Email_Notifications::trigger_sync_failed($product_id, $store_url, $e->getMessage());
                 WC_Multi_Store_Circuit_Breaker::record_failure($store_url);
+                if (WC_Multi_Store_Circuit_Breaker::is_open($store_url)) {
+                    WC_Multi_Store_Email_Notifications::trigger_api_error($store_url, $e->getMessage());
+                }
                 if ($notify) $notify('error', $e->getMessage());
 
                 WC_Multi_Store_Logger::write(sprintf(
@@ -1118,24 +1116,6 @@ class WC_Multi_Store_Queue_Manager {
     }
 
     /**
-     * Remove a product from the queue (all pending items for this product)
-     *
-     * @param int $product_id Product ID
-     * @return int Number of items removed
-     */
-    public function remove_product($product_id): int {
-        global $wpdb;
-        $table_name = $wpdb->prefix . WC_Multi_Store_Queue_Table::TABLE_NAME;
-
-        $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$table_name} WHERE product_id = %d AND status = 'pending'",
-            $product_id
-        ));
-
-        return $deleted ? $deleted : 0;
-    }
-
-    /**
      * Check if a product is in the queue
      *
      * @param int $product_id Product ID
@@ -1162,13 +1142,4 @@ class WC_Multi_Store_Queue_Manager {
         return WC_Multi_Store_Queue_Table::get_stats();
     }
 
-    /**
-     * Cleanup old completed and failed queue items
-     *
-     * @param int $days Keep items from last X days
-     * @return int Number of items removed
-     */
-    public function cleanup_old_items($days = 7): int|false {
-        return WC_Multi_Store_Queue_Table::cleanup($days);
-    }
 }

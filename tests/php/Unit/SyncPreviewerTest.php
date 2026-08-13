@@ -556,6 +556,20 @@ class SyncPreviewerTest extends WC_Multi_Store_TestCase
         $this->assertEquals(0, $method->invoke($this->previewer, 0, []));
     }
 
+    public function test_apply_pricing_rules_applies_percentage_rule_via_real_pricing_rules_class(): void
+    {
+        $ref = new ReflectionClass($this->previewer);
+        $method = $ref->getMethod('apply_pricing_rules');
+
+        $store_config = [
+            'pricing_rules' => ['enabled' => true, 'type' => 'percentage', 'percentage' => 10],
+        ];
+
+        $result = $method->invoke($this->previewer, 100.0, $store_config);
+
+        $this->assertEquals('110.00', $result);
+    }
+
     // ─── apply_stock_allocation (private) ──────────
 
     public function test_apply_stock_allocation_returns_original_when_empty(): void
@@ -565,5 +579,19 @@ class SyncPreviewerTest extends WC_Multi_Store_TestCase
 
         $this->assertNull($method->invoke($this->previewer, null, []));
         $this->assertEquals(0, $method->invoke($this->previewer, 0, []));
+    }
+
+    public function test_apply_stock_allocation_applies_percentage_rule_via_real_stock_allocator_class(): void
+    {
+        $ref = new ReflectionClass($this->previewer);
+        $method = $ref->getMethod('apply_stock_allocation');
+
+        $store_config = [
+            'stock_allocation_rules' => ['enabled' => true, 'type' => 'percentage', 'percentage' => 40],
+        ];
+
+        $result = $method->invoke($this->previewer, 100, $store_config);
+
+        $this->assertSame(40, $result);
     }
 }

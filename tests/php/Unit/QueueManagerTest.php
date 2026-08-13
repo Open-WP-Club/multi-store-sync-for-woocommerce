@@ -127,27 +127,11 @@ class QueueManagerTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test get_queue_count method exists
-     */
-    public function test_get_queue_count_method_exists(): void
-    {
-        $this->assertTrue(method_exists('WC_Multi_Store_Queue_Manager', 'get_queue_count'));
-    }
-
-    /**
      * Test clear_queue method exists
      */
     public function test_clear_queue_method_exists(): void
     {
         $this->assertTrue(method_exists('WC_Multi_Store_Queue_Manager', 'clear_queue'));
-    }
-
-    /**
-     * Test remove_product method exists
-     */
-    public function test_remove_product_method_exists(): void
-    {
-        $this->assertTrue(method_exists('WC_Multi_Store_Queue_Manager', 'remove_product'));
     }
 
     /**
@@ -164,14 +148,6 @@ class QueueManagerTest extends WC_Multi_Store_TestCase
     public function test_get_statistics_method_exists(): void
     {
         $this->assertTrue(method_exists('WC_Multi_Store_Queue_Manager', 'get_statistics'));
-    }
-
-    /**
-     * Test cleanup_old_items method exists
-     */
-    public function test_cleanup_old_items_method_exists(): void
-    {
-        $this->assertTrue(method_exists('WC_Multi_Store_Queue_Manager', 'cleanup_old_items'));
     }
 
     /**
@@ -301,12 +277,9 @@ class QueueManagerTest extends WC_Multi_Store_TestCase
             'add_variation_deletion',
             'add_remote_orphan_deletion',
             'process_queue',
-            'get_queue_count',
             'clear_queue',
-            'remove_product',
             'is_queued',
             'get_statistics',
-            'cleanup_old_items',
         );
 
         foreach ($public_methods as $method_name) {
@@ -316,18 +289,5 @@ class QueueManagerTest extends WC_Multi_Store_TestCase
                 "Method $method_name should be an instance method, not static"
             );
         }
-    }
-
-    /**
-     * Test cleanup_old_items default days parameter
-     */
-    public function test_cleanup_old_items_default_days(): void
-    {
-        $reflection = new ReflectionClass('WC_Multi_Store_Queue_Manager');
-        $method = $reflection->getMethod('cleanup_old_items');
-
-        $params = $method->getParameters();
-        $this->assertCount(1, $params);
-        $this->assertEquals(7, $params[0]->getDefaultValue());
     }
 }

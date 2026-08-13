@@ -785,8 +785,13 @@ if (!defined('ABSPATH')) {
                                    <?php checked(!empty($category_mapper_settings['enabled'])); ?>>
                             <?php _e('Enable per-store category/tag mapping', 'wc-multi-store-sync'); ?>
                         </label>
-                        <p class="description"><?php _e('Map local categories to different remote categories per store (e.g., "Дрехи" → "Clothing").', 'wc-multi-store-sync'); ?></p>
-                        <p class="description" style="color: #996800;"><?php _e('Note: there is currently no admin screen to enter mappings — enabling this alone has no effect until mapping data is set.', 'wc-multi-store-sync'); ?></p>
+                        <p class="description">
+                            <?php printf(
+                                /* translators: %s: link to the Category Mapping tab */
+                                __('Map local categories to different remote categories per store (e.g., "Дрехи" → "Clothing"). Enter mappings in the %s tab.', 'wc-multi-store-sync'),
+                                '<a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=category-mapping')) . '">' . __('Category Mapping', 'wc-multi-store-sync') . '</a>'
+                            ); ?>
+                        </p>
                     </td>
                 </tr>
 
@@ -801,8 +806,13 @@ if (!defined('ABSPATH')) {
                                    <?php checked(!empty($attribute_remapper_settings['enabled'])); ?>>
                             <?php _e('Enable per-store attribute name/value remapping', 'wc-multi-store-sync'); ?>
                         </label>
-                        <p class="description"><?php _e('Remap attribute names and values per store (e.g., "Цвят" → "Color", "Червен" → "Red"). Useful for multilingual stores.', 'wc-multi-store-sync'); ?></p>
-                        <p class="description" style="color: #996800;"><?php _e('Note: there is currently no admin screen to enter mappings — enabling this alone has no effect until mapping data is set.', 'wc-multi-store-sync'); ?></p>
+                        <p class="description">
+                            <?php printf(
+                                /* translators: %s: link to the Attribute Mapping tab */
+                                __('Remap attribute names and values per store (e.g., "Цвят" → "Color", "Червен" → "Red"). Useful for multilingual stores. Enter mappings in the %s tab.', 'wc-multi-store-sync'),
+                                '<a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=attribute-mapping')) . '">' . __('Attribute Mapping', 'wc-multi-store-sync') . '</a>'
+                            ); ?>
+                        </p>
                     </td>
                 </tr>
 
@@ -822,7 +832,11 @@ if (!defined('ABSPATH')) {
                         $conflict_stats = WC_Multi_Store_Conflict_Detector::get_stats();
                         if ($conflict_stats['unresolved'] > 0): ?>
                         <p style="margin-top: 5px; color: #d63638;">
-                            <strong><?php printf(__('%d unresolved conflict(s)', 'wc-multi-store-sync'), $conflict_stats['unresolved']); ?></strong>
+                            <strong>
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=conflicts')); ?>" style="color: #d63638;">
+                                    <?php printf(__('%d unresolved conflict(s)', 'wc-multi-store-sync'), $conflict_stats['unresolved']); ?>
+                                </a>
+                            </strong>
                         </p>
                         <?php endif; ?>
                     </td>

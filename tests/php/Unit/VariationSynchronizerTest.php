@@ -39,11 +39,6 @@ class VariationSynchronizerTest extends WC_Multi_Store_TestCase
         $this->assertTrue(method_exists(WC_Multi_Store_Variation_Synchronizer::class, 'sync_variations'));
     }
 
-    public function test_has_delete_variation_method(): void
-    {
-        $this->assertTrue(method_exists(WC_Multi_Store_Variation_Synchronizer::class, 'delete_variation'));
-    }
-
     public function test_has_find_remote_parent_id_method(): void
     {
         $this->assertTrue(method_exists(WC_Multi_Store_Variation_Synchronizer::class, 'find_remote_parent_id'));
@@ -232,110 +227,6 @@ class VariationSynchronizerTest extends WC_Multi_Store_TestCase
         $this->assertEquals(2, $result);
     }
 
-    // ─── delete_variation ──────────────────────────
-
-    public function test_delete_variation_when_found(): void
-    {
-        $api = \Mockery::mock('WC_Multi_Store_API_Client');
-
-        $api->shouldReceive('get_product_variations')
-            ->once()
-            ->with(100, ['sku' => 'VAR-DELETE'])
-            ->andReturn([
-                ['id' => 501, 'sku' => 'VAR-DELETE'],
-                ['id' => 502, 'sku' => 'VAR-KEEP'],
-            ]);
-
-        $api->shouldReceive('delete_product_variation')
-            ->once()
-            ->with(100, 501, false)
-            ->andReturn(['id' => 501, 'status' => 'trash']);
-
-        $result = $this->synchronizer->delete_variation($api, 'VAR-DELETE', 100);
-
-        $this->assertTrue($result['success']);
-        $this->assertEquals(501, $result['remote_id']);
-        $this->assertEquals('moved to trash', $result['action']);
-        $this->assertEquals(2, $result['api_calls']);
-    }
-
-    public function test_delete_variation_with_force_delete(): void
-    {
-        $api = \Mockery::mock('WC_Multi_Store_API_Client');
-
-        $api->shouldReceive('get_product_variations')
-            ->once()
-            ->andReturn([
-                ['id' => 501, 'sku' => 'VAR-FORCE'],
-            ]);
-
-        $api->shouldReceive('delete_product_variation')
-            ->once()
-            ->with(100, 501, true)
-            ->andReturn(['id' => 501]);
-
-        $result = $this->synchronizer->delete_variation($api, 'VAR-FORCE', 100, true);
-
-        $this->assertTrue($result['success']);
-        $this->assertEquals('deleted permanently', $result['action']);
-    }
-
-    public function test_delete_variation_not_found_on_remote(): void
-    {
-        $api = \Mockery::mock('WC_Multi_Store_API_Client');
-
-        $api->shouldReceive('get_product_variations')
-            ->once()
-            ->andReturn([
-                ['id' => 501, 'sku' => 'OTHER-SKU'],
-            ]);
-
-        // Should NOT attempt to delete
-        $api->shouldNotReceive('delete_product_variation');
-
-        $result = $this->synchronizer->delete_variation($api, 'NONEXISTENT', 100);
-
-        $this->assertTrue($result['success']);
-        $this->assertEquals('skipped', $result['action']);
-        $this->assertEquals(1, $result['api_calls']);
-    }
-
-    public function test_delete_variation_api_error_on_get(): void
-    {
-        $api = \Mockery::mock('WC_Multi_Store_API_Client');
-
-        $api->shouldReceive('get_product_variations')
-            ->once()
-            ->andReturn(new \WP_Error('api_error', 'Connection failed'));
-
-        $result = $this->synchronizer->delete_variation($api, 'SKU', 100);
-
-        $this->assertFalse($result['success']);
-        $this->assertStringContainsString('Connection failed', $result['message']);
-        $this->assertEquals(1, $result['api_calls']);
-    }
-
-    public function test_delete_variation_api_error_on_delete(): void
-    {
-        $api = \Mockery::mock('WC_Multi_Store_API_Client');
-
-        $api->shouldReceive('get_product_variations')
-            ->once()
-            ->andReturn([
-                ['id' => 501, 'sku' => 'VAR-ERR'],
-            ]);
-
-        $api->shouldReceive('delete_product_variation')
-            ->once()
-            ->andReturn(new \WP_Error('delete_failed', 'Server error'));
-
-        $result = $this->synchronizer->delete_variation($api, 'VAR-ERR', 100);
-
-        $this->assertFalse($result['success']);
-        $this->assertEquals(501, $result['remote_id']);
-        $this->assertStringContainsString('Server error', $result['message']);
-        $this->assertEquals(2, $result['api_calls']);
-    }
 
     // ─── find_remote_parent_id ─────────────────────
 

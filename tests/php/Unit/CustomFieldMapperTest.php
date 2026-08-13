@@ -43,44 +43,6 @@ class CustomFieldMapperTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test format_field_label removes common prefixes
-     */
-    public function test_format_field_label_removes_prefixes(): void
-    {
-        $reflection = new ReflectionClass('WC_Multi_Store_Custom_Field_Mapper');
-        $method = $reflection->getMethod('format_field_label');
-
-        $this->assertEquals('Field Name', $method->invoke(null, 'wc_field_name'));
-        $this->assertEquals('Field Name', $method->invoke(null, 'product_field_name'));
-        $this->assertEquals('Field Name', $method->invoke(null, 'custom_field_name'));
-    }
-
-    /**
-     * Test format_field_label converts underscores and hyphens to spaces
-     */
-    public function test_format_field_label_converts_separators(): void
-    {
-        $reflection = new ReflectionClass('WC_Multi_Store_Custom_Field_Mapper');
-        $method = $reflection->getMethod('format_field_label');
-
-        $this->assertEquals('My Field Name', $method->invoke(null, 'my_field_name'));
-        $this->assertEquals('My Field Name', $method->invoke(null, 'my-field-name'));
-        $this->assertEquals('Test Field', $method->invoke(null, 'test_field'));
-    }
-
-    /**
-     * Test format_field_label capitalizes words
-     */
-    public function test_format_field_label_capitalizes(): void
-    {
-        $reflection = new ReflectionClass('WC_Multi_Store_Custom_Field_Mapper');
-        $method = $reflection->getMethod('format_field_label');
-
-        $this->assertEquals('Some Field', $method->invoke(null, 'some_field'));
-        $this->assertEquals('Another Test Field', $method->invoke(null, 'another_test_field'));
-    }
-
-    /**
      * Test sync_custom_fields returns success for empty mapping
      */
     public function test_sync_custom_fields_empty_mapping_returns_success(): void

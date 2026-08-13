@@ -13,10 +13,47 @@ if (!defined('ABSPATH')) {
 class WC_Multi_Store_Orphan_Cleanup {
 
     use WC_Multi_Store_Email_Shell;
+    use WC_Multi_Store_Toggleable_Feature;
 
     const string BACKGROUND_HOOK   = 'wc_mss_orphan_scan_background';
     const string STATUS_OPTION     = 'wc_mss_orphan_scan_status';
     const string RESULTS_OPTION    = 'wc_mss_orphan_scan_results';
+
+    /**
+     * Recurring hook that scans all active stores and trashes any orphans
+     * found, when auto-trash is enabled (see WC_Multi_Store_Toggleable_Feature).
+     */
+    const string AUTO_TRASH_HOOK   = 'wc_mss_orphan_auto_trash';
+
+    /**
+     * How often the auto-trash job runs. Not a standard WP interval — chosen
+     * to give a product plenty of time to reappear (e.g. re-published after
+     * an accidental trash) before it's swept off remote stores.
+     */
+    const int AUTO_TRASH_INTERVAL  = 2 * WEEK_IN_SECONDS;
+
+    const string AUTO_TRASH_STATUS_OPTION = 'wc_mss_orphan_auto_trash_status';
+
+    /**
+     * @return array
+     */
+    public static function default_settings(): array {
+        return ['enabled' => false];
+    }
+
+    /**
+     * @return string
+     */
+    public static function feature_label(): string {
+        return __('Orphan auto-trash', 'wc-multi-store-sync');
+    }
+
+    /**
+     * @return string
+     */
+    public static function central_settings_prefix(): string {
+        return 'orphan_auto_trash';
+    }
 
     /**
      * Initialize orphan cleanup
@@ -28,8 +65,162 @@ class WC_Multi_Store_Orphan_Cleanup {
         add_action('wp_ajax_wc_mss_schedule_orphan_scan', $this->ajax_schedule_scan(...));
         add_action('wp_ajax_wc_mss_orphan_scan_status',  $this->ajax_get_scan_status(...));
 
-        // Action Scheduler background hook
+        // Action Scheduler background hooks
         add_action(self::BACKGROUND_HOOK, $this->run_background_scan(...));
+        add_action(self::AUTO_TRASH_HOOK, $this->run_auto_trash(...));
+    }
+
+    /**
+     * Schedule the recurring auto-trash job (idempotent — call freely).
+     * Reconciled automatically against the enabled setting by
+     * WC_Multi_Store_Action_Scheduler_Manager::ensure_scheduled().
+     */
+    public static function schedule_auto_trash(): void {
+        if (!WC_Multi_Store_Action_Scheduler_Manager::is_available()) {
+            return;
+        }
+
+        as_schedule_recurring_action(
+            time() + self::AUTO_TRASH_INTERVAL,
+            self::AUTO_TRASH_INTERVAL,
+            self::AUTO_TRASH_HOOK,
+            [],
+            WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP
+        );
+
+        WC_Multi_Store_Logger::write('Orphan auto-trash scheduled (every 2 weeks)');
+    }
+
+    /**
+     * Unschedule the recurring auto-trash job.
+     */
+    public static function unschedule_auto_trash(): void {
+        if (function_exists('as_unschedule_all_actions')) {
+            as_unschedule_all_actions(self::AUTO_TRASH_HOOK, [], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
+        }
+    }
+
+    /**
+     * Action Scheduler callback: scan every active store for orphans and
+     * trash (not permanently delete) whatever is found, then email a
+     * summary. Runs every 2 weeks while auto-trash is enabled.
+     */
+    public function run_auto_trash(): void {
+        @set_time_limit(0);
+
+        if (!self::is_enabled()) {
+            return;
+        }
+
+        WC_Multi_Store_Logger::write('Orphan auto-trash run starting');
+
+        $scan = $this->scan_store_for_orphans();
+
+        if (empty($scan['success'])) {
+            WC_Multi_Store_Logger::write('Orphan auto-trash: scan failed, skipping this run', 'warning');
+            return;
+        }
+
+        $orphans = [];
+        foreach ($scan['results'] as $store) {
+            foreach ($store['orphans'] as $orphan) {
+                $orphans[] = ['store_url' => $store['store_url'], 'product_id' => $orphan['id']];
+            }
+        }
+
+        $cleanup = empty($orphans)
+            ? ['success' => true, 'deleted' => 0, 'failed' => 0, 'errors' => []]
+            : $this->cleanup_orphans($orphans, force: false);
+
+        update_option(self::AUTO_TRASH_STATUS_OPTION, [
+            'last_run_at' => current_time('mysql'),
+            'trashed'     => $cleanup['deleted'],
+            'failed'      => $cleanup['failed'],
+        ], false);
+
+        WC_Multi_Store_Logger::write(sprintf(
+            'Orphan auto-trash run complete: %d trashed, %d failed',
+            $cleanup['deleted'],
+            $cleanup['failed']
+        ));
+
+        $this->send_auto_trash_email($scan, $cleanup);
+    }
+
+    /**
+     * Send an email summary after an auto-trash run — only sent when the
+     * run actually found (and trashed, or failed to trash) something, to
+     * avoid a "nothing happened" email every 2 weeks.
+     */
+    private function send_auto_trash_email(array $scan, array $cleanup): void {
+        if ($cleanup['deleted'] === 0 && $cleanup['failed'] === 0) {
+            return;
+        }
+
+        $email_settings = get_option('wc_multi_store_sync_email_settings', []);
+        $recipient      = $email_settings['recipient_email'] ?? get_option('admin_email');
+
+        if (empty($recipient)) {
+            return;
+        }
+
+        $site = get_bloginfo('name');
+
+        $store_rows = '';
+        foreach ($scan['results'] as $store) {
+            $count = (int) ($store['total_orphans'] ?? 0);
+            if ($count === 0) {
+                continue;
+            }
+            $store_rows .= '<tr>'
+                . '<td style="padding:8px 12px;border-bottom:1px solid #dcdcde;font-size:13px;color:#3c434a;">'
+                . esc_html($store['store_name'] ?? $store['store_url']) . '</td>'
+                . '<td style="padding:8px 12px;border-bottom:1px solid #dcdcde;font-size:13px;color:#3c434a;">'
+                . $count . '</td>'
+                . '</tr>';
+        }
+
+        $accent = $cleanup['failed'] > 0 ? '#b32d2e' : '#00a32a';
+        $badge  = __('Orphan Auto-Trash', 'wc-multi-store-sync');
+        $title  = sprintf(
+            __('%d Product(s) Moved to Trash', 'wc-multi-store-sync'),
+            $cleanup['deleted']
+        );
+
+        $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
+            . __('Products found on a remote store but no longer on the main site were moved to trash there (not permanently deleted).', 'wc-multi-store-sync')
+            . '</p>';
+
+        $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            . 'style="border-collapse:collapse;border:1px solid #dcdcde;border-radius:6px;overflow:hidden;margin-bottom:24px;">'
+            . '<thead><tr>'
+            . '<th style="padding:10px 12px;background:#f6f7f7;font-size:12px;font-weight:600;color:#646970;text-align:left;border-bottom:1px solid #dcdcde;">'
+            . __('Store', 'wc-multi-store-sync') . '</th>'
+            . '<th style="padding:10px 12px;background:#f6f7f7;font-size:12px;font-weight:600;color:#646970;text-align:left;border-bottom:1px solid #dcdcde;">'
+            . __('Orphans Found', 'wc-multi-store-sync') . '</th>'
+            . '</tr></thead><tbody>'
+            . $store_rows
+            . '</tbody></table>';
+
+        $failed_note = $cleanup['failed'] > 0
+            ? '<p style="margin:0 0 20px;font-size:13px;color:#b32d2e;">'
+                . sprintf(__('%d product(s) failed to trash — check the logs.', 'wc-multi-store-sync'), $cleanup['failed'])
+                . '</p>'
+            : '';
+
+        $body = $this->wrap_email($title, $badge, $accent, $lead . $table . $failed_note);
+
+        $subject = sprintf(
+            __('[%s] Orphan Auto-Trash — %d trashed, %d failed', 'wc-multi-store-sync'),
+            $site,
+            $cleanup['deleted'],
+            $cleanup['failed']
+        );
+
+        wp_mail($recipient, $subject, $body, [
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . $site . ' <' . get_option('admin_email') . '>',
+        ]);
     }
 
     /**
@@ -192,9 +383,10 @@ class WC_Multi_Store_Orphan_Cleanup {
      * Cleanup orphan products from remote stores
      *
      * @param array $orphans Array of orphan products to delete
+     * @param bool $force Permanently delete (true, the manual "Delete Selected" behavior) or move to trash (false, used by the auto-trash job)
      * @return array Results
      */
-    public function cleanup_orphans(array $orphans): array {
+    public function cleanup_orphans(array $orphans, bool $force = true): array {
         if (empty($orphans)) {
             return [
                 'success' => false,
@@ -202,7 +394,6 @@ class WC_Multi_Store_Orphan_Cleanup {
             ];
         }
 
-        $api_client = WC_MSS()->api_client;
         $results = [
             'success' => true,
             'deleted' => 0,
@@ -226,15 +417,8 @@ class WC_Multi_Store_Orphan_Cleanup {
             }
 
             // Delete product from remote store
-            $endpoint = sprintf('/wp-json/wc/v3/products/%d?force=true', $product_id);
-
-            $response = $api_client->make_request(
-                $store_url,
-                $endpoint,
-                'DELETE',
-                null,
-                $config
-            );
+            $api_client = WC_Multi_Store_API_Client::for_store($store_url, $config);
+            $response = $api_client->delete_product($product_id, $force);
 
             if (is_wp_error($response)) {
                 $results['failed']++;
@@ -555,13 +739,14 @@ class WC_Multi_Store_Orphan_Cleanup {
      * Render admin page for orphan cleanup
      */
     public static function render_admin_page(): void {
-        $stores         = WC_Multi_Store_Settings::get_active_stores();
-        $scan_status    = get_option(self::STATUS_OPTION, ['status' => 'idle']);
-        $last_results   = get_option(self::RESULTS_OPTION, null);
-        $as_available   = WC_Multi_Store_Action_Scheduler_Manager::is_available();
-        $email_settings = get_option('wc_multi_store_sync_email_settings', []);
-        $recipient      = $email_settings['recipient_email'] ?? get_option('admin_email');
-        $nonce          = wp_create_nonce('wc_mss_orphan_cleanup');
+        $stores            = WC_Multi_Store_Settings::get_active_stores();
+        $scan_status       = get_option(self::STATUS_OPTION, ['status' => 'idle']);
+        $last_results      = get_option(self::RESULTS_OPTION, null);
+        $as_available      = WC_Multi_Store_Action_Scheduler_Manager::is_available();
+        $email_settings    = get_option('wc_multi_store_sync_email_settings', []);
+        $recipient         = $email_settings['recipient_email'] ?? get_option('admin_email');
+        $nonce             = wp_create_nonce('wc_mss_orphan_cleanup');
+        $auto_trash_status = get_option(self::AUTO_TRASH_STATUS_OPTION, null);
 
         ?>
         <div class="wrap wc-mss-orphan-cleanup">
@@ -569,6 +754,28 @@ class WC_Multi_Store_Orphan_Cleanup {
 
             <p class="description">
                 <?php _e('Find and remove products on remote stores that don\'t exist on your main site.', 'wc-multi-store-sync'); ?>
+            </p>
+
+            <p>
+                <label class="wc-mss-toggle">
+                    <input type="checkbox" class="wc-mss-feature-toggle"
+                           data-action="wc_mss_toggle_orphan_auto_trash"
+                           <?php checked(self::is_enabled()); ?>>
+                    <?php _e('Automatically move orphans to trash every 2 weeks', 'wc-multi-store-sync'); ?>
+                </label>
+                <p class="description">
+                    <?php _e('Moves to trash only — never permanently deletes. Products with no SKU are always skipped.', 'wc-multi-store-sync'); ?>
+                    <?php if ($auto_trash_status): ?>
+                        <br>
+                        <?php printf(
+                            /* translators: 1: date, 2: trashed count, 3: failed count */
+                            __('Last run: %1$s — %2$d trashed, %3$d failed.', 'wc-multi-store-sync'),
+                            esc_html($auto_trash_status['last_run_at'] ?? ''),
+                            (int) ($auto_trash_status['trashed'] ?? 0),
+                            (int) ($auto_trash_status['failed'] ?? 0)
+                        ); ?>
+                    <?php endif; ?>
+                </p>
             </p>
 
             <?php if (empty($stores)): ?>

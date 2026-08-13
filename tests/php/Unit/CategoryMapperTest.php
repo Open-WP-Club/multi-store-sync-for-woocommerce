@@ -5,28 +5,17 @@
 
 use Brain\Monkey\Functions;
 
-/**
- * Minimal stub for WC_Multi_Store_API_Client that exposes a public get() so
- * tests can control pagination responses without Mockery's private-method
- * restriction.
- */
-class CategoryMapper_ApiClient_Stub extends WC_Multi_Store_API_Client
-{
-    /** @var array<int, mixed> Queued responses, returned in order per call. */
-    private array $responses = [];
-
-    public function __construct(array $responses = [])
-    {
-        // Skip parent constructor — we don't need a real HTTP client.
-        $this->responses = $responses;
-    }
-
-    public function get(string $endpoint, array $params = []): array|\WP_Error
-    {
-        if (empty($this->responses)) {
-            return [];
-        }
-        return array_shift($this->responses);
+if (!class_exists('WP_Term')) {
+    // Kept in sync with the other guarded `WP_Term` stubs in this suite
+    // (AdminAjaxForceSyncTest.php, ShippingClassSyncTest.php, CategorySyncTest.php).
+    class WP_Term {
+        public int $term_id = 0;
+        public string $name = '';
+        public string $slug = '';
+        public string $taxonomy = 'product_cat';
+        public string $description = '';
+        public int $parent = 0;
+        public int $count = 0;
     }
 }
 
@@ -60,52 +49,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->justReturn(['category_mapper_enabled' => true]);
 
         $this->assertTrue(WC_Multi_Store_Category_Mapper::is_enabled());
-    }
-
-    // -------------------------------------------------------------------------
-    // migrate_settings_to_central_store()
-    // -------------------------------------------------------------------------
-
-    public function test_migrate_settings_to_central_store_ports_legacy_option(): void
-    {
-        Functions\when('get_option')->alias(function ($opt, $default = null) {
-            if ($opt === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
-            if ($opt === 'wc_multi_store_sync_settings') {
-                return [];
-            }
-            return $default;
-        });
-
-        $saved = null;
-        Functions\when('update_option')->alias(function ($key, $value) use (&$saved) {
-            if ($key === 'wc_multi_store_sync_settings') {
-                $saved = $value;
-            }
-            return true;
-        });
-
-        Functions\expect('delete_option')
-            ->once()
-            ->with(WC_Multi_Store_Category_Mapper::SETTINGS_KEY)
-            ->andReturn(true);
-
-        WC_Multi_Store_Category_Mapper::migrate_settings_to_central_store();
-
-        $this->assertTrue($saved['category_mapper_enabled']);
-    }
-
-    public function test_migrate_settings_to_central_store_is_noop_when_legacy_option_absent(): void
-    {
-        Functions\when('get_option')->justReturn(false);
-
-        Functions\expect('delete_option')->never();
-        Functions\expect('update_option')->never();
-
-        WC_Multi_Store_Category_Mapper::migrate_settings_to_central_store();
-
-        $this->addToAssertionCount(1);
     }
 
     // -------------------------------------------------------------------------
@@ -163,60 +106,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     }
 
     // -------------------------------------------------------------------------
-    // add_mapping() / remove_mapping()
-    // -------------------------------------------------------------------------
-
-    public function test_add_mapping_adds_single_entry_to_existing(): void
-    {
-        $key = md5($this->store_url_a);
-
-        Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
-                return [$key => ['shoes' => 'footwear']];
-            }
-            return $default;
-        });
-
-        $captured = null;
-        Functions\when('update_option')->alias(function (string $option, mixed $value) use (&$captured): bool {
-            $captured = $value;
-            return true;
-        });
-
-        WC_Multi_Store_Category_Mapper::add_mapping($this->store_url_a, 'clothing', 'apparel');
-
-        $this->assertNotNull($captured);
-        $this->assertArrayHasKey($key, $captured);
-        $this->assertSame('footwear', $captured[$key]['shoes']);
-        $this->assertSame('apparel', $captured[$key]['clothing']);
-    }
-
-    public function test_remove_mapping_removes_entry(): void
-    {
-        $key = md5($this->store_url_a);
-
-        Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::OPTION_KEY) {
-                return [$key => ['clothing' => 'apparel', 'shoes' => 'footwear']];
-            }
-            return $default;
-        });
-
-        $captured = null;
-        Functions\when('update_option')->alias(function (string $option, mixed $value) use (&$captured): bool {
-            $captured = $value;
-            return true;
-        });
-
-        WC_Multi_Store_Category_Mapper::remove_mapping($this->store_url_a, 'clothing');
-
-        $this->assertNotNull($captured);
-        $this->assertArrayNotHasKey('clothing', $captured[$key]);
-        $this->assertArrayHasKey('shoes', $captured[$key]);
-        $this->assertSame('footwear', $captured[$key]['shoes']);
-    }
-
-    // -------------------------------------------------------------------------
     // apply_mappings()
     // -------------------------------------------------------------------------
 
@@ -233,9 +122,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     public function test_apply_mappings_returns_unchanged_when_no_categories(): void
     {
         Functions\when('get_option')->alias(function (string $option, mixed $default = []): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -251,9 +137,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     public function test_apply_mappings_returns_unchanged_when_no_mappings_for_store(): void
     {
         Functions\when('get_option')->alias(function (string $option, mixed $default = []): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -271,9 +154,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -296,9 +176,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -319,9 +196,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -342,9 +216,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -367,9 +238,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -419,9 +287,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $options_read = [];
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key, &$options_read): mixed {
             $options_read[] = $option;
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -443,9 +308,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -466,9 +328,6 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $key = md5($this->store_url_a);
 
         Functions\when('get_option')->alias(function (string $option, mixed $default = []) use ($key): mixed {
-            if ($option === WC_Multi_Store_Category_Mapper::SETTINGS_KEY) {
-                return ['enabled' => true];
-            }
             if ($option === 'wc_multi_store_sync_settings') {
                 return ['category_mapper_enabled' => true];
             }
@@ -521,6 +380,36 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
         $this->assertSame($mappings, $captured[1][$expected_store_key]);
     }
 
+    /**
+     * Real API client with wp_remote_get() stubbed to return queued
+     * responses in order. get_categories()/get_tags() are real parent-class
+     * methods that call the private get() internally, so a subclass override
+     * of get() would never be reached (private methods resolve statically to
+     * the defining class) — stubbing at the wp_remote_get() boundary is the
+     * only way to control their output from a test.
+     */
+    private function makeClientWithQueuedResponses(array $bodies): WC_Multi_Store_API_Client
+    {
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body'] ?? '[]');
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->justReturn(true);
+        Functions\when('add_query_arg')->alias(function ($args, $url) {
+            return $url . '?' . http_build_query($args);
+        });
+        Functions\when('wp_remote_get')->alias(function () use (&$bodies) {
+            $body = array_shift($bodies);
+            if ($body instanceof \WP_Error) {
+                return $body;
+            }
+            return ['response' => ['code' => 200], 'body' => json_encode($body)];
+        });
+
+        return WC_Multi_Store_API_Client::for_store('https://store-a.example.com', [
+            'consumer_key' => 'ck', 'consumer_secret' => 'cs',
+        ]);
+    }
+
     // -------------------------------------------------------------------------
     // get_remote_categories() — pagination
     // -------------------------------------------------------------------------
@@ -528,7 +417,7 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     public function test_get_remote_categories_stops_when_fewer_than_100_returned(): void
     {
         $page1  = array_fill(0, 50, ['id' => 1, 'name' => 'Cat', 'slug' => 'cat', 'parent' => 0, 'count' => 0]);
-        $client = new CategoryMapper_ApiClient_Stub([$page1]);
+        $client = $this->makeClientWithQueuedResponses([$page1]);
 
         $result = WC_Multi_Store_Category_Mapper::get_remote_categories($client);
 
@@ -539,7 +428,7 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
     {
         $page1  = array_fill(0, 100, ['id' => 1, 'name' => 'Cat', 'slug' => 'cat', 'parent' => 0, 'count' => 0]);
         $page2  = array_fill(0, 50,  ['id' => 2, 'name' => 'Dog', 'slug' => 'dog', 'parent' => 0, 'count' => 0]);
-        $client = new CategoryMapper_ApiClient_Stub([$page1, $page2]);
+        $client = $this->makeClientWithQueuedResponses([$page1, $page2]);
 
         $result = WC_Multi_Store_Category_Mapper::get_remote_categories($client);
 
@@ -548,13 +437,128 @@ class CategoryMapperTest extends WC_Multi_Store_TestCase
 
     public function test_get_remote_categories_handles_api_error(): void
     {
-        $client = new CategoryMapper_ApiClient_Stub([
-            new WP_Error('http_request_failed', 'Connection refused'),
+        $client = $this->makeClientWithQueuedResponses([
+            new WP_Error('api_error', 'Connection refused'),
         ]);
 
         $result = WC_Multi_Store_Category_Mapper::get_remote_categories($client);
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
+    }
+
+    // -------------------------------------------------------------------------
+    // get_remote_tags() — pagination
+    // -------------------------------------------------------------------------
+
+    public function test_get_remote_tags_stops_when_fewer_than_100_returned(): void
+    {
+        $page1  = array_fill(0, 30, ['id' => 1, 'name' => 'Sale', 'slug' => 'sale', 'count' => 0]);
+        $client = $this->makeClientWithQueuedResponses([$page1]);
+
+        $result = WC_Multi_Store_Category_Mapper::get_remote_tags($client);
+
+        $this->assertCount(30, $result);
+    }
+
+    public function test_get_remote_tags_paginates_when_exactly_100_returned(): void
+    {
+        $page1  = array_fill(0, 100, ['id' => 1, 'name' => 'Sale', 'slug' => 'sale', 'count' => 0]);
+        $page2  = array_fill(0, 5,   ['id' => 2, 'name' => 'New', 'slug' => 'new', 'count' => 0]);
+        $client = $this->makeClientWithQueuedResponses([$page1, $page2]);
+
+        $result = WC_Multi_Store_Category_Mapper::get_remote_tags($client);
+
+        $this->assertCount(105, $result);
+    }
+
+    public function test_get_remote_tags_handles_api_error(): void
+    {
+        $client = $this->makeClientWithQueuedResponses([
+            new WP_Error('api_error', 'Connection refused'),
+        ]);
+
+        $result = WC_Multi_Store_Category_Mapper::get_remote_tags($client);
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result);
+    }
+
+    // -------------------------------------------------------------------------
+    // get_local_tags()
+    // -------------------------------------------------------------------------
+
+    public function test_get_local_tags_maps_terms(): void
+    {
+        $term = new WP_Term();
+        $term->term_id = 5;
+        $term->name = 'Sale';
+        $term->slug = 'sale';
+        $term->count = 10;
+        Functions\when('get_terms')->justReturn([$term]);
+
+        $result = WC_Multi_Store_Category_Mapper::get_local_tags();
+
+        $this->assertSame([
+            ['id' => 5, 'name' => 'Sale', 'slug' => 'sale', 'count' => 10],
+        ], $result);
+    }
+
+    public function test_get_local_tags_returns_empty_on_wp_error(): void
+    {
+        Functions\when('get_terms')->justReturn(new WP_Error('bad_taxonomy', 'nope'));
+
+        $this->assertSame([], WC_Multi_Store_Category_Mapper::get_local_tags());
+    }
+
+    // -------------------------------------------------------------------------
+    // ajax_get_mappings()
+    // -------------------------------------------------------------------------
+
+    public function test_ajax_get_mappings_returns_category_and_tag_data_together(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('get_terms')->justReturn([]);
+
+        $cat_key = md5($this->store_url_a);
+        Functions\when('get_option')->alias(function ($option, $default = []) use ($cat_key) {
+            return match ($option) {
+                'wc_mss_category_mappings' => [$cat_key => ['clothing' => 'apparel']],
+                'wc_mss_tag_mappings' => [$cat_key => ['sale' => 'promo']],
+                default => $default,
+            };
+        });
+
+        $_POST['store_url'] = $this->store_url_a;
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Category_Mapper::ajax_get_mappings();
+
+        $this->assertSame(['clothing' => 'apparel'], $sent['category_mappings']);
+        $this->assertSame(['sale' => 'promo'], $sent['tag_mappings']);
+        $this->assertArrayHasKey('local_categories', $sent);
+        $this->assertArrayHasKey('local_tags', $sent);
+
+        unset($_POST['store_url']);
+    }
+
+    public function test_ajax_get_mappings_requires_store_url(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        WC_Multi_Store_Category_Mapper::ajax_get_mappings();
+
+        $this->assertNotNull($error);
     }
 }

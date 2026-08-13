@@ -131,6 +131,31 @@ class WC_Multi_Store_Action_Scheduler_Manager {
                 }
             }
         }
+
+        // Schedule remote order sync (daily) — migrated from WP Cron, always on
+        // whenever the class is loaded (admin/AJAX/cron contexts), same as
+        // the other core recurring actions above.
+        if (!as_next_scheduled_action('wc_multi_store_sync_remote_orders', [], self::ACTION_GROUP)) {
+            if (class_exists('WC_Multi_Store_Remote_Order_Sync')) {
+                WC_Multi_Store_Remote_Order_Sync::schedule_sync();
+            }
+        }
+
+        // Reconcile orphan auto-trash schedule against its enabled setting —
+        // unlike the other jobs above, this one also needs to be *unscheduled*
+        // when turned off, since an unattended delete-adjacent job left
+        // running after being disabled would be surprising.
+        if (class_exists('WC_Multi_Store_Orphan_Cleanup')) {
+            $auto_trash_enabled = WC_Multi_Store_Orphan_Cleanup::is_enabled();
+            $auto_trash_next = as_next_scheduled_action(WC_Multi_Store_Orphan_Cleanup::AUTO_TRASH_HOOK, [], self::ACTION_GROUP);
+
+            if ($auto_trash_enabled && !$auto_trash_next) {
+                WC_Multi_Store_Logger::write('Orphan auto-trash enabled but not scheduled, scheduling now');
+                WC_Multi_Store_Orphan_Cleanup::schedule_auto_trash();
+            } elseif (!$auto_trash_enabled && $auto_trash_next) {
+                WC_Multi_Store_Orphan_Cleanup::unschedule_auto_trash();
+            }
+        }
     }
 
     /**
@@ -212,10 +237,22 @@ class WC_Multi_Store_Action_Scheduler_Manager {
                 $results['term_cache'] = 'cleared';
             }
 
+            // 9. Clean up old API usage tracking records (> 90 days)
+            if (class_exists('WC_Multi_Store_API_Usage_Tracker')) {
+                $api_usage_cleaned = WC_Multi_Store_API_Usage_Tracker::cleanup_old_data(90);
+                $results['api_usage'] = $api_usage_cleaned;
+            }
+
+            // 10. Clean up old dead-letter queue entries (> 30 days)
+            if (class_exists('WC_Multi_Store_Dead_Letter_Queue')) {
+                $dead_letter_cleaned = WC_Multi_Store_Dead_Letter_Queue::cleanup(30);
+                $results['dead_letter_queue'] = $dead_letter_cleaned;
+            }
+
             $duration = round(microtime(true) - $start_time, 2);
 
             WC_Multi_Store_Logger::write(sprintf(
-                'Daily maintenance completed in %ss: Queue=%d, History=%d, Webhooks=%d, Reports=%d, Stock=%d, Audit=%d, Transients=%d, TermCache=%s',
+                'Daily maintenance completed in %ss: Queue=%d, History=%d, Webhooks=%d, Reports=%d, Stock=%d, Audit=%d, Transients=%d, TermCache=%s, ApiUsage=%d, DeadLetter=%d',
                 $duration,
                 $results['queue'] ?? 0,
                 $results['history'] ?? 0,
@@ -224,7 +261,9 @@ class WC_Multi_Store_Action_Scheduler_Manager {
                 $results['stock_discrepancies'] ?? 0,
                 $results['deletion_audit'] ?? 0,
                 $results['transients'] ?? 0,
-                $results['term_cache'] ?? 'skipped'
+                $results['term_cache'] ?? 'skipped',
+                $results['api_usage'] ?? 0,
+                $results['dead_letter_queue'] ?? 0
             ));
         } catch (\Throwable $e) {
             WC_Multi_Store_Logger::write(sprintf(

@@ -83,8 +83,8 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
         $sections = $this->integration->get_sections();
 
         $expected_keys = [
-            '', 'stores', 'settings', 'queue', 'weekly-verification',
-            'history', 'api-usage', 'discrepancies', 'deletion-audit',
+            '', 'stores', 'category-mapping', 'settings', 'queue', 'weekly-verification',
+            'history', 'api-usage', 'discrepancies', 'conflicts', 'deletion-audit',
             'orphan-cleanup', 'logs',
         ];
 
@@ -104,7 +104,7 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
     {
         $sections = $this->integration->get_sections();
 
-        $this->assertCount(14, $sections);
+        $this->assertCount(17, $sections);
     }
 
     // ─── save ──────────────────────────────────────
@@ -169,16 +169,21 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
             ->once()
             ->with('wc-mss-admin', \Mockery::type('string'), [], \Mockery::any());
 
+        Functions\expect('wp_enqueue_script')
+            ->once()
+            ->with('wc-mss-conflict-utils', \Mockery::type('string'), [], \Mockery::any(), true);
+
         // Dashboard is the default section (no 'section' GET param), and now
         // also loads Chart.js — same as the api-usage section — for the sync
-        // activity chart, so 'wc-mss-admin' depends on 'wc-mss-chartjs'.
+        // activity chart, so 'wc-mss-admin' depends on both 'wc-mss-conflict-utils'
+        // and 'wc-mss-chartjs'.
         Functions\expect('wp_enqueue_script')
             ->once()
             ->with('wc-mss-chartjs', \Mockery::type('string'), [], \Mockery::any(), true);
 
         Functions\expect('wp_enqueue_script')
             ->once()
-            ->with('wc-mss-admin', \Mockery::type('string'), ['wc-mss-chartjs'], \Mockery::any(), true);
+            ->with('wc-mss-admin', \Mockery::type('string'), ['wc-mss-conflict-utils', 'wc-mss-chartjs'], \Mockery::any(), true);
 
         Functions\expect('wp_localize_script')
             ->atLeast()
@@ -311,6 +316,27 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
         $messages = WC_Admin_Settings::get_messages();
         $this->assertNotEmpty($messages);
         $this->assertStringContainsString('5', $messages[0]);
+
+        WC_Admin_Settings::reset();
+    }
+
+    // ─── handle_reschedule_actions (private) ───────
+
+    public function test_handle_reschedule_actions_delegates_to_reschedule_all(): void
+    {
+        // No real ActionScheduler class in the test environment, so
+        // WC_Multi_Store_Action_Scheduler_Manager::is_available() is false.
+        // handle_reschedule_actions() checks this itself before doing
+        // anything, same as before this method stopped duplicating
+        // reschedule_all()'s unschedule/reschedule calls inline.
+        $ref = new ReflectionClass($this->integration);
+        $method = $ref->getMethod('handle_reschedule_actions');
+
+        $method->invoke($this->integration);
+
+        $errors = WC_Admin_Settings::get_errors();
+        $this->assertNotEmpty($errors);
+        $this->assertStringContainsString('Action Scheduler', $errors[0]);
 
         WC_Admin_Settings::reset();
     }

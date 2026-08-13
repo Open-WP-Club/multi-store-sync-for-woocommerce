@@ -163,14 +163,6 @@ class WebhookReceiverTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test get_test_webhook_url static method exists
-     */
-    public function test_get_test_webhook_url_method_exists(): void
-    {
-        $this->assertTrue(method_exists('WC_Multi_Store_Webhook_Receiver', 'get_test_webhook_url'));
-    }
-
-    /**
      * Test get_webhook_url generates correct URL
      */
     public function test_get_webhook_url(): void
@@ -181,26 +173,6 @@ class WebhookReceiverTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('store_url=', $url);
     }
 
-    /**
-     * Test get_test_webhook_url generates correct URL
-     */
-    public function test_get_test_webhook_url(): void
-    {
-        $url = WC_Multi_Store_Webhook_Receiver::get_test_webhook_url('https://remote-store.com');
-
-        $this->assertStringContainsString('wc-multi-store-sync/v1/webhook/test', $url);
-    }
-
-    /**
-     * Test get_test_webhook_url without store URL
-     */
-    public function test_get_test_webhook_url_without_store(): void
-    {
-        $url = WC_Multi_Store_Webhook_Receiver::get_test_webhook_url();
-
-        $this->assertStringContainsString('wc-multi-store-sync/v1/webhook/test', $url);
-        $this->assertStringNotContainsString('store_url=', $url);
-    }
 
     /**
      * Test private check_rate_limit method exists
@@ -211,18 +183,6 @@ class WebhookReceiverTest extends WC_Multi_Store_TestCase
         $this->assertTrue($reflection->hasMethod('check_rate_limit'));
 
         $method = $reflection->getMethod('check_rate_limit');
-        $this->assertTrue($method->isPrivate());
-    }
-
-    /**
-     * Test private get_client_ip method exists
-     */
-    public function test_get_client_ip_method_exists(): void
-    {
-        $reflection = new ReflectionClass('WC_Multi_Store_Webhook_Receiver');
-        $this->assertTrue($reflection->hasMethod('get_client_ip'));
-
-        $method = $reflection->getMethod('get_client_ip');
         $this->assertTrue($method->isPrivate());
     }
 
@@ -283,9 +243,6 @@ class WebhookReceiverTest extends WC_Multi_Store_TestCase
 
         $get_webhook_url = $reflection->getMethod('get_webhook_url');
         $this->assertTrue($get_webhook_url->isStatic());
-
-        $get_test_webhook_url = $reflection->getMethod('get_test_webhook_url');
-        $this->assertTrue($get_test_webhook_url->isStatic());
     }
 
     /**

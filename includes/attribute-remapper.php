@@ -15,11 +15,6 @@ class WC_Multi_Store_Attribute_Remapper {
     use WC_Multi_Store_Toggleable_Feature;
 
     /**
-     * Option key for attribute remapping settings
-     */
-    const SETTINGS_KEY = 'wc_mss_attribute_remapping_settings';
-
-    /**
      * Option key for attribute name mappings
      */
     const NAME_MAPPING_KEY = 'wc_mss_attribute_name_mappings';
@@ -324,6 +319,34 @@ class WC_Multi_Store_Attribute_Remapper {
     }
 
     /**
+     * Get remote global product attributes for the mapping UI (fetches from remote store)
+     */
+    public static function get_remote_attributes(WC_Multi_Store_API_Client $client): array {
+        $page = 1;
+        $all_attributes = [];
+
+        do {
+            $response = $client->get_attributes([
+                'per_page' => 100,
+                'page' => $page,
+            ]);
+
+            if (is_wp_error($response) || empty($response)) {
+                break;
+            }
+
+            $all_attributes = array_merge($all_attributes, $response);
+            $page++;
+        } while (count($response) === 100);
+
+        return array_map(fn($attr) => [
+            'id' => $attr['id'],
+            'name' => $attr['name'],
+            'slug' => $attr['slug'],
+        ], $all_attributes);
+    }
+
+    /**
      * AJAX handler: Save attribute mappings
      */
     public static function ajax_save_mappings(): void {
@@ -392,17 +415,27 @@ class WC_Multi_Store_Attribute_Remapper {
             return;
         }
 
-        $store_url = sanitize_text_field($_GET['store_url'] ?? '');
+        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
             return;
         }
 
+        $local_attributes = self::get_local_attributes();
+
+        // Keyed by attribute name (not the internal sanitized slug) so the UI
+        // can look mappings up directly by the name it already has, without
+        // reimplementing sanitize_title() in JS.
+        $value_mappings = [];
+        foreach ($local_attributes as $attribute) {
+            $value_mappings[$attribute['name']] = self::get_value_mappings($store_url, $attribute['name']);
+        }
+
         wp_send_json_success([
             'name_mappings' => self::get_name_mappings($store_url),
-            'value_mappings' => self::get_value_mappings($store_url),
-            'local_attributes' => self::get_local_attributes(),
+            'value_mappings' => $value_mappings,
+            'local_attributes' => $local_attributes,
         ]);
     }
 }

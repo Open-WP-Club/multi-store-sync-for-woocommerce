@@ -41,20 +41,6 @@ class ProductTransformerTest extends WC_Multi_Store_TestCase
     }
 
     /**
-     * Test clear_cache resets cached allocation rules
-     */
-    public function test_clear_cache_resets_allocation_rules(): void
-    {
-        $this->transformer->clear_cache();
-
-        // Access private property via reflection
-        $reflection = new ReflectionClass($this->transformer);
-        $property = $reflection->getProperty('cached_allocation_rules');
-
-        $this->assertNull($property->getValue($this->transformer));
-    }
-
-    /**
      * Test apply_store_rules without pricing rules
      */
     public function test_apply_store_rules_no_pricing_rules(): void
@@ -123,6 +109,51 @@ class ProductTransformerTest extends WC_Multi_Store_TestCase
 
         // Stock allocation should be skipped since no stock_quantity in data
         $this->assertEquals($product_data, $result);
+    }
+
+    // ── low stock notification ──────────────────────────────────────────────
+
+    public function test_apply_store_rules_triggers_low_stock_notification(): void
+    {
+        $product_data = ['stock_quantity' => 3];
+
+        $mock_product = \Mockery::mock('WC_Product');
+        $mock_product->shouldReceive('get_shipping_class_id')->andReturn(0);
+        $mock_product->shouldReceive('get_id')->andReturn(42);
+
+        $store_config = ['store_url' => 'https://store1.com'];
+
+        Functions\when('get_option')->justReturn(false);
+
+        $triggered_args = null;
+        Functions\when('do_action')->alias(function ($hook, ...$args) use (&$triggered_args) {
+            if ($hook === 'wc_mss_low_stock_detected') {
+                $triggered_args = $args;
+            }
+        });
+
+        $this->transformer->apply_store_rules($product_data, $mock_product, $store_config);
+
+        $this->assertSame([42, 'https://store1.com', 3], $triggered_args);
+    }
+
+    public function test_apply_store_rules_skips_low_stock_notification_without_store_url(): void
+    {
+        $product_data = ['stock_quantity' => 3];
+
+        $mock_product = \Mockery::mock('WC_Product');
+        $mock_product->shouldReceive('get_shipping_class_id')->andReturn(0);
+
+        $called = false;
+        Functions\when('do_action')->alias(function ($hook) use (&$called) {
+            if ($hook === 'wc_mss_low_stock_detected') {
+                $called = true;
+            }
+        });
+
+        $this->transformer->apply_store_rules($product_data, $mock_product, []);
+
+        $this->assertFalse($called);
     }
 
     // ── over-allocation warning ─────────────────────────────────────────────

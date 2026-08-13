@@ -8,9 +8,7 @@
  * `"{central_settings_prefix()}_{key}"` entries (e.g.
  * `shipping_class_sync_enabled`), consistent with other feature flags
  * there (`stock_sync_enabled`, `image_proxy_enabled`, ...). Using classes
- * must define `const SETTINGS_KEY` (retained only as the legacy
- * get_option() key that `migrate_settings_to_central_store()` migrates
- * from) and implement `default_settings()` / `feature_label()` /
+ * must implement `default_settings()` / `feature_label()` /
  * `central_settings_prefix()`.
  *
  * @package WC_Multi_Store_Sync
@@ -72,33 +70,6 @@ trait WC_Multi_Store_Toggleable_Feature {
         foreach ($settings as $key => $value) {
             WC_Multi_Store_Settings::update(static::central_settings_prefix() . '_' . $key, $value);
         }
-    }
-
-    /**
-     * One-time migration: port this feature's settings from its legacy
-     * per-feature get_option() key (static::SETTINGS_KEY) into the central
-     * WC_Multi_Store_Settings store. Safe to call repeatedly — a no-op
-     * once the legacy option has been deleted by a prior run.
-     *
-     * TODO(v5.0): remove this method, its call site in
-     * maybe_upgrade_database(), and the now-unused SETTINGS_KEY constants
-     * once all installs have upgraded past the version that introduced it.
-     */
-    public static function migrate_settings_to_central_store(): void {
-        $legacy = get_option(static::SETTINGS_KEY, null);
-
-        if (!is_array($legacy)) {
-            return;
-        }
-
-        $prefix = static::central_settings_prefix();
-        foreach (static::default_settings() as $key => $default) {
-            if (array_key_exists($key, $legacy)) {
-                WC_Multi_Store_Settings::update($prefix . '_' . $key, $legacy[$key]);
-            }
-        }
-
-        delete_option(static::SETTINGS_KEY);
     }
 
     /**

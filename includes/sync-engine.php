@@ -564,9 +564,43 @@ class WC_Multi_Store_Sync_Engine {
         // Determine if this is an update or create
         $is_update = !empty($remote_product);
 
+        // Conflict detection: flag remote edits made outside this sync since our
+        // last write, before we overwrite them. check_for_conflicts() gates on
+        // its own (default-off) settings toggle before doing anything else, so
+        // this is a no-op for stores that haven't enabled it.
+        // ponytail: re-fetches the remote product via a second API call instead
+        // of reusing $remote_product above — only costs anything once a store
+        // opts into the toggle, so not worth plumbing the already-fetched data
+        // through for a feature that's off by default.
+        if ($is_update) {
+            $conflict_result = WC_Multi_Store_Conflict_Detector::check_for_conflicts($api, $remote_product['id'], $product->get_id(), $store_url);
+
+            if ($conflict_result['has_conflict'] && WC_Multi_Store_Conflict_Detector::get_settings()['action_on_conflict'] === 'block') {
+                $this->logger->warning(sprintf(
+                    'Sync blocked for %s on %s — unresolved conflict (changed fields: %s)',
+                    $product->get_sku(),
+                    $store_url,
+                    implode(', ', $conflict_result['changed_fields'])
+                ));
+
+                return [
+                    'success' => true,
+                    'skipped' => true,
+                    'message' => 'Sync skipped — unresolved conflict on remote store',
+                ];
+            }
+        }
+
         // Build and apply rules to product data
         $product_data = $this->build_product_data($product, $sync_type);
         $product_data = $this->apply_store_rules($product_data, $product, $store_config);
+
+        // Upload downloadable files to the remote store's Media API when
+        // configured for API transfer mode (replaces build_product_data()'s
+        // raw URL/embedded-content entries with the uploaded remote URLs).
+        if ($product->is_downloadable()) {
+            $product_data = WC_Multi_Store_Downloadable_Files_Sync::sync_downloads($api, $product, $product_data, $store_url);
+        }
 
         // Catch name/slug drift on lightweight syncs (quantity/price_quantity/
         // price_quantity_categories) using the remote product we already fetched
@@ -804,6 +838,13 @@ class WC_Multi_Store_Sync_Engine {
                     $match_by,
                     $operation_result['result']
                 );
+            }
+
+            // Advance the conflict-detector baseline to what we just pushed, so a
+            // future check_for_conflicts() compares against our own last write
+            // instead of re-flagging the same already-handled discrepancy forever.
+            if (!empty($operation_result['result']) && !empty(WC_Multi_Store_Conflict_Detector::get_settings()['enabled'])) {
+                WC_Multi_Store_Conflict_Detector::store_hash($product->get_id(), $store_url, $operation_result['result']);
             }
 
             // Persist the stable local↔remote ID mapping so a later SKU/slug

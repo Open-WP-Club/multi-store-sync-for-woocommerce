@@ -203,77 +203,6 @@ class WC_Multi_Store_Cache_Manager {
     }
 
     /**
-     * Refresh remote product cache expiration without changing data
-     * Called after weekly verification confirms data is correct
-     *
-     * @param string $store_url Store URL
-     * @param string $search_value SKU or slug
-     * @param string $match_by Match type
-     * @return bool Success
-     */
-    public static function refresh_remote_product_expiration($store_url, $search_value, $match_by): bool {
-        if (empty($search_value)) {
-            return false;
-        }
-
-        $cache_key = self::build_cache_key('remote_product', [
-            $store_url,
-            $search_value,
-            $match_by,
-        ]);
-
-        // Get existing cached data
-        $cached_data = get_transient($cache_key);
-
-        if ($cached_data === false) {
-            return false; // Nothing to refresh
-        }
-
-        // Re-set with fresh expiration
-        return set_transient($cache_key, $cached_data, self::REMOTE_PRODUCT_EXPIRATION);
-    }
-
-    /**
-     * Bulk refresh product cache expirations after weekly verification
-     * Only refreshes products that passed verification (no discrepancies)
-     *
-     * @param array $verified_products Array of product data that passed verification
-     *                                  Each item: ['sku' => ..., 'store_url' => ..., 'remote_data' => ...]
-     * @param string $match_by Match type (sku or slug)
-     * @return int Number of cache entries refreshed
-     */
-    public static function bulk_refresh_after_verification($verified_products, $match_by = 'sku'): int {
-        $refreshed = 0;
-
-        foreach ($verified_products as $product) {
-            $search_value = $product['sku'] ?? $product['slug'] ?? '';
-            $store_url = $product['store_url'] ?? '';
-
-            if (empty($search_value) || empty($store_url)) {
-                continue;
-            }
-
-            // If we have remote data, update the cache with it
-            if (!empty($product['remote_data'])) {
-                $result = self::update_remote_product_after_sync($store_url, $search_value, $match_by, $product['remote_data']);
-            } else {
-                // Just refresh the expiration
-                $result = self::refresh_remote_product_expiration($store_url, $search_value, $match_by);
-            }
-
-            if ($result) {
-                $refreshed++;
-            }
-        }
-
-        if ($refreshed > 0) {
-            WC_Multi_Store_Logger::write("Refreshed cache for {$refreshed} verified products");
-        }
-
-        return $refreshed;
-    }
-
-    /**
      * Get remote variations from cache
      *
      * @param string $store_url Store URL
@@ -408,38 +337,6 @@ class WC_Multi_Store_Cache_Manager {
     }
 
     /**
-     * Get active stores from cache
-     *
-     * @return array|null Cached stores or null
-     */
-    public static function get_active_stores(): array|false {
-        return get_transient(self::build_cache_key('active_stores', []));
-    }
-
-    /**
-     * Set active stores in cache
-     *
-     * @param array $stores Stores data
-     * @return bool Success
-     */
-    public static function set_active_stores($stores): bool {
-        return set_transient(
-            self::build_cache_key('active_stores', []),
-            $stores,
-            self::STORE_CONFIG_EXPIRATION
-        );
-    }
-
-    /**
-     * Clear active stores cache
-     *
-     * @return bool Success
-     */
-    public static function clear_active_stores(): bool {
-        return delete_transient(self::build_cache_key('active_stores', []));
-    }
-
-    /**
      * Build cache key
      *
      * @param string $type Cache type
@@ -510,27 +407,5 @@ class WC_Multi_Store_Cache_Manager {
         }
 
         return $deleted > 0;
-    }
-
-    /**
-     * Warm up cache for common operations
-     *
-     * Pre-loads frequently accessed data into cache
-     *
-     * @return array Warmed cache types
-     */
-    public static function warmup(): array {
-        $warmed = [];
-
-        // Cache active stores
-        $stores = WC_Multi_Store_Settings::get_active_stores();
-        if (!empty($stores)) {
-            self::set_active_stores($stores);
-            $warmed[] = 'active_stores';
-        }
-
-        WC_Multi_Store_Logger::write('Cache warmed up: ' . implode(', ', $warmed));
-
-        return $warmed;
     }
 }

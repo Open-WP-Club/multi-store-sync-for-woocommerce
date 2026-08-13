@@ -284,40 +284,7 @@ class WC_Multi_Store_Deletion_Audit {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
-        $where = ['1=1'];
-        $where_values = [];
-
-        if ($args['product_id']) {
-            $where[] = 'product_id = %d';
-            $where_values[] = $args['product_id'];
-        }
-
-        if ($args['user_id']) {
-            $where[] = 'user_id = %d';
-            $where_values[] = $args['user_id'];
-        }
-
-        if ($args['status']) {
-            $where[] = 'status = %s';
-            $where_values[] = $args['status'];
-        }
-
-        if ($args['deletion_type']) {
-            $where[] = 'deletion_type = %s';
-            $where_values[] = $args['deletion_type'];
-        }
-
-        if ($args['date_from']) {
-            $where[] = 'deleted_at >= %s';
-            $where_values[] = $args['date_from'];
-        }
-
-        if ($args['date_to']) {
-            $where[] = 'deleted_at <= %s';
-            $where_values[] = $args['date_to'];
-        }
-
-        $where_sql = implode(' AND ', $where);
+        [$where_sql, $where_values] = self::build_where_clause($args);
 
         $allowed_columns = ['id', 'product_id', 'product_sku', 'product_name', 'user_id', 'deletion_type', 'status', 'deleted_at', 'completed_at'];
         if (!in_array($args['orderby'], $allowed_columns, true)) {
@@ -370,6 +337,25 @@ class WC_Multi_Store_Deletion_Audit {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        [$where_sql, $where_values] = self::build_where_clause($args);
+
+        $sql = "SELECT COUNT(*) FROM {$table_name} WHERE {$where_sql}";
+
+        if (!empty($where_values)) {
+            $sql = $wpdb->prepare($sql, $where_values);
+        }
+
+        return (int) $wpdb->get_var($sql);
+    }
+
+    /**
+     * Build the WHERE clause + prepared values shared by get_logs() and
+     * get_total_count() — both filter on the same subset of $args.
+     *
+     * @param array $args Filter arguments (product_id, user_id, status, deletion_type, date_from, date_to)
+     * @return array{0: string, 1: array} [$where_sql, $where_values]
+     */
+    private static function build_where_clause(array $args): array {
         $where = ['1=1'];
         $where_values = [];
 
@@ -403,15 +389,7 @@ class WC_Multi_Store_Deletion_Audit {
             $where_values[] = $args['date_to'];
         }
 
-        $where_sql = implode(' AND ', $where);
-
-        $sql = "SELECT COUNT(*) FROM {$table_name} WHERE {$where_sql}";
-
-        if (!empty($where_values)) {
-            $sql = $wpdb->prepare($sql, $where_values);
-        }
-
-        return (int) $wpdb->get_var($sql);
+        return [implode(' AND ', $where), $where_values];
     }
 
     /**

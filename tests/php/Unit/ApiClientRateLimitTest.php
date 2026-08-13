@@ -3,9 +3,8 @@
  * Unit tests for the transient-backed sliding-window rate limiter in
  * WC_Multi_Store_API_Client.
  *
- * Tests focus on sliding_window_record() (private) and
- * get_rate_limit_status() (public).  enforce_rate_limit() is not tested
- * directly because it calls usleep() which is a PHP built-in that
+ * Tests focus on sliding_window_record() (private).  enforce_rate_limit() is
+ * not tested directly because it calls usleep() which is a PHP built-in that
  * Brain\Monkey cannot intercept; its behaviour is fully determined by
  * sliding_window_record(), which is tested exhaustively here.
  */
@@ -278,62 +277,6 @@ class ApiClientRateLimitTest extends WC_Multi_Store_TestCase
         $this->assertEqualsWithDelta(0.0, $wait, 0.001);
     }
 
-    // ── get_rate_limit_status reflects cross-process view ────────────────────
-
-    public function test_status_reflects_transient_timestamps(): void
-    {
-        $now        = microtime(true);
-        $transient  = array_map(fn($i) => $now - $i * 0.5, range(1, 7));
-
-        Functions\when('get_transient')->justReturn($transient);
-
-        $status = $this->client->get_rate_limit_status();
-
-        $this->assertEquals(7, $status['requests_in_window']);
-        $this->assertEquals(self::MAX_REQ - 7, $status['available']);
-    }
-
-    public function test_status_merges_local_and_transient(): void
-    {
-        $now       = microtime(true);
-        $transient = array_map(fn($i) => $now - $i * 0.5, range(1, 5));
-        $local     = array_map(fn($i) => $now - $i * 0.1 - 0.01, range(1, 3));
-
-        $this->localProp->setValue(null, [$this->storeKey() => $local]);
-        Functions\when('get_transient')->justReturn($transient);
-
-        $status = $this->client->get_rate_limit_status();
-
-        $this->assertEquals(8, $status['requests_in_window']);
-    }
-
-    public function test_status_available_never_negative(): void
-    {
-        $now        = microtime(true);
-        // More timestamps than MAX_REQ in transient (edge case).
-        $transient  = array_map(fn($i) => $now - $i * 0.1, range(0, self::MAX_REQ + 5));
-
-        Functions\when('get_transient')->justReturn($transient);
-
-        $status = $this->client->get_rate_limit_status();
-
-        $this->assertGreaterThanOrEqual(0, $status['available']);
-    }
-
-    public function test_status_structure_is_complete(): void
-    {
-        Functions\when('get_transient')->justReturn(false);
-
-        $status = $this->client->get_rate_limit_status();
-
-        $this->assertArrayHasKey('requests_in_window', $status);
-        $this->assertArrayHasKey('max_requests', $status);
-        $this->assertArrayHasKey('window_seconds', $status);
-        $this->assertArrayHasKey('available', $status);
-        $this->assertEquals(self::MAX_REQ, $status['max_requests']);
-        $this->assertEquals(self::WINDOW, $status['window_seconds']);
-    }
-
     // ── transient constant ────────────────────────────────────────────────────
 
     public function test_transient_prefix_constant_exists(): void
@@ -402,15 +345,4 @@ class ApiClientRateLimitTest extends WC_Multi_Store_TestCase
         $this->assertEqualsWithDelta(0.0, $wait, 0.001);
     }
 
-    public function test_object_cache_path_status_reads_bucket_counter(): void
-    {
-        $GLOBALS['wc_mss_test_use_object_cache'] = true;
-        Functions\when('wp_cache_get')
-            ->alias(fn($key, $group = '') => $group === WC_Multi_Store_API_Client::RATE_LIMIT_CACHE_GROUP ? 7 : false);
-
-        $status = $this->client->get_rate_limit_status();
-
-        $this->assertEquals(7, $status['requests_in_window']);
-        $this->assertEquals(self::MAX_REQ - 7, $status['available']);
-    }
 }

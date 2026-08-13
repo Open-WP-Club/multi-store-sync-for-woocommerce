@@ -28,19 +28,9 @@ class WC_Multi_Store_Order_Sync {
     const int DEBOUNCE_TIMEOUT = 30;
 
     /**
-     * PERFORMANCE FIX: Cached settings to avoid repeated get_option() calls
-     *
-     * @var array|null
-     */
-    private static ?array $cached_order_settings = null;
-
-    /**
      * Initialize order sync
      */
     public function __construct() {
-        // PERFORMANCE FIX: Cache settings on initialization
-        self::$cached_order_settings = get_option('wc_multi_store_sync_orders', []);
-
         // Hook into order status changes
         add_action('woocommerce_order_status_changed', $this->on_order_status_changed(...), 10, 4);
 
@@ -49,16 +39,13 @@ class WC_Multi_Store_Order_Sync {
     }
 
     /**
-     * Get cached order settings
-     * PERFORMANCE FIX: Reduces repeated get_option() database calls
+     * Get order sync settings. get_option() is already backed by WP's options
+     * cache, so no extra caching layer is needed here.
      *
      * @return array
      */
     private static function get_order_settings(): array {
-        if (self::$cached_order_settings === null) {
-            self::$cached_order_settings = get_option('wc_multi_store_sync_orders', []);
-        }
-        return self::$cached_order_settings;
+        return get_option('wc_multi_store_sync_orders', []);
     }
 
     /**
@@ -70,7 +57,6 @@ class WC_Multi_Store_Order_Sync {
      * @param WC_Order $order Order object
      */
     public function on_order_status_changed(int $order_id, string $old_status, string $new_status, WC_Order $order): void {
-        // PERFORMANCE FIX: Use cached settings instead of get_option()
         $settings = self::get_order_settings();
         $enabled = $settings['auto_sync_enabled'] ?? false;
 
@@ -102,7 +88,6 @@ class WC_Multi_Store_Order_Sync {
      * @param int $order_id Order ID
      */
     public function on_new_order(int $order_id): void {
-        // PERFORMANCE FIX: Use cached settings instead of get_option()
         $settings = self::get_order_settings();
         $enabled = $settings['auto_sync_enabled'] ?? false;
 
@@ -166,7 +151,6 @@ class WC_Multi_Store_Order_Sync {
      * @param array $product_ids Product IDs
      */
     private function queue_large_order_products(int $order_id, array $product_ids): void {
-        // PERFORMANCE FIX: Use cached settings
         $settings = self::get_order_settings();
         $debounce_timeout = isset($settings['debounce_timeout']) ? (int) $settings['debounce_timeout'] : self::DEBOUNCE_TIMEOUT;
 
@@ -253,120 +237,6 @@ class WC_Multi_Store_Order_Sync {
         return array_unique($product_ids);
     }
 
-    /**
-     * Sync last N orders
-     *
-     * @param int $limit Number of orders to sync
-     * @return int Number of products queued
-     */
-    public static function sync_last_orders(int $limit = 15): int {
-        $args = [
-            'limit' => $limit,
-            'orderby' => 'date',
-            'order' => 'DESC',
-            'return' => 'ids',
-        ];
-
-        $order_ids = wc_get_orders($args);
-
-        if (empty($order_ids)) {
-            WC_Multi_Store_Logger::write('No recent orders found to sync');
-            return 0;
-        }
-
-        $all_product_ids = [];
-
-        foreach ($order_ids as $order_id) {
-            $order = wc_get_order($order_id);
-            if (!$order) {
-                continue;
-            }
-
-            $product_ids = self::get_order_product_ids($order);
-            $all_product_ids = array_merge($all_product_ids, $product_ids);
-        }
-
-        $all_product_ids = array_unique($all_product_ids);
-
-        if (empty($all_product_ids)) {
-            WC_Multi_Store_Logger::write('No products found in recent orders');
-            return 0;
-        }
-
-        // Queue products
-        $added = WC_MSS()->queue_manager->add_products(
-            $all_product_ids,
-            'last_orders_sync',
-            3 // High priority
-        );
-
-        WC_Multi_Store_Logger::write(sprintf(
-            'Last %d orders: %d unique product(s) queued for sync',
-            count($order_ids),
-            $added
-        ));
-
-        return $added;
-    }
-
-    /**
-     * Get order sync statistics
-     *
-     * @return array Statistics
-     */
-    public static function get_statistics(): array {
-        global $wpdb;
-
-        // Get count of orders today using efficient count query
-        $today_start = date('Y-m-d 00:00:00');
-
-        // Use direct database query for count to avoid loading all orders into memory
-        $orders_table = $wpdb->prefix . 'wc_orders';
-        $posts_table = $wpdb->posts;
-
-        // Check if HPOS is enabled (wc_orders table exists)
-        $hpos_enabled = $wpdb->get_var("SHOW TABLES LIKE '{$orders_table}'") === $orders_table;
-
-        if ($hpos_enabled) {
-            // HPOS enabled - query wc_orders table
-            $orders_count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$orders_table} WHERE date_created_gmt >= %s AND type = 'shop_order'",
-                $today_start
-            ));
-
-            // Get product count from order items
-            $products_today = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COALESCE(SUM(oi.order_item_quantity), 0)
-                FROM {$orders_table} o
-                INNER JOIN {$wpdb->prefix}woocommerce_order_items oi ON o.id = oi.order_id
-                INNER JOIN {$wpdb->prefix}woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id AND oim.meta_key = '_qty'
-                WHERE o.date_created_gmt >= %s AND o.type = 'shop_order' AND oi.order_item_type = 'line_item'",
-                $today_start
-            ));
-        } else {
-            // Legacy - query posts table
-            $orders_count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$posts_table} WHERE post_type = 'shop_order' AND post_date >= %s",
-                $today_start
-            ));
-
-            // Get product count from order items
-            $products_today = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COALESCE(SUM(CAST(oim.meta_value AS UNSIGNED)), 0)
-                FROM {$posts_table} p
-                INNER JOIN {$wpdb->prefix}woocommerce_order_items oi ON p.ID = oi.order_id
-                INNER JOIN {$wpdb->prefix}woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id AND oim.meta_key = '_qty'
-                WHERE p.post_type = 'shop_order' AND p.post_date >= %s AND oi.order_item_type = 'line_item'",
-                $today_start
-            ));
-        }
-
-        return [
-            'orders_today' => $orders_count,
-            'products_today' => $products_today,
-            'settings' => self::get_order_settings(),
-        ];
-    }
 }
 
 // Register debounced order processing hook

@@ -173,20 +173,9 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
     protected function column_status($item): string {
         $status = $item->status;
 
-        // Map common WooCommerce statuses to labels
-        $status_labels = [
-            'pending'    => __('Pending payment', 'wc-multi-store-sync'),
-            'processing' => __('Processing', 'wc-multi-store-sync'),
-            'on-hold'    => __('On hold', 'wc-multi-store-sync'),
-            'completed'  => __('Completed', 'wc-multi-store-sync'),
-            'cancelled'  => __('Cancelled', 'wc-multi-store-sync'),
-            'refunded'   => __('Refunded', 'wc-multi-store-sync'),
-            'failed'     => __('Failed', 'wc-multi-store-sync'),
-        ];
-
         // Remove 'wc-' prefix if present
         $status_clean = str_replace('wc-', '', $status);
-        $status_label = $status_labels[$status_clean] ?? ucfirst($status_clean);
+        $status_label = wc_get_order_status_name($status_clean);
 
         // Map statuses to colors (WooCommerce style)
         $status_colors = [

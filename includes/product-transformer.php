@@ -63,6 +63,17 @@ class WC_Multi_Store_Product_Transformer {
             $this->maybe_warn_over_allocation($product, $all_allocation_rules);
         }
 
+        // Notify if stock destined for this store is low. Rate-limited and
+        // gated by settings inside send_low_stock_notification() — safe to
+        // call unconditionally here.
+        if (isset($product_data['stock_quantity']) && !empty($store_config['store_url'])) {
+            WC_Multi_Store_Email_Notifications::trigger_low_stock(
+                $product->get_id(),
+                $store_config['store_url'],
+                (int) $product_data['stock_quantity']
+            );
+        }
+
         // Apply category mapping per store
         $store_url = $store_config['store_url'] ?? '';
         if ($store_url) {
@@ -92,7 +103,7 @@ class WC_Multi_Store_Product_Transformer {
      */
     public function apply_variation_pricing_rules(array $variation_data, array $store_config): array {
         if (isset($store_config['pricing_rules'])) {
-            $variation_data = WC_Multi_Store_Pricing_Rules::apply_to_variation(
+            $variation_data = WC_Multi_Store_Pricing_Rules::apply_pricing_rules(
                 $variation_data,
                 $store_config['pricing_rules']
             );
@@ -197,12 +208,4 @@ class WC_Multi_Store_Product_Transformer {
         ), 'warning');
     }
 
-    /**
-     * Clear cached allocation rules (call when store config changes)
-     *
-     * @return void
-     */
-    public function clear_cache(): void {
-        $this->cached_allocation_rules = null;
-    }
 }

@@ -10,17 +10,19 @@ use Brain\Monkey\Functions;
 
 if (!class_exists('WP_Term')) {
     // Kept in sync with the other guarded `WP_Term` stubs in this suite
-    // (ShippingClassSyncTest.php, CategorySyncTest.php) — whichever test
-    // file's stub loads first wins the class_exists() race for the whole
-    // PHPUnit process, so a property missing here causes a PHP 8.5 "dynamic
-    // property" deprecation in unrelated files that expect it (e.g.
-    // $term->description).
+    // (ShippingClassSyncTest.php, CategorySyncTest.php, CategoryMapperTest.php)
+    // — whichever test file's stub loads first wins the class_exists() race
+    // for the whole PHPUnit process, so a property missing here causes a PHP
+    // 8.5 "dynamic property" deprecation in unrelated files that expect it
+    // (e.g. $term->description, $term->count).
     class WP_Term {
         public int $term_id = 0;
         public string $name = '';
         public string $slug = '';
         public string $taxonomy = 'product_cat';
         public string $description = '';
+        public int $parent = 0;
+        public int $count = 0;
     }
 }
 
