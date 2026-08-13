@@ -907,6 +907,225 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         $this->assertStringNotContainsString('resolved = 0', (string) $capturedSql);
     }
 
+    public function test_ajax_get_conflicts_denies_without_capability(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(false);
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        // No $wpdb mock is set up — if the capability guard is ever removed,
+        // this test fails loudly (undefined global) instead of silently passing.
+        WC_Multi_Store_Conflict_Detector::ajax_get_conflicts();
+
+        $this->assertSame('Unauthorized', $error['message']);
+    }
+
+    // =========================================================================
+    // ajax_resolve_conflict
+    // =========================================================================
+
+    public function test_ajax_resolve_conflict_denies_without_capability(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(false);
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_resolve_conflict();
+
+        $this->assertSame('Unauthorized', $error['message']);
+    }
+
+    public function test_ajax_resolve_conflict_resolves_and_returns_success(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('absint')->alias(fn($v) => abs((int) $v));
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+        $wpdb->shouldReceive('update')->once()->andReturn(1);
+
+        $_POST = ['id' => '7', 'resolution' => 'keep_remote'];
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_resolve_conflict();
+        $_POST = [];
+
+        $this->assertSame('Conflict resolved', $sent['message']);
+    }
+
+    public function test_ajax_resolve_conflict_rejects_invalid_resolution(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('absint')->alias(fn($v) => abs((int) $v));
+
+        $_POST = ['id' => '7', 'resolution' => 'not_a_real_option'];
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        // No $wpdb mock — an invalid resolution must be rejected before any DB write.
+        WC_Multi_Store_Conflict_Detector::ajax_resolve_conflict();
+        $_POST = [];
+
+        $this->assertSame('Invalid resolution type', $error['message']);
+    }
+
+    public function test_ajax_resolve_conflict_reports_not_found(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('absint')->alias(fn($v) => abs((int) $v));
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+        $wpdb->shouldReceive('update')->once()->andReturn(0);
+
+        $_POST = ['id' => '999', 'resolution' => 'overwrite'];
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_resolve_conflict();
+        $_POST = [];
+
+        $this->assertSame('Conflict not found', $error['message']);
+    }
+
+    // =========================================================================
+    // ajax_resolve_all
+    // =========================================================================
+
+    public function test_ajax_resolve_all_denies_without_capability(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(false);
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_resolve_all();
+
+        $this->assertSame('Unauthorized', $error['message']);
+    }
+
+    public function test_ajax_resolve_all_resolves_and_reports_count(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        global $wpdb;
+        $wpdb             = \Mockery::mock('wpdb');
+        $wpdb->prefix     = 'wp_';
+        $wpdb->last_error = '';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('query')->once()->andReturn(4);
+
+        $_POST = ['store_url' => 'https://shop.example.com', 'resolution' => 'overwrite'];
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_resolve_all();
+        $_POST = [];
+
+        $this->assertSame(4, $sent['resolved']);
+        $this->assertStringContainsString('4', $sent['message']);
+    }
+
+    // =========================================================================
+    // ajax_toggle
+    // =========================================================================
+
+    public function test_ajax_toggle_denies_without_capability(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(false);
+
+        $error = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error) {
+            $error = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_toggle();
+
+        $this->assertSame('Unauthorized', $error['message']);
+    }
+
+    public function test_ajax_toggle_enables_detection(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $savedOption = null;
+        Functions\when('update_option')->alias(function ($key, $value) use (&$savedOption) {
+            $savedOption = $value;
+            return true;
+        });
+
+        $_POST = ['enabled' => '1'];
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_toggle();
+        $_POST = [];
+
+        $this->assertTrue($savedOption['enabled']);
+        $this->assertTrue($sent['enabled']);
+    }
+
+    public function test_ajax_toggle_disables_detection(): void
+    {
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $savedOption = null;
+        Functions\when('update_option')->alias(function ($key, $value) use (&$savedOption) {
+            $savedOption = $value;
+            return true;
+        });
+
+        $_POST = [];
+
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
+            $sent = $data;
+        });
+
+        WC_Multi_Store_Conflict_Detector::ajax_toggle();
+
+        $this->assertFalse($savedOption['enabled']);
+        $this->assertFalse($sent['enabled']);
+    }
+
     // =========================================================================
     // maybe_migrate_from_options
     // =========================================================================

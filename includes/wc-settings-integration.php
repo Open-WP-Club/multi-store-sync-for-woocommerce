@@ -806,7 +806,15 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             WC_MSS_VERSION
         );
 
-        $script_deps = [];
+        wp_enqueue_script(
+            'wc-mss-conflict-utils',
+            WC_MSS_PLUGIN_URL . 'admin/js/conflict-utils.js',
+            [],
+            WC_MSS_VERSION,
+            true
+        );
+
+        $script_deps = ['wc-mss-conflict-utils'];
 
         $chart_section = sanitize_text_field($_GET['section'] ?? '');
         if (in_array($chart_section, ['api-usage', ''], true)) {

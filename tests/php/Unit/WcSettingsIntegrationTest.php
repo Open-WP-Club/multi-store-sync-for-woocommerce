@@ -169,16 +169,21 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
             ->once()
             ->with('wc-mss-admin', \Mockery::type('string'), [], \Mockery::any());
 
+        Functions\expect('wp_enqueue_script')
+            ->once()
+            ->with('wc-mss-conflict-utils', \Mockery::type('string'), [], \Mockery::any(), true);
+
         // Dashboard is the default section (no 'section' GET param), and now
         // also loads Chart.js — same as the api-usage section — for the sync
-        // activity chart, so 'wc-mss-admin' depends on 'wc-mss-chartjs'.
+        // activity chart, so 'wc-mss-admin' depends on both 'wc-mss-conflict-utils'
+        // and 'wc-mss-chartjs'.
         Functions\expect('wp_enqueue_script')
             ->once()
             ->with('wc-mss-chartjs', \Mockery::type('string'), [], \Mockery::any(), true);
 
         Functions\expect('wp_enqueue_script')
             ->once()
-            ->with('wc-mss-admin', \Mockery::type('string'), ['wc-mss-chartjs'], \Mockery::any(), true);
+            ->with('wc-mss-admin', \Mockery::type('string'), ['wc-mss-conflict-utils', 'wc-mss-chartjs'], \Mockery::any(), true);
 
         Functions\expect('wp_localize_script')
             ->atLeast()
