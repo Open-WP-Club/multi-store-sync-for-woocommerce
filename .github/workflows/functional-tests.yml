@@ -46,6 +46,13 @@ jobs:
       - name: Check PHP syntax
         run: vendor/bin/parallel-lint --exclude vendor --exclude node_modules .
 
+      - name: Run PHPStan
+        run: composer phpstan
+
+      - name: Run PHPCS (WordPress security/DB conventions)
+        run: composer phpcs
+        continue-on-error: true # advisory only — no baseline mechanism exists yet to freeze the ~690 pre-existing findings; see .claude.md
+
       - name: Cache PHPUnit results
         uses: actions/cache@v5
         with:

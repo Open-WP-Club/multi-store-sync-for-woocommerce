@@ -1,0 +1,13 @@
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    paths:
+        - includes
+        - wc-multi-store-sync.php
+    bootstrapFiles:
+        - phpstan-constants.php
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
+        - vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php

@@ -550,6 +550,25 @@ public function prepare_product_data(WC_Product $product, string $sync_type): ar
 
 ### Nonce Verification
 
+For `wp_ajax_wc_mss_*` handlers specifically, use the shared trait instead of hand-rolling this:
+
+```php
+use WC_Multi_Store_Ajax_Auth_Guard;
+
+class WC_Multi_Store_Something {
+    use WC_Multi_Store_Ajax_Auth_Guard;
+
+    public static function ajax_do_thing(): void {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+            return; // trait already sent wp_send_json_error()
+        }
+        // ... handle request
+    }
+}
+```
+
+`verify_admin_request()` runs `check_ajax_referer()` + `current_user_can('manage_woocommerce')` and sends the JSON error itself — callers just `return` on `false`. See `includes/ajax-auth-guard-trait.php`. The pattern below (`wp_die` on failure) is for classic form-POST handlers, not AJAX.
+
 ```php
 public function handle_form_submission(): void {
     // Check nonce

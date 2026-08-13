@@ -5,7 +5,6 @@ One-way product/stock sync from a main WooCommerce store to any number of remote
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Tests](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/actions/workflows/functional-tests.yml/badge.svg)](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/actions)
 
-> Formerly "WooCommerce API Product Sync with Multiple WooCommerce Stores".
 
 ## Requirements
 
@@ -34,10 +33,7 @@ Full product, price, stock, image, category/tag, and variation sync, plus catego
 - [Developer Guide](documentation/DEVELOPER.md)
 - [Changelog](CHANGELOG.md)
 
-## License
-
-GPLv3 or later.
 
 ## Support
 
-[GitHub Issues](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/issues) · support@gkanev.com · [gkanev.com](https://gkanev.com)
+[GitHub Issues](https://github.com/Open-WP-Club/multi-store-sync-for-woocommerce/issues)

@@ -1,0 +1,583 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Action callback returns array but should not return anything\.$#'
+			identifier: return.void
+			count: 1
+			path: includes/action-scheduler-manager.php
+
+		-
+			message: '#^Offset ''processed'' on non\-empty\-array on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: includes/action-scheduler-manager.php
+
+		-
+			message: '#^Offset ''transients'' on array\{queue\?\: int\|false, history\?\: int, webhook_logs\?\: int, verification_reports\?\: int\|false, stock_discrepancies\?\: int\|false, deletion_audit\?\: int, transients\: int, term_cache\?\: ''cleared'', \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: includes/action-scheduler-manager.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/api-client.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 5
+			path: includes/attribute-remapper.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: includes/cache-manager.php
+
+		-
+			message: '#^PHPDoc tag @return with type array\|null is not subtype of native type array\|false\.$#'
+			identifier: return.phpDocType
+			count: 1
+			path: includes/cache-manager.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 5
+			path: includes/category-mapper.php
+
+		-
+			message: '#^Offset mixed on non\-empty\-array\<list\<mixed\>\> on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: includes/class-admin-ajax.php
+
+		-
+			message: '#^Parameter \#1 \$text of function esc_attr expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/class-admin-ajax.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 24
+			path: includes/class-admin-ajax.php
+
+		-
+			message: '#^Call to an undefined static method WC_Multi_Store_Health_Check\:\:check_store_connection\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: includes/cli-commands.php
+
+		-
+			message: '#^Call to method finish\(\) on an unknown class cli\\progress\\Bar\.$#'
+			identifier: class.notFound
+			count: 1
+			path: includes/cli-commands.php
+
+		-
+			message: '#^Call to method tick\(\) on an unknown class cli\\progress\\Bar\.$#'
+			identifier: class.notFound
+			count: 1
+			path: includes/cli-commands.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 5
+			path: includes/config-manager.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: includes/conflict-detector.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/coupon-sync.php
+
+		-
+			message: '#^Call to private method delete\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/coupon-sync.php
+
+		-
+			message: '#^Call to private method get\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 3
+			path: includes/coupon-sync.php
+
+		-
+			message: '#^Call to private method post\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/coupon-sync.php
+
+		-
+			message: '#^Call to private method put\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/coupon-sync.php
+
+		-
+			message: '#^Offset ''meta_data'' on array\{code\: string, discount_type\: string, amount\: string, description\: string, date_expires\: string\|null, individual_use\: bool, usage_limit\: int, usage_limit_per_user\: int, \.\.\.\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: includes/coupon-sync.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: includes/coupon-sync.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/custom-field-mapper.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>post_title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: includes/custom-field-mapper.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: includes/dashboard-widget.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 7
+			path: includes/dead-letter-queue.php
+
+		-
+			message: '#^Parameter \#1 \$attachment_id of function wp_get_attachment_url expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/deletion-audit.php
+
+		-
+			message: '#^Variable \$where_values in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: includes/deletion-audit.php
+
+		-
+			message: '#^Offset ''type'' on array\{ext\: string\|false, type\: string\|false\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: includes/downloadable-files-sync.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and false will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: includes/downloadable-files-sync.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: includes/downloadable-files-sync.php
+
+		-
+			message: '#^Offset 0 on non\-empty\-list\<string\> in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: includes/email-notifications.php
+
+		-
+			message: '#^Parameter \#1 \$text of function esc_html expects string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/email-notifications.php
+
+		-
+			message: '#^Parameter \#1 \$text of function esc_html expects string, int given\.$#'
+			identifier: argument.type
+			count: 4
+			path: includes/email-notifications.php
+
+		-
+			message: '#^Parameter \#1 \$text of function esc_html expects string, int\<min, \-1\>\|int\<1, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/email-notifications.php
+
+		-
+			message: '#^Negated boolean expression is always false\.$#'
+			identifier: booleanNot.alwaysFalse
+			count: 1
+			path: includes/hooks.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: includes/hooks.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: includes/hooks.php
+
+		-
+			message: '#^Static call to instance method WC_Log_Handler_File\:\:remove\(\)\.$#'
+			identifier: method.staticCall
+			count: 1
+			path: includes/logger.php
+
+		-
+			message: '#^Ternary operator condition is always true\.$#'
+			identifier: ternary.alwaysTrue
+			count: 1
+			path: includes/logger.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type WC_Logger_Interface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: includes/logger.php
+
+		-
+			message: '#^Call to an undefined method WC_Order_Item\:\:get_product_id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: includes/order-sync.php
+
+		-
+			message: '#^Call to an undefined method WC_Order_Item\:\:get_variation_id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: includes/order-sync.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 5
+			path: includes/orphan-cleanup.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/pricing-rules.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/pricing-rules.php
+
+		-
+			message: '#^Parameter \#1 \$text of function esc_attr expects string, int given\.$#'
+			identifier: argument.type
+			count: 4
+			path: includes/product-edit.php
+
+		-
+			message: '#^Parameter \#1 \$text of function esc_attr expects string, int\<min, \-1\>\|int\<1, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/product-edit.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 5
+			path: includes/product-edit.php
+
+		-
+			message: '#^Call to function is_wp_error\(\) with WP_Term will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 2
+			path: includes/product-extractor.php
+
+		-
+			message: '#^Cannot access property \$attribute_label on array\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: includes/product-extractor.php
+
+		-
+			message: '#^Parameter \#1 \$attachment_id of function wp_get_attachment_url expects int, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: includes/product-extractor.php
+
+		-
+			message: '#^Parameter \#2 \$term_ids of static method WC_Multi_Store_Cache_Manager\:\:get_taxonomy_terms\(\) expects array, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: includes/product-extractor.php
+
+		-
+			message: '#^Parameter \#2 \$term_ids of static method WC_Multi_Store_Cache_Manager\:\:set_taxonomy_terms\(\) expects array, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: includes/product-extractor.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/queue-manager.php
+
+		-
+			message: '#^Comparison operation "\>" between int\<1, max\> and 0 is always true\.$#'
+			identifier: greater.alwaysTrue
+			count: 1
+			path: includes/queue-manager.php
+
+		-
+			message: '#^If condition is always false\.$#'
+			identifier: if.alwaysFalse
+			count: 1
+			path: includes/queue-manager.php
+
+		-
+			message: '#^PHPDoc tag @return with type bool is not subtype of native type int\|false\.$#'
+			identifier: return.phpDocType
+			count: 3
+			path: includes/queue-table.php
+
+		-
+			message: '#^Parameter \#1 \$args of method WP_List_Table\:\:set_pagination_args\(\) expects array\{total_items\?\: int, total_pages\?\: int, per_page\?\: int\}, array\{total_items\: int, per_page\: int, total_pages\: float\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/remote-order-list-table.php
+
+		-
+			message: '#^Action callback returns array but should not return anything\.$#'
+			identifier: return.void
+			count: 1
+			path: includes/remote-order-sync.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/remote-order-sync.php
+
+		-
+			message: '#^Parameter \#1 \$id of static method WC_Multi_Store_Remote_Order_Table\:\:get\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/remote-order-sync.php
+
+		-
+			message: '#^Parameter \#1 \$id of static method WC_Multi_Store_Remote_Order_Table\:\:update\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/remote-order-sync.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/shipping-class-sync.php
+
+		-
+			message: '#^Call to private method delete\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/shipping-class-sync.php
+
+		-
+			message: '#^Call to private method get\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/shipping-class-sync.php
+
+		-
+			message: '#^Call to private method post\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/shipping-class-sync.php
+
+		-
+			message: '#^Call to private method put\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/shipping-class-sync.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: includes/shipping-class-sync.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/stock-allocator.php
+
+		-
+			message: '#^Parameter \#2 \$trigger of method WC_Multi_Store_Queue_Manager\:\:add_product\(\) expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/stock-verifier.php
+
+		-
+			message: '#^Parameter \#3 \$priority of method WC_Multi_Store_Queue_Manager\:\:add_product\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/stock-verifier.php
+
+		-
+			message: '#^Action callback returns array but should not return anything\.$#'
+			identifier: return.void
+			count: 1
+			path: includes/store-health-check.php
+
+		-
+			message: '#^Action callback returns array\|null but should not return anything\.$#'
+			identifier: return.void
+			count: 1
+			path: includes/store-health-check.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 12
+			path: includes/store-health-check.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/sync-engine.php
+
+		-
+			message: '#^Method WC_Multi_Store_Sync_Engine\:\:get_active_stores\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: includes/sync-engine.php
+
+		-
+			message: '#^Parameter \#2 \$replace of function str_replace expects array\<string\>\|string, array\<int, int\|string\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/sync-engine.php
+
+		-
+			message: '#^Property WC_Multi_Store_Sync_Engine\:\:\$api_client is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: includes/sync-engine.php
+
+		-
+			message: '#^Constant DB_NAME not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/sync-history.php
+
+		-
+			message: '#^Property WC_Multi_Store_Sync_Previewer\:\:\$api_client is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: includes/sync-previewer.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 5
+			path: includes/sync-profiles.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/variation-synchronizer.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<mixed\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/variation-synchronizer.php
+
+		-
+			message: '#^Parameter \#1 \$attachment_id of static method WC_Multi_Store_Image_Proxy\:\:get_image_data\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/variation-synchronizer.php
+
+		-
+			message: '#^Parameter \#1 \$variation of method WC_Multi_Store_Product_Extractor\:\:build_variation_data\(\) expects WC_Product_Variation, WC_Product given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/variation-synchronizer.php
+
+		-
+			message: '#^Parameter \#2 \$variation of method WC_Multi_Store_Product_Transformer\:\:apply_variation_stock_rules\(\) expects WC_Product_Variation, WC_Product given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/variation-synchronizer.php
+
+		-
+			message: '#^Parameter \#3 \$variations of static method WC_Multi_Store_Cache_Manager\:\:set_remote_variations\(\) expects array, null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/variation-synchronizer.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 7
+			path: includes/wc-settings-integration.php
+
+		-
+			message: '#^Method WC_Multi_Store_Webhook_Receiver\:\:process_stock_deduction\(\) never returns WP_Error so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: includes/webhook-receiver.php
+
+		-
+			message: '#^Cannot access property \$attribute_label on array\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: includes/weekly-verification-comparator.php
+
+		-
+			message: '#^Parameter \#1 \$attachment_id of function wp_get_attachment_url expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: includes/weekly-verification-comparator.php
+
+		-
+			message: '#^Call to function is_object\(\) with non\-empty\-array will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: includes/weekly-verification-remote-data-fetcher.php
+
+		-
+			message: '#^Call to function is_object\(\) with stdClass will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/weekly-verification-remote-data-fetcher.php
+
+		-
+			message: '#^Parameter \#2 \$args of function as_unschedule_all_actions expects array, null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: includes/weekly-verification-scheduler.php
+
+		-
+			message: '#^Action callback returns array but should not return anything\.$#'
+			identifier: return.void
+			count: 2
+			path: wc-multi-store-sync.php

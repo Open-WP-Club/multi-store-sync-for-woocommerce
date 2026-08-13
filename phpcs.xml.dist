@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<ruleset name="WC Multi Store Sync">
+    <description>WordPress security conventions (nonces, sanitization, escaping, SQL prep) for this plugin.</description>
+
+    <arg value="sp"/>
+    <arg name="extensions" value="php"/>
+    <arg name="basepath" value="."/>
+    <arg name="parallel" value="8"/>
+    <arg name="cache" value=".phpcs.cache"/>
+
+    <file>includes</file>
+    <file>wc-multi-store-sync.php</file>
+
+    <!-- WPCS 3.x dropped the standalone "WordPress-Security" ruleset; the
+         equivalent sniffs now live directly under these two categories. -->
+    <rule ref="WordPress.Security"/>
+    <rule ref="WordPress.DB">
+        <!-- This plugin's sync-log/queue tables are custom, non-cached-by-WP-core
+             tables by design (short-lived operational data) — WPCS's object-cache
+             sniffs assume core-style caching that doesn't apply here. This exclusion
+             is the standard WPCS-recommended pattern for plugins with custom tables. -->
+        <exclude name="WordPress.DB.DirectDatabaseQuery.DirectQuery"/>
+        <exclude name="WordPress.DB.DirectDatabaseQuery.NoCaching"/>
+    </rule>
+
+    <config name="minimum_supported_wp_version" value="6.0"/>
+</ruleset>
