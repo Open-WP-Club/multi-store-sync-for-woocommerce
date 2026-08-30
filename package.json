@@ -1,6 +1,6 @@
 {
   "name": "woocommerce-api-product-sync-with-multiple-woocommerce-stores",
-  "version": "1.0.0",
+  "version": "4.1.1",
   "description": "**Professional multi-store product synchronization for WooCommerce**",
   "main": "index.js",
   "directories": {

@@ -225,6 +225,26 @@ class ApplicationPasswordTest extends WC_Multi_Store_TestCase
         unlink($tmp);
     }
 
+    public function test_upload_image_rejects_oversized_local_file(): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'mss_img_');
+        $handle = fopen($tmp, 'wb');
+        ftruncate($handle, WC_Multi_Store_API_Client::MAX_IMAGE_BYTES + 1);
+        fclose($handle);
+
+        Functions\expect('wp_remote_post')->never();
+        $api = new WC_Multi_Store_API_Client($this->store_url, $this->consumer_key, $this->consumer_secret);
+        $result = $api->upload_image([
+            'file_path' => $tmp,
+            'filename' => 'large.jpg',
+            'mime_type' => 'image/jpeg',
+        ]);
+
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $this->assertSame('image_too_large', $result->get_error_code());
+        unlink($tmp);
+    }
+
     /**
      * upload_image() returns WP_Error when the file cannot be read from disk.
      */

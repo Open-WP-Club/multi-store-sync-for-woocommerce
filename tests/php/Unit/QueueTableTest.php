@@ -8,6 +8,11 @@ use Brain\Monkey\Functions;
 
 class QueueTableTest extends WC_Multi_Store_TestCase
 {
+    private function expectEnqueueLock($wpdb): void
+    {
+        $wpdb->shouldReceive('get_var')->twice()->andReturn(1);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -62,6 +67,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->insert_id = 1;
+        $this->expectEnqueueLock($wpdb);
 
         // No existing item
         $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
@@ -94,6 +100,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
+        $this->expectEnqueueLock($wpdb);
 
         // Existing pending item
         $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
@@ -112,6 +119,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
+        $this->expectEnqueueLock($wpdb);
 
         $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
         $wpdb->shouldReceive('get_row')
@@ -141,6 +149,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->insert_id = 100;
+        $this->expectEnqueueLock($wpdb);
 
         $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
         $wpdb->shouldReceive('get_row')
@@ -162,6 +171,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
+        $this->expectEnqueueLock($wpdb);
 
         $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
         $wpdb->shouldReceive('get_row')->once()->andReturn(null);
@@ -178,6 +188,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->insert_id = 5;
+        $this->expectEnqueueLock($wpdb);
 
         $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
         $wpdb->shouldReceive('get_row')->once()->andReturn(null);
@@ -199,6 +210,19 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         );
 
         $this->assertEquals(5, $result);
+    }
+
+    public function test_add_returns_false_when_enqueue_lock_is_busy(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn('lock query');
+        $wpdb->shouldReceive('get_var')->once()->andReturn(0);
+        $wpdb->shouldNotReceive('get_row');
+        $wpdb->shouldNotReceive('insert');
+
+        $this->assertFalse(WC_Multi_Store_Queue_Table::add(42, 'https://store.com'));
     }
 
     // ─── get_next_batch ────────────────────────────

@@ -110,8 +110,9 @@ class WC_Multi_Store_Sync_History {
                 'duration_ms' => $data['duration_ms'] ? absint($data['duration_ms']) : null,
                 'memory_mb' => $data['memory_mb'] ? floatval($data['memory_mb']) : null,
                 'api_calls' => absint($data['api_calls']),
+                'created_at' => current_time('mysql'),
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%f', '%d']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%f', '%d', '%s']
         );
 
         return $result ? $wpdb->insert_id : false;
@@ -237,10 +238,18 @@ class WC_Multi_Store_Sync_History {
         ];
 
         $args = wp_parse_args($args, $defaults);
+        $days = max(1, min(365, (int) $args['days']));
+
+        // History timestamps are written in the WordPress timezone. Use calendar
+        // day boundaries so "today" does not accidentally mean "last 24 hours".
+        $today = substr((string) current_time('mysql'), 0, 10);
+        $start_date = (new \DateTimeImmutable($today))
+            ->modify('-' . ($days - 1) . ' days')
+            ->format('Y-m-d 00:00:00');
 
         // Build WHERE clause
         $where = [];
-        $where[] = $wpdb->prepare('created_at >= DATE_SUB(NOW(), INTERVAL %d DAY)', $args['days']);
+        $where[] = $wpdb->prepare('created_at >= %s', $start_date);
 
         if ($args['store_url']) {
             $where[] = self::store_url_like_clause($wpdb, $args['store_url']);
@@ -261,6 +270,15 @@ class WC_Multi_Store_Sync_History {
             FROM {$table_name}
             WHERE {$where_clause}
         ", ARRAY_A);
+        $stats = is_array($stats) ? $stats : [
+            'total_syncs' => 0,
+            'successful_syncs' => 0,
+            'failed_syncs' => 0,
+            'avg_duration_ms' => null,
+            'max_duration_ms' => null,
+            'avg_memory_mb' => null,
+            'total_api_calls' => 0,
+        ];
 
         // Get by sync type
         $by_type = $wpdb->get_results("
@@ -273,6 +291,7 @@ class WC_Multi_Store_Sync_History {
             WHERE {$where_clause}
             GROUP BY sync_type
         ", ARRAY_A);
+        $by_type = is_array($by_type) ? $by_type : [];
 
         // Get by store
         $by_store = $wpdb->get_results("
@@ -286,6 +305,7 @@ class WC_Multi_Store_Sync_History {
             WHERE {$where_clause}
             GROUP BY store_url
         ", ARRAY_A);
+        $by_store = is_array($by_store) ? $by_store : [];
 
         // Get daily stats — LIMIT to requested days to avoid unbounded result sets
         $daily_stats = $wpdb->get_results($wpdb->prepare("
@@ -299,7 +319,8 @@ class WC_Multi_Store_Sync_History {
             GROUP BY DATE(created_at)
             ORDER BY date DESC
             LIMIT %d
-        ", $args['days']), ARRAY_A);
+        ", $days), ARRAY_A);
+        $daily_stats = is_array($daily_stats) ? $daily_stats : [];
 
         // Calculate success rate
         $success_rate = 0;

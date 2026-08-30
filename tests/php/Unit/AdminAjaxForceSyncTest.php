@@ -41,6 +41,7 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         Functions\when('_n')->alias(fn($s, $p, $n) => $n === 1 ? $s : $p);
         Functions\when('absint')->alias(fn($v) => abs((int) $v));
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        Functions\when('get_option')->justReturn(false);
 
         // Ensure a fresh real queue_manager instance.
         WC_Multi_Store_Sync::instance()->queue_manager = new WC_Multi_Store_Queue_Manager();
@@ -125,10 +126,12 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         $wpdb->posts    = 'wp_posts';
         $wpdb->term_relationships = 'wp_term_relationships';
         $wpdb->term_taxonomy      = 'wp_term_taxonomy';
-        $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($query, ...$args) => $query);
         $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('get_row')->andReturn(null);
-        $wpdb->shouldReceive('get_var')->andReturn(null);
+        $wpdb->shouldReceive('get_var')->andReturnUsing(
+            fn($query) => str_contains((string) $query, 'GET_LOCK') ? 1 : null
+        );
         $wpdb->shouldReceive('insert')->andReturn(1);
         $wpdb->insert_id = 1;
     }
@@ -148,7 +151,7 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         $wpdb->posts    = 'wp_posts';
         $wpdb->term_relationships = 'wp_term_relationships';
         $wpdb->term_taxonomy      = 'wp_term_taxonomy';
-        $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($query, ...$args) => $query);
         $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => $s);
         $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('get_row')->andReturn(null);
@@ -560,7 +563,7 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         $wpdb->term_relationships  = 'wp_term_relationships';
         $wpdb->term_taxonomy       = 'wp_term_taxonomy';
         $wpdb->insert_id           = 1;
-        $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($query, ...$args) => $query);
         $catRow              = new stdClass();
         $catRow->term_id    = 5;
         $catRow->taxonomy   = 'product_cat';
@@ -1574,12 +1577,14 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->insert_id = 1;
-        $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($query, ...$args) => $query);
 
         // get_var() is used both by table_exists() (SHOW TABLES ...) and elsewhere;
         // discriminate on the literal SQL text so other get_var() callers still get null.
         $wpdb->shouldReceive('get_var')->andReturnUsing(
-            fn($sql) => str_contains($sql, 'SHOW TABLES') ? 'wp_wc_multi_store_weekly_verifications' : null
+            fn($sql) => str_contains($sql, 'SHOW TABLES')
+                ? 'wp_wc_multi_store_weekly_verifications'
+                : (str_contains($sql, 'GET_LOCK') ? 1 : null)
         );
 
         $report_data = ['details' => []];

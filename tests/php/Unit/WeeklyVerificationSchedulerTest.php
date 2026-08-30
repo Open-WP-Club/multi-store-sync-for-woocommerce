@@ -62,6 +62,8 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
+        Functions\when('add_option')->justReturn(true);
+        Functions\when('delete_option')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('update_option')->justReturn(true);
         Functions\when('wp_parse_args')->alias(function ($args, $defaults) {
@@ -183,6 +185,15 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
         $this->assertArrayHasKey('error', $result);
         $this->assertEquals('No active stores', $result['error']);
+    }
+
+    public function test_run_verification_stops_when_atomic_lock_is_busy(): void
+    {
+        Functions\when('add_option')->justReturn(false);
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
+
+        $this->assertSame('Verification already running', $result['error']);
     }
 
     public function test_run_verification_clears_stale_lock(): void

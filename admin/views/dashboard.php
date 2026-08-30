@@ -316,6 +316,11 @@ foreach ($stores as $store) {
             <?php
             $sync_stats = WC_Multi_Store_Sync_History::get_statistics(['days' => 7]);
             $overall = $sync_stats['overall'];
+            $has_syncs = (int) ($overall['total_syncs'] ?? 0) > 0;
+            $success_rate = $overall['success_rate'] ?? 0;
+            $success_rate_color = $has_syncs
+                ? ($success_rate >= 90 ? '#00a32a' : '#d63638')
+                : '#646970';
             ?>
             <div style="display: flex; gap: 20px; margin-bottom: 15px;">
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">
@@ -331,7 +336,7 @@ foreach ($stores as $store) {
                     <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php _e('Failed', 'wc-multi-store-sync'); ?></div>
                 </div>
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">
-                    <div style="font-size: 28px; font-weight: 600; color: <?php echo ($overall['success_rate'] ?? 0) >= 90 ? '#00a32a' : '#d63638'; ?>;"><?php echo $overall['success_rate'] ?? 0; ?>%</div>
+                    <div style="font-size: 28px; font-weight: 600; color: <?php echo $success_rate_color; ?>;"><?php echo $has_syncs ? esc_html($success_rate) . '%' : '&mdash;'; ?></div>
                     <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php _e('Success Rate', 'wc-multi-store-sync'); ?></div>
                 </div>
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">

@@ -47,6 +47,11 @@ class WC_Multi_Store_Dashboard_Widget {
         $dlq_stats = WC_Multi_Store_Dead_Letter_Queue::get_stats();
         $sync_stats = WC_Multi_Store_Sync_History::get_statistics(['days' => 1]);
         $overall = $sync_stats['overall'];
+        $has_syncs_today = (int) ($overall['total_syncs'] ?? 0) > 0;
+        $success_rate = $overall['success_rate'] ?? 0;
+        $success_rate_color = $has_syncs_today
+            ? ($success_rate >= 90 ? '#00a32a' : '#d63638')
+            : '#646970';
 
         $admin_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync');
         ?>
@@ -80,8 +85,8 @@ class WC_Multi_Store_Dashboard_Widget {
                     <div class="wc-mss-w-label"><?php _e('Syncs Today', 'wc-multi-store-sync'); ?></div>
                 </div>
                 <div class="wc-mss-w-stat">
-                    <div class="wc-mss-w-num" style="color: <?php echo ($overall['success_rate'] ?? 0) >= 90 ? '#00a32a' : '#d63638'; ?>;">
-                        <?php echo $overall['success_rate'] ?? 0; ?>%
+                    <div class="wc-mss-w-num" style="color: <?php echo $success_rate_color; ?>;">
+                        <?php echo $has_syncs_today ? esc_html($success_rate) . '%' : '&mdash;'; ?>
                     </div>
                     <div class="wc-mss-w-label"><?php _e('Success Rate', 'wc-multi-store-sync'); ?></div>
                 </div>
@@ -98,7 +103,7 @@ class WC_Multi_Store_Dashboard_Widget {
             </div>
 
             <!-- Success Rate Bar -->
-            <?php if (($overall['total_syncs'] ?? 0) > 0): ?>
+            <?php if ($has_syncs_today): ?>
             <div class="wc-mss-w-bar">
                 <div class="wc-mss-w-bar-fill" style="width: <?php echo $overall['success_rate']; ?>%; background: <?php echo ($overall['success_rate'] ?? 0) >= 90 ? '#00a32a' : (($overall['success_rate'] ?? 0) >= 70 ? '#dba617' : '#d63638'); ?>;"></div>
             </div>
@@ -136,7 +141,7 @@ class WC_Multi_Store_Dashboard_Widget {
             return;
         }
 
-        $days = (int) ($_POST['days'] ?? 7);
+        $days = max(1, min(365, (int) ($_POST['days'] ?? 7)));
         $stats = WC_Multi_Store_Sync_History::get_statistics(['days' => $days]);
 
         // Format daily stats for chart
@@ -148,11 +153,10 @@ class WC_Multi_Store_Dashboard_Widget {
 
         // Fill in all days (including days with no data)
         if ($days > 0) {
-            $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
-            $recurrences = $days - 1;
-            $period = new DatePeriod($today->sub(new DateInterval("P{$recurrences}D")), new DateInterval('P1D'), $recurrences);
+            $today = new DateTimeImmutable(substr((string) current_time('mysql'), 0, 10));
 
-            foreach ($period as $day) {
+            for ($offset = $days - 1; $offset >= 0; $offset--) {
+                $day = $today->modify("-{$offset} days");
                 $date = $day->format('Y-m-d');
                 $chart_data['labels'][] = $day->format('M j');
 
