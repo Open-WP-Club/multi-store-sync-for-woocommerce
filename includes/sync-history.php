@@ -110,8 +110,9 @@ class WC_Multi_Store_Sync_History {
                 'duration_ms' => $data['duration_ms'] ? absint($data['duration_ms']) : null,
                 'memory_mb' => $data['memory_mb'] ? floatval($data['memory_mb']) : null,
                 'api_calls' => absint($data['api_calls']),
+                'created_at' => current_time('mysql'),
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%f', '%d']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%f', '%d', '%s']
         );
 
         return $result ? $wpdb->insert_id : false;
@@ -237,10 +238,18 @@ class WC_Multi_Store_Sync_History {
         ];
 
         $args = wp_parse_args($args, $defaults);
+        $days = max(1, min(365, (int) $args['days']));
+
+        // History timestamps are written in the WordPress timezone. Use calendar
+        // day boundaries so "today" does not accidentally mean "last 24 hours".
+        $today = substr((string) current_time('mysql'), 0, 10);
+        $start_date = (new \DateTimeImmutable($today))
+            ->modify('-' . ($days - 1) . ' days')
+            ->format('Y-m-d 00:00:00');
 
         // Build WHERE clause
         $where = [];
-        $where[] = $wpdb->prepare('created_at >= DATE_SUB(NOW(), INTERVAL %d DAY)', $args['days']);
+        $where[] = $wpdb->prepare('created_at >= %s', $start_date);
 
         if ($args['store_url']) {
             $where[] = self::store_url_like_clause($wpdb, $args['store_url']);
@@ -299,7 +308,7 @@ class WC_Multi_Store_Sync_History {
             GROUP BY DATE(created_at)
             ORDER BY date DESC
             LIMIT %d
-        ", $args['days']), ARRAY_A);
+        ", $days), ARRAY_A);
 
         // Calculate success rate
         $success_rate = 0;

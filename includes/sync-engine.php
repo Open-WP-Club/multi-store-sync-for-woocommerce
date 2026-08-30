@@ -925,6 +925,13 @@ class WC_Multi_Store_Sync_Engine {
             $purge_url
         );
 
+        $scheme = strtolower((string) wp_parse_url($purge_url, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https'], true)
+            || !WC_Multi_Store_Settings::is_safe_remote_url($purge_url)) {
+            $this->logger->warning('Cache purge skipped because the configured URL is unsafe.');
+            return;
+        }
+
         $method = strtoupper($store_config['cache_purge_method'] ?? 'GET');
 
         $args = [
@@ -939,11 +946,13 @@ class WC_Multi_Store_Sync_Engine {
             wp_remote_get($purge_url, $args);
         }
 
+        // Query strings commonly contain cache-provider tokens; never log them.
+        $log_url = strtok($purge_url, '?#');
         $this->logger->debug(sprintf(
             'Cache purge (%s) sent for SKU %s → %s',
             $method,
             $product->get_sku() ?: 'no-sku',
-            $purge_url
+            $log_url
         ));
     }
 

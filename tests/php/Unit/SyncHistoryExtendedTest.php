@@ -315,6 +315,53 @@ class SyncHistoryExtendedTest extends WC_Multi_Store_TestCase
         $this->assertEquals(0, $stats['overall']['success_rate']);
     }
 
+    public function test_get_statistics_uses_calendar_day_boundary(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $prepared = [];
+        $wpdb->shouldReceive('prepare')->andReturnUsing(function (...$args) use (&$prepared) {
+            $prepared[] = $args;
+            return 'prepared';
+        });
+        $wpdb->shouldReceive('get_row')->andReturn([
+            'total_syncs' => 0,
+            'successful_syncs' => 0,
+            'failed_syncs' => 0,
+        ]);
+        $wpdb->shouldReceive('get_results')->andReturn([], [], []);
+
+        WC_Multi_Store_Sync_History::get_statistics(['days' => 1]);
+
+        $this->assertSame('2024-06-15 00:00:00', $prepared[0][1]);
+        $this->assertSame(1, $prepared[1][1]);
+    }
+
+    public function test_get_statistics_clamps_days_to_safe_maximum(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $prepared = [];
+        $wpdb->shouldReceive('prepare')->andReturnUsing(function (...$args) use (&$prepared) {
+            $prepared[] = $args;
+            return 'prepared';
+        });
+        $wpdb->shouldReceive('get_row')->andReturn([
+            'total_syncs' => 0,
+            'successful_syncs' => 0,
+            'failed_syncs' => 0,
+        ]);
+        $wpdb->shouldReceive('get_results')->andReturn([], [], []);
+
+        WC_Multi_Store_Sync_History::get_statistics(['days' => 999999]);
+
+        $this->assertSame(365, $prepared[1][1]);
+    }
+
     // ── delete_by_criteria combinations ──────────────────────────
 
     public function test_delete_by_criteria_with_multiple_criteria(): void

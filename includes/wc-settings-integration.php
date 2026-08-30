@@ -31,7 +31,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         add_action('wp_ajax_wc_mss_test_connection', $this->ajax_test_connection(...));
         // Note: wc_mss_sync_product is handled by WC_Multi_Store_Product_Edit class
         add_action('wp_ajax_wc_mss_force_sync_all', $this->ajax_force_sync_all(...));
-        add_action('wp_ajax_wc_mss_delete_history', $this->ajax_delete_history(...));
+        // History deletion is registered centrally by WC_Multi_Store_Admin_Ajax.
         // Note: wc_mss_queue_orphans_for_deletion is registered in wc-multi-store-sync.php
         // because this file is only loaded via the settings filter, not during AJAX requests
 

@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Multi-Store Sync
  * Plugin URI: https://gkanev.com
  * Description: Professional multi-store product synchronization for WooCommerce - standalone implementation with advanced features
- * Version: 4.1.0
+ * Version: 4.1.1
  * Author: Gkanev.com
  * Author URI: https://gkanev.com
  * License: GPLv3 or later
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_MSS_VERSION', '4.1.0');
+define('WC_MSS_VERSION', '4.1.1');
 define('WC_MSS_PLUGIN_FILE', __FILE__);
 define('WC_MSS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_MSS_PLUGIN_URL', plugin_dir_url(__FILE__));
