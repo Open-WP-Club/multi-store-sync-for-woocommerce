@@ -83,6 +83,17 @@ class WC_Multi_Store_Queue_Table {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $lock_name = 'wc_mss_enqueue_' . md5((string) $product_id . '|' . $store_url);
+        $lock_acquired = (int) $wpdb->get_var(
+            $wpdb->prepare('SELECT GET_LOCK(%s, 2)', $lock_name)
+        ) === 1;
+
+        if (!$lock_acquired) {
+            WC_Multi_Store_Logger::write('Queue add skipped: could not acquire enqueue lock.', 'warning');
+            return false;
+        }
+
+        try {
 
         // Check if already queued (pending or processing)
         // Include 'processing' to prevent duplicates when items are stuck processing
@@ -175,6 +186,9 @@ class WC_Multi_Store_Queue_Table {
         );
 
         return $result ? $wpdb->insert_id : false;
+        } finally {
+            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
+        }
     }
 
     /**

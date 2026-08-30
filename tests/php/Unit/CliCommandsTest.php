@@ -128,6 +128,8 @@ class CliCommandsTest extends WC_Multi_Store_TestCase
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
+        Functions\when('add_option')->justReturn(true);
+        Functions\when('delete_option')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('wp_parse_args')->alias(fn($args, $defaults) => array_merge($defaults, (array) $args));
         Functions\when('absint')->alias(fn($val) => abs((int) $val));

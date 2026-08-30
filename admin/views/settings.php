@@ -555,8 +555,9 @@ if (!defined('ABSPATH')) {
                     </th>
                     <td>
                         <input type="password" name="webhook_secret" id="webhook_secret" class="regular-text code"
-                               value="<?php echo esc_attr($webhook_settings['webhook_secret']); ?>"
-                               autocomplete="off" />
+                               value=""
+                               placeholder="<?php echo !empty($webhook_settings['webhook_secret']) ? esc_attr__('Already set — leave blank to keep', 'wc-multi-store-sync') : ''; ?>"
+                               autocomplete="new-password" />
                         <button type="button" class="button button-small" onclick="var f = document.getElementById('webhook_secret'); f.type = f.type === 'password' ? 'text' : 'password';">
                             <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
                         </button>

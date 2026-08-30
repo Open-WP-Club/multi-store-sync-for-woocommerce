@@ -19,6 +19,9 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
      */
     const string VERIFICATION_LOCK = 'wc_mss_verification_running';
 
+    /** Atomic option used as the source of truth for the cross-request lock. */
+    const string VERIFICATION_LOCK_OPTION = 'wc_mss_verification_lock';
+
     /**
      * Transient key for async verification progress
      */
@@ -49,7 +52,11 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         }
 
         // Check if verification is already running (prevent concurrent runs)
-        $lock_data = get_transient(self::VERIFICATION_LOCK);
+        $lock_data = get_option(self::VERIFICATION_LOCK_OPTION, 0);
+        if (!$lock_data) {
+            // Honour a lock left by an older plugin version during deployment.
+            $lock_data = get_transient(self::VERIFICATION_LOCK);
+        }
         if ($lock_data) {
             // Check if it's a stale lock (running for more than 1 hour)
             $lock_time = is_numeric($lock_data) ? (int) $lock_data : 0;
@@ -61,15 +68,21 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
                     'Clearing stale verification lock (running for %d minutes)',
                     round($time_running / 60)
                 ), 'warning');
-                delete_transient(self::VERIFICATION_LOCK);
+                self::release_verification_lock();
             } else {
                 WC_Multi_Store_Logger::write('Verification already running, skipping', 'warning');
                 return ['error' => 'Verification already running'];
             }
         }
 
-        // Set lock with timestamp (expires in 2 hours as safety)
-        set_transient(self::VERIFICATION_LOCK, time(), 2 * HOUR_IN_SECONDS);
+        // add_option() is a single INSERT against a unique key, so only one of
+        // two concurrent requests can acquire the lock.
+        $lock_time = time();
+        if (!add_option(self::VERIFICATION_LOCK_OPTION, $lock_time, '', false)) {
+            WC_Multi_Store_Logger::write('Verification already running, skipping', 'warning');
+            return ['error' => 'Verification already running'];
+        }
+        set_transient(self::VERIFICATION_LOCK, $lock_time, 2 * HOUR_IN_SECONDS);
 
         $start_time = microtime(true);
 
@@ -86,7 +99,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         if (empty($active_stores)) {
             WC_Multi_Store_Logger::write('No active stores found for verification', 'warning');
-            delete_transient(self::VERIFICATION_LOCK);
+            self::release_verification_lock();
             return ['error' => 'No active stores'];
         }
 
@@ -95,7 +108,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         if (empty($products)) {
             WC_Multi_Store_Logger::write('No products found for verification');
-            delete_transient(self::VERIFICATION_LOCK);
+            self::release_verification_lock();
             return ['error' => 'No products to verify'];
         }
 
@@ -179,7 +192,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::clear_api_client_pool();
 
         // Clear verification lock
-        delete_transient(self::VERIFICATION_LOCK);
+        self::release_verification_lock();
 
         // Store report in database
         WC_Multi_Store_Weekly_Verification_Report_Repository::save_report($report);
@@ -202,6 +215,12 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         }
 
         return $report;
+    }
+
+    /** Release both the atomic lock and its backwards-compatible transient. */
+    private static function release_verification_lock(): void {
+        delete_option(self::VERIFICATION_LOCK_OPTION);
+        delete_transient(self::VERIFICATION_LOCK);
     }
 
     /**

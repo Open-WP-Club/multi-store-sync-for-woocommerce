@@ -17,6 +17,9 @@ if (!defined('ABSPATH')) {
  */
 class WC_Multi_Store_API_Client {
 
+    /** Maximum image payload held in memory during proxy uploads (20 MiB). */
+    const int MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
     /**
      * Default configuration constants
      */
@@ -857,13 +860,21 @@ class WC_Multi_Store_API_Client {
             if (!file_exists($image_info['file_path']) || !is_readable($image_info['file_path'])) {
                 return new \WP_Error('file_read_error', 'Could not read image file: ' . $image_info['file_path']);
             }
+            $file_size = filesize($image_info['file_path']);
+            if ($file_size === false || $file_size > self::MAX_IMAGE_BYTES) {
+                return new \WP_Error('image_too_large', 'Image exceeds the 20 MiB upload limit.');
+            }
             $file_contents = file_get_contents($image_info['file_path']);
             if ($file_contents === false) {
                 return new \WP_Error('file_read_error', 'Could not read image file: ' . $image_info['file_path']);
             }
         } else {
             // Image stored externally — fetch via HTTP
-            $remote = wp_remote_get($image_info['url'], ['timeout' => 30, 'sslverify' => $this->verify_ssl]);
+            $remote = wp_remote_get($image_info['url'], [
+                'timeout' => 30,
+                'sslverify' => $this->verify_ssl,
+                'limit_response_size' => self::MAX_IMAGE_BYTES + 1,
+            ]);
             if (is_wp_error($remote)) {
                 return new \WP_Error('image_fetch_error', 'Could not fetch image from URL: ' . $image_info['url']);
             }
@@ -875,6 +886,9 @@ class WC_Multi_Store_API_Client {
             $file_contents = wp_remote_retrieve_body($remote);
             if ($file_contents === '') {
                 return new \WP_Error('image_fetch_empty', 'Empty response fetching image from URL: ' . $image_info['url']);
+            }
+            if (strlen($file_contents) > self::MAX_IMAGE_BYTES) {
+                return new \WP_Error('image_too_large', 'Remote image exceeds the 20 MiB upload limit.');
             }
         }
 

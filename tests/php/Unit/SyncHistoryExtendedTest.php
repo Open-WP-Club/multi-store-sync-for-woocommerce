@@ -362,6 +362,23 @@ class SyncHistoryExtendedTest extends WC_Multi_Store_TestCase
         $this->assertSame(365, $prepared[1][1]);
     }
 
+    public function test_get_statistics_returns_safe_defaults_on_database_error(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturn('prepared');
+        $wpdb->shouldReceive('get_row')->andReturn(null);
+        $wpdb->shouldReceive('get_results')->andReturn([], [], []);
+
+        $stats = WC_Multi_Store_Sync_History::get_statistics();
+
+        $this->assertSame(0, $stats['overall']['total_syncs']);
+        $this->assertSame([], $stats['by_type']);
+        $this->assertSame([], $stats['by_store']);
+        $this->assertSame([], $stats['daily']);
+    }
+
     // ── delete_by_criteria combinations ──────────────────────────
 
     public function test_delete_by_criteria_with_multiple_criteria(): void

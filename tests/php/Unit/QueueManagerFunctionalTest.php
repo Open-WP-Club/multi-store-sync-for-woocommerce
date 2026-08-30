@@ -70,7 +70,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         // get_product_terms returns empty; get_var returns null (not a variation)
         $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_results')->andReturn([]);
-        $wpdb->shouldReceive('get_var')->andReturn(null);
+        $wpdb->shouldReceive('get_var')->andReturn(null, 1, 1, 1, 1);
         // QueueTable::add checks for existing, then inserts
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 1;
@@ -139,7 +139,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $wpdb->shouldReceive('get_results')->andReturn([
             (object) ['term_id' => 5, 'taxonomy' => 'product_cat'],
         ]);
-        $wpdb->shouldReceive('get_var')->andReturn(null);
+        $wpdb->shouldReceive('get_var')->andReturn(null, 1, 1);
         // Only 1 store should get an insert (store2)
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 1;
@@ -211,7 +211,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
 
         $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_results')->andReturn([]);
-        $wpdb->shouldReceive('get_var')->andReturn(null); // not a variation
+        $wpdb->shouldReceive('get_var')->andReturn(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1); // acquire/release pairs
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 1;
         // 3 products × 2 stores = 6 inserts
@@ -246,7 +246,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
 
         $wpdb->shouldReceive('prepare')->andReturn('');
         // get_product_queue_data: SKU lookup
-        $wpdb->shouldReceive('get_var')->andReturn('TEST-SKU');
+        $wpdb->shouldReceive('get_var')->andReturn('TEST-SKU', 1, 1, 1, 1);
         // get_product_terms
         $wpdb->shouldReceive('get_results')->andReturn([]);
         // QueueTable::add - 2 stores
@@ -286,6 +286,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('get_var')->twice()->andReturn(1);
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 42;
         $wpdb->shouldReceive('insert')->once()->andReturn(1);
@@ -333,7 +334,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $wpdb->term_taxonomy = 'wp_term_taxonomy';
 
         $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('get_var')->andReturn('RESTORE-SKU');
+        $wpdb->shouldReceive('get_var')->andReturn('RESTORE-SKU', 1, 1, 1, 1);
         $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 1;
@@ -357,7 +358,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $wpdb->term_taxonomy = 'wp_term_taxonomy';
 
         $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('get_var')->andReturn('STATUS-SKU');
+        $wpdb->shouldReceive('get_var')->andReturn('STATUS-SKU', 1, 1, 1, 1);
         $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 1;
@@ -383,6 +384,7 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $wpdb->term_taxonomy = 'wp_term_taxonomy';
 
         $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('get_var')->times(4)->andReturn(1);
         // get variation data
         $wpdb->shouldReceive('get_row')->andReturn(
             (object) ['post_parent' => 50, 'sku' => 'VAR-SKU'],

@@ -662,6 +662,13 @@ class WC_Multi_Store_Remote_Order_Table {
         }
 
         $stats = $wpdb->get_row($query, ARRAY_A);
+        $stats = is_array($stats) ? $stats : [
+            'total_orders' => 0,
+            'total_revenue' => 0,
+            'average_order_value' => 0,
+            'unique_customers' => 0,
+            'store_count' => 0,
+        ];
 
         // Get order count by status
         $query = "SELECT status, COUNT(*) as count
@@ -673,7 +680,8 @@ class WC_Multi_Store_Remote_Order_Table {
             $query = $wpdb->prepare($query, $where_values);
         }
 
-        $stats['by_status'] = $wpdb->get_results($query, ARRAY_A);
+        $by_status = $wpdb->get_results($query, ARRAY_A);
+        $stats['by_status'] = is_array($by_status) ? $by_status : [];
 
         return $stats;
     }
