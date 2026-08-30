@@ -152,25 +152,23 @@ class WC_Multi_Store_Dashboard_Widget {
         ];
 
         // Fill in all days (including days with no data)
-        if ($days > 0) {
-            $today = new DateTimeImmutable(substr((string) current_time('mysql'), 0, 10));
+        $today = new DateTimeImmutable(substr((string) current_time('mysql'), 0, 10));
 
-            for ($offset = $days - 1; $offset >= 0; $offset--) {
-                $day = $today->modify("-{$offset} days");
-                $date = $day->format('Y-m-d');
-                $chart_data['labels'][] = $day->format('M j');
+        for ($offset = $days - 1; $offset >= 0; $offset--) {
+            $day = $today->modify("-{$offset} days");
+            $date = $day->format('Y-m-d');
+            $chart_data['labels'][] = $day->format('M j');
 
-                $day_data = null;
-                foreach ($stats['daily'] as $daily) {
-                    if ($daily['date'] === $date) {
-                        $day_data = $daily;
-                        break;
-                    }
+            $day_data = null;
+            foreach ($stats['daily'] as $daily) {
+                if ($daily['date'] === $date) {
+                    $day_data = $daily;
+                    break;
                 }
-
-                $chart_data['success'][] = (int) ($day_data['successful'] ?? 0);
-                $chart_data['failed'][] = (int) ($day_data['failed'] ?? 0);
             }
+
+            $chart_data['success'][] = (int) ($day_data['successful'] ?? 0);
+            $chart_data['failed'][] = (int) ($day_data['failed'] ?? 0);
         }
 
         wp_send_json_success([
