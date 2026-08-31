@@ -100,14 +100,37 @@ class WC_Multi_Store_Sync {
      * Constructor
      */
     private function __construct() {
-        // Check if WooCommerce is active
+        // Composer's classmap autoloader doesn't depend on WooCommerce, so it's
+        // safe (and needed) to load immediately for activate()/deactivate().
+        $this->includes();
+
+        // Activation/deactivation hooks must be registered synchronously here
+        // (not deferred to "plugins_loaded") because WordPress runs them in
+        // the very request that first includes this file, via a direct
+        // include_once() that happens after "plugins_loaded" has already
+        // fired for that request.
+        register_activation_hook(WC_MSS_PLUGIN_FILE, $this->activate(...));
+        register_deactivation_hook(WC_MSS_PLUGIN_FILE, $this->deactivate(...));
+
+        // Defer everything that touches WooCommerce runtime classes (e.g.
+        // WC_Log_Handler_File) until every active plugin has been included.
+        // Plugins are loaded in the order stored in the active_plugins option,
+        // which is not guaranteed to put WooCommerce before this plugin, so
+        // checking is_woocommerce_active() alone (an options check) isn't
+        // enough — WooCommerce's classes may not exist yet at file-include
+        // time even though the plugin is "active".
+        add_action('plugins_loaded', $this->init_after_plugins_loaded(...));
+    }
+
+    /**
+     * Initialize the plugin once all active plugins have loaded, so
+     * WooCommerce classes are guaranteed to be available.
+     */
+    private function init_after_plugins_loaded(): void {
         if (!$this->is_woocommerce_active()) {
             add_action('admin_notices', $this->woocommerce_missing_notice(...));
             return;
         }
-
-        // Include required files
-        $this->includes();
 
         // Initialize the plugin
         $this->init();
@@ -185,6 +208,7 @@ class WC_Multi_Store_Sync {
 
         new WC_Multi_Store_Action_Scheduler_Manager();
         new WC_Multi_Store_Webhook_Receiver();
+        new WC_Multi_Store_Health_Check();
     }
 
     /**
@@ -324,12 +348,12 @@ class WC_Multi_Store_Sync {
      * Setup WordPress hooks
      */
     private function setup_hooks() {
-        // Activation/Deactivation
-        register_activation_hook(__FILE__, $this->activate(...));
-        register_deactivation_hook(__FILE__, $this->deactivate(...));
+        // Activation/Deactivation hooks are registered synchronously from the
+        // constructor (see __construct()), not here — this method itself only
+        // runs once "plugins_loaded" has already fired.
 
-        // Plugin loaded
-        add_action('plugins_loaded', $this->load_textdomain(...));
+        // Plugin loaded — called directly since we're already past that hook.
+        $this->load_textdomain();
 
         // Add settings link on plugins page
         add_filter('plugin_action_links_' . WC_MSS_PLUGIN_BASENAME, $this->plugin_action_links(...));

@@ -498,6 +498,3 @@ class WC_Multi_Store_Health_Check {
     }
 
 }
-
-// Initialize
-new WC_Multi_Store_Health_Check();
