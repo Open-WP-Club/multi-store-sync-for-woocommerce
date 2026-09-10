@@ -224,23 +224,23 @@ class WC_Multi_Store_Queue_Manager {
             return 0;
         }
 
+        // Variations don't have direct category assignments in wp_term_relationships;
+        // use the parent product's terms so the exclusion check works correctly.
+        // get_post_type()/wp_get_post_parent_id() hit WP's post cache (already warm
+        // in virtually every caller here, since the product was just loaded/saved),
+        // avoiding the raw wp_posts query this used to run on every single product.
+        $terms_id = $product_id;
+        if (get_post_type($product_id) === 'product_variation') {
+            $parent_id = wp_get_post_parent_id($product_id);
+            if ($parent_id > 0) {
+                $terms_id = $parent_id;
+            }
+        }
+
         // Get product categories and tags for exclusion check
-        $terms_data = $this->get_product_terms($product_id);
+        $terms_data = $this->get_product_terms($terms_id);
         $product_categories = $terms_data['categories'];
         $product_tags = $terms_data['tags'];
-
-        // Variations don't have direct category assignments in wp_term_relationships;
-        // use the parent product's terms so the exclusion check works correctly
-        global $wpdb;
-        $parent_id = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT post_parent FROM {$wpdb->posts} WHERE ID = %d AND post_type = 'product_variation'",
-            $product_id
-        ));
-        if ($parent_id > 0) {
-            $parent_terms = $this->get_product_terms($parent_id);
-            $product_categories = $parent_terms['categories'];
-            $product_tags = $parent_terms['tags'];
-        }
 
         // Use override sync type if provided, otherwise use default from settings
         if ($sync_type_override !== null) {

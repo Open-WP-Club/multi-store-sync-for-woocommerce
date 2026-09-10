@@ -36,11 +36,11 @@ class WC_Multi_Store_Stock_Update_Tracker {
      */
     public static function record_webhook_update(int $product_id, string $source_store): void {
         $timestamp = time();
+        // increment_sync_version() already persists the new version - don't write it twice.
         $version = self::increment_sync_version($product_id);
 
         update_post_meta($product_id, self::META_LAST_UPDATE, $timestamp);
         update_post_meta($product_id, self::META_UPDATE_SOURCE, 'webhook');
-        update_post_meta($product_id, self::META_SYNC_VERSION, $version);
 
         WC_Multi_Store_Logger::write(sprintf(
             'Stock update recorded for product #%d: source=webhook, version=%d, store=%s',

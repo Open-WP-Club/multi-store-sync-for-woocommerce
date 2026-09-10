@@ -364,35 +364,4 @@ class WC_Multi_Store_Logger extends AbstractLogger {
 
         return ['removed' => $removed, 'kept' => count($kept)];
     }
-
-    /**
-     * Log product sync
-     *
-     * @param int $product_id Product ID
-     * @param string $action Action (created, updated, deleted)
-     * @param string $store_url Store URL
-     * @param bool $success Success status
-     * @param string $message Additional message
-     * @return void
-     */
-    public function log_product_sync(int $product_id, string $action, string $store_url, bool $success, string $message = ''): void {
-        $level = $success ? 'info' : 'error';
-        $status = $success ? 'SUCCESS' : 'FAILED';
-
-        $sku = wc_get_product($product_id)?->get_sku() ?: 'N/A';
-
-        $log_message = sprintf(
-            'SKU %s %s to %s - %s',
-            $sku ?: 'no-sku',
-            $action,
-            $store_url,
-            $status
-        );
-
-        if (!empty($message)) {
-            $log_message .= ' - ' . $message;
-        }
-
-        self::write($log_message, $level);
-    }
 }

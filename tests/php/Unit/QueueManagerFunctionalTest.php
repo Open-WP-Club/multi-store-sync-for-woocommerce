@@ -53,6 +53,9 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         Functions\when('current_datetime')->justReturn(new \DateTimeImmutable('2024-01-15 12:00:00'));
         Functions\when('wp_json_encode')->alias(fn($data) => json_encode($data));
         Functions\when('get_post_meta')->justReturn('');
+        // Default: not a variation. Tests exercising the variation path override these.
+        Functions\when('get_post_type')->justReturn('product');
+        Functions\when('wp_get_post_parent_id')->justReturn(0);
     }
 
     // ── add_product ──────────────────────────────────────────────
@@ -67,10 +70,10 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $wpdb->term_relationships = 'wp_term_relationships';
         $wpdb->term_taxonomy = 'wp_term_taxonomy';
 
-        // get_product_terms returns empty; get_var returns null (not a variation)
+        // get_product_terms returns empty; get_var drives the 2 stores' GET_LOCK/RELEASE_LOCK pairs
         $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_results')->andReturn([]);
-        $wpdb->shouldReceive('get_var')->andReturn(null, 1, 1, 1, 1);
+        $wpdb->shouldReceive('get_var')->andReturn(1, 1, 1, 1);
         // QueueTable::add checks for existing, then inserts
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 1;
@@ -135,11 +138,12 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $wpdb->term_taxonomy = 'wp_term_taxonomy';
 
         $wpdb->shouldReceive('prepare')->andReturn('');
-        // Return product categories that include excluded cat 5; get_var returns null (not a variation)
+        // Return product categories that include excluded cat 5
         $wpdb->shouldReceive('get_results')->andReturn([
             (object) ['term_id' => 5, 'taxonomy' => 'product_cat'],
         ]);
-        $wpdb->shouldReceive('get_var')->andReturn(null, 1, 1);
+        // 1 store survives exclusion → 1 GET_LOCK/RELEASE_LOCK pair
+        $wpdb->shouldReceive('get_var')->andReturn(1, 1);
         // Only 1 store should get an insert (store2)
         $wpdb->shouldReceive('get_row')->andReturn(null);
         $wpdb->insert_id = 1;
@@ -181,15 +185,14 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
 
         $wpdb->shouldReceive('prepare')->andReturn('');
 
-        // First get_results call: variation 456 has no categories
-        // Second get_results call: parent 100 has category 5
-        $wpdb->shouldReceive('get_results')->twice()->andReturn(
-            [],  // variation terms (empty)
+        // This product IS a variation; add_product() resolves its parent's terms
+        Functions\when('get_post_type')->justReturn('product_variation');
+        Functions\when('wp_get_post_parent_id')->justReturn(100);
+
+        // Only the parent's (100) terms are looked up — resolved before the terms query runs
+        $wpdb->shouldReceive('get_results')->once()->andReturn(
             [(object) ['term_id' => 5, 'taxonomy' => 'product_cat']] // parent terms
         );
-
-        // get_var returns parent ID 100 — this product IS a variation
-        $wpdb->shouldReceive('get_var')->once()->andReturn('100');
 
         $result = WC_MSS()->queue_manager->add_product(456, 'stock_change');
 

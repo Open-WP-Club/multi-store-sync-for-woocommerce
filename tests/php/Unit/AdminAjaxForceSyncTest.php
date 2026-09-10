@@ -42,6 +42,9 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         Functions\when('absint')->alias(fn($v) => abs((int) $v));
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('get_option')->justReturn(false);
+        // add_product() checks this to resolve variations to their parent's terms.
+        Functions\when('get_post_type')->justReturn('product');
+        Functions\when('wp_get_post_parent_id')->justReturn(0);
 
         // Ensure a fresh real queue_manager instance.
         WC_Multi_Store_Sync::instance()->queue_manager = new WC_Multi_Store_Queue_Manager();

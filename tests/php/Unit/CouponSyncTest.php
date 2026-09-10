@@ -176,13 +176,7 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         $product2 = \Mockery::mock('WC_Product');
         $product2->shouldReceive('get_sku')->andReturn('SKU-002');
 
-        Functions\when('wc_get_product')->alias(function ($id) use ($product1, $product2) {
-            return match ($id) {
-                1       => $product1,
-                2       => $product2,
-                default => false,
-            };
-        });
+        Functions\when('wc_get_products')->justReturn([$product1, $product2]);
 
         $sync = $this->makeSync();
         $data = $sync->extract_coupon_data($coupon);
@@ -201,7 +195,7 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         $product = \Mockery::mock('WC_Product');
         $product->shouldReceive('get_sku')->andReturn('');
 
-        Functions\when('wc_get_product')->justReturn($product);
+        Functions\when('wc_get_products')->justReturn([$product]);
 
         $sync = $this->makeSync();
         $data = $sync->extract_coupon_data($coupon);
@@ -505,7 +499,7 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
 
         $localProduct = \Mockery::mock('WC_Product');
         $localProduct->shouldReceive('get_sku')->andReturn('SKU-ABC');
-        Functions\when('wc_get_product')->justReturn($localProduct);
+        Functions\when('wc_get_products')->justReturn([$localProduct]);
 
         $sync   = $this->makeSync();
         $client = $this->makeClient();
@@ -575,7 +569,7 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
 
         $localProduct = \Mockery::mock('WC_Product');
         $localProduct->shouldReceive('get_sku')->andReturn('SKU-XYZ');
-        Functions\when('wc_get_product')->justReturn($localProduct);
+        Functions\when('wc_get_products')->justReturn([$localProduct]);
 
         $sync   = $this->makeSync();
         $client = $this->makeClient();

@@ -511,9 +511,19 @@ class WC_Multi_Store_Conflict_Detector {
 
         // Enrich with product display data — get_conflicts() stays a thin DB
         // read (and keeps its existing test coverage) since this is purely
-        // a presentation concern of the admin table.
+        // a presentation concern of the admin table. Products are batch-loaded
+        // once instead of one wc_get_product() call per row (each of which
+        // fully hydrates a WC_Product with its own meta/term lookups).
+        $product_ids = array_unique(array_column($conflicts, 'local_product_id'));
+        $products_by_id = [];
+        if (!empty($product_ids)) {
+            foreach (wc_get_products(['include' => $product_ids, 'limit' => -1, 'return' => 'objects']) as $product) {
+                $products_by_id[$product->get_id()] = $product;
+            }
+        }
+
         foreach ($conflicts as &$conflict) {
-            $product = wc_get_product($conflict['local_product_id']);
+            $product = $products_by_id[$conflict['local_product_id']] ?? null;
             $conflict['product_name'] = $product ? $product->get_name() : __('(Product not found)', 'wc-multi-store-sync');
             $conflict['product_sku']  = $product ? $product->get_sku() : '';
             $conflict['edit_url']     = $product ? get_edit_post_link($conflict['local_product_id']) : '';

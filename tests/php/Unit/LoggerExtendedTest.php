@@ -1,7 +1,7 @@
 <?php
 /**
  * Extended unit tests for WC_Multi_Store_Logger
- * Tests write/do_log delegation to wc_get_logger(), log_product_sync,
+ * Tests write/do_log delegation to wc_get_logger(),
  * and file-based get_log/clear_log against WooCommerce's own log file.
  */
 
@@ -151,64 +151,6 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
 
         $logger = $this->createLogger();
         $logger->debug('Debug info');
-
-        $this->assertTrue(true);
-    }
-
-    // ── log_product_sync ─────────────────────────────────────────
-
-    public function test_log_product_sync_success(): void
-    {
-        $mock_product = \Mockery::mock('WC_Product');
-        $mock_product->shouldReceive('get_sku')->andReturn('SYNC-SKU');
-        Functions\when('wc_get_product')->justReturn($mock_product);
-
-        $wcLogger = $this->mockWcLogger();
-        $wcLogger->shouldReceive('log')
-            ->once()
-            ->with('info', \Mockery::on(function (string $message): bool {
-                return str_contains($message, 'SYNC-SKU')
-                    && str_contains($message, 'created')
-                    && str_contains($message, 'SUCCESS');
-            }), ['source' => WC_Multi_Store_Logger::LOG_HANDLE]);
-
-        $logger = WC_Multi_Store_Logger::instance();
-        $logger->log_product_sync(42, 'created', 'https://store1.com', true);
-
-        $this->assertTrue(true);
-    }
-
-    public function test_log_product_sync_failure(): void
-    {
-        $mock_product = \Mockery::mock('WC_Product');
-        $mock_product->shouldReceive('get_sku')->andReturn('FAIL-SKU');
-        Functions\when('wc_get_product')->justReturn($mock_product);
-
-        $wcLogger = $this->mockWcLogger();
-        $wcLogger->shouldReceive('log')
-            ->once()
-            ->with('error', \Mockery::on(function (string $message): bool {
-                return str_contains($message, 'FAILED')
-                    && str_contains($message, 'API timeout');
-            }), ['source' => WC_Multi_Store_Logger::LOG_HANDLE]);
-
-        $logger = WC_Multi_Store_Logger::instance();
-        $logger->log_product_sync(42, 'updated', 'https://store1.com', false, 'API timeout');
-
-        $this->assertTrue(true);
-    }
-
-    public function test_log_product_sync_product_not_found(): void
-    {
-        Functions\when('wc_get_product')->justReturn(null);
-
-        $wcLogger = $this->mockWcLogger();
-        $wcLogger->shouldReceive('log')
-            ->once()
-            ->with('info', \Mockery::on(fn(string $message): bool => str_contains($message, 'N/A')), ['source' => WC_Multi_Store_Logger::LOG_HANDLE]);
-
-        $logger = WC_Multi_Store_Logger::instance();
-        $logger->log_product_sync(999, 'deleted', 'https://store1.com', true);
 
         $this->assertTrue(true);
     }

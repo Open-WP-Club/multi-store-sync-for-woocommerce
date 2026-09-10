@@ -120,6 +120,22 @@ class WC_Multi_Store_Hooks {
     }
 
     /**
+     * Detect bulk-edit context so save hooks can skip per-item sync.
+     * WordPress core never defines a DOING_BULK_EDIT constant during its own
+     * "Bulk actions > Edit" flow (wp-admin's inline-save AJAX handler) - only
+     * our own bulk actions in bulk-actions.php do. Without also checking the
+     * 'bulk_edit' request field, editing many products via WP/WooCommerce's
+     * native Bulk Edit would queue each one individually inside a single
+     * request instead of being skipped like our own bulk actions are.
+     *
+     * @return bool
+     */
+    private static function is_bulk_edit_request(): bool {
+        return (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT)
+            || !empty($_REQUEST['bulk_edit']);
+    }
+
+    /**
      * Handle product save
      *
      * @param int $product_id Product ID
@@ -138,7 +154,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Don't sync during bulk operations
-        if (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT) {
+        if (self::is_bulk_edit_request()) {
             return;
         }
 
@@ -179,7 +195,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Don't sync during bulk operations
-        if (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT) {
+        if (self::is_bulk_edit_request()) {
             return;
         }
 
@@ -220,7 +236,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Don't sync during bulk operations
-        if (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT) {
+        if (self::is_bulk_edit_request()) {
             return;
         }
 
@@ -388,7 +404,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Don't sync during bulk operations
-        if (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT) {
+        if (self::is_bulk_edit_request()) {
             return;
         }
 
@@ -499,7 +515,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Don't sync during bulk operations
-        if (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT) {
+        if (self::is_bulk_edit_request()) {
             return;
         }
 
@@ -528,7 +544,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Don't sync during bulk operations
-        if (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT) {
+        if (self::is_bulk_edit_request()) {
             return;
         }
 
@@ -575,7 +591,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Don't sync during bulk operations
-        if (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT) {
+        if (self::is_bulk_edit_request()) {
             return;
         }
 

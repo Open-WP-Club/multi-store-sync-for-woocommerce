@@ -464,10 +464,16 @@ class WC_Multi_Store_Coupon_Sync {
      * Get SKUs for a list of local product IDs
      */
     private function get_skus_for_product_ids(array $product_ids): array {
+        if (empty($product_ids)) {
+            return [];
+        }
+
+        // Batch-load instead of one wc_get_product() call per ID. Using
+        // wc_get_products() (not a raw SKU meta query) keeps variations'
+        // get_sku() parent-fallback behavior intact.
         $skus = [];
-        foreach ($product_ids as $id) {
-            $product = wc_get_product($id);
-            if ($product && $product->get_sku()) {
+        foreach (wc_get_products(['include' => $product_ids, 'limit' => -1, 'return' => 'objects']) as $product) {
+            if ($product->get_sku()) {
                 $skus[] = $product->get_sku();
             }
         }

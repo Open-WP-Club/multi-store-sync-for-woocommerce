@@ -798,9 +798,10 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         $wpdb->shouldReceive('get_var')->andReturn('1', '0', '1');
 
         $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('get_id')->andReturn(10);
         $product->shouldReceive('get_name')->andReturn('Widget');
         $product->shouldReceive('get_sku')->andReturn('WDG-1');
-        Functions\when('wc_get_product')->justReturn($product);
+        Functions\when('wc_get_products')->justReturn([$product]);
         Functions\when('get_edit_post_link')->justReturn('https://site.test/wp-admin/post.php?post=10&action=edit');
 
         $sent = null;
@@ -839,7 +840,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         ]);
         $wpdb->shouldReceive('get_var')->andReturn('1', '1', '1');
 
-        Functions\when('wc_get_product')->justReturn(false);
+        Functions\when('wc_get_products')->justReturn([]);
 
         $sent = null;
         Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent) {
