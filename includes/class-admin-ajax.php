@@ -69,6 +69,12 @@ class WC_Multi_Store_Admin_Ajax {
         add_action('wp_ajax_wc_mss_sync_coupons',        WC_Multi_Store_Coupon_Sync::ajax_sync_all(...));
         add_action('wp_ajax_wc_mss_toggle_coupon_sync',  WC_Multi_Store_Coupon_Sync::ajax_toggle(...));
 
+        // Review sync
+        add_action('wp_ajax_wc_mss_toggle_review_sync',  WC_Multi_Store_Review_Sync::ajax_toggle(...));
+
+        // Attribute sync
+        add_action('wp_ajax_wc_mss_toggle_attribute_sync', WC_Multi_Store_Attribute_Sync::ajax_toggle(...));
+
         // Downloadable files sync
         add_action('wp_ajax_wc_mss_toggle_downloadable_files_sync', WC_Multi_Store_Downloadable_Files_Sync::ajax_toggle(...));
 

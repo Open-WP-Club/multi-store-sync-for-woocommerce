@@ -1,10 +1,11 @@
 <?php
+
 /**
  * Plugin Name: WooCommerce Multi-Store Sync
- * Plugin URI: https://gkanev.com
+ * Plugin URI: https://openwpclub.com/plugins/multi-store-sync-for-woocommerce/
  * Description: Professional multi-store product synchronization for WooCommerce - standalone implementation with advanced features
- * Version: 4.1.3
- * Author: Gkanev.com
+ * Version: 4.2.0
+ * Author: Gabriel Kanev - OpenWPClub
  * Author URI: https://gkanev.com
  * License: GPLv3 or later
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -24,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_MSS_VERSION', '4.1.3');
+define('WC_MSS_VERSION', '4.2.0');
 define('WC_MSS_PLUGIN_FILE', __FILE__);
 define('WC_MSS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_MSS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -227,6 +228,17 @@ class WC_Multi_Store_Sync {
         $coupon_settings = get_option('wc_multi_store_sync_coupon_settings', ['enabled' => false]);
         if (!empty($coupon_settings['enabled'])) {
             new WC_Multi_Store_Coupon_Sync();
+        }
+
+        // Always instantiated (unlike the other toggleable modules above):
+        // its constructor registers the REST field peer stores need to push
+        // reviews here even when outbound sync is off on this store — only
+        // the outbound hooks are gated internally on the enabled setting.
+        new WC_Multi_Store_Review_Sync();
+
+        $attribute_sync_settings = get_option('wc_mss_attribute_sync_settings', ['enabled' => false]);
+        if (!empty($attribute_sync_settings['enabled'])) {
+            new WC_Multi_Store_Attribute_Sync();
         }
 
         if (WC_Multi_Store_Email_Notifications::is_enabled()) {
@@ -513,6 +525,18 @@ class WC_Multi_Store_Sync {
                 'enabled' => false,
                 'auto_sync_on_save' => true,
                 'auto_sync_deletions' => true,
+            ]);
+        }
+
+        if (!get_option('wc_mss_review_sync_settings')) {
+            add_option('wc_mss_review_sync_settings', [
+                'enabled' => false,
+            ]);
+        }
+
+        if (!get_option('wc_mss_attribute_sync_settings')) {
+            add_option('wc_mss_attribute_sync_settings', [
+                'enabled' => false,
             ]);
         }
 

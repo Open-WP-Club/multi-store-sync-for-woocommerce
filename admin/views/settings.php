@@ -712,6 +712,8 @@ if (!defined('ABSPATH')) {
             <?php
             $shipping_class_settings = WC_Multi_Store_Shipping_Class_Sync::get_settings();
             $coupon_settings = get_option('wc_multi_store_sync_coupon_settings', ['enabled' => false]);
+            $review_settings = WC_Multi_Store_Review_Sync::get_settings();
+            $attribute_sync_settings = WC_Multi_Store_Attribute_Sync::get_settings();
             $download_settings = WC_Multi_Store_Downloadable_Files_Sync::get_settings();
             $category_mapper_settings = WC_Multi_Store_Category_Mapper::get_settings();
             $attribute_remapper_settings = WC_Multi_Store_Attribute_Remapper::get_settings();
@@ -746,6 +748,36 @@ if (!defined('ABSPATH')) {
                             <?php _e('Sync coupons/discounts to remote stores', 'wc-multi-store-sync'); ?>
                         </label>
                         <p class="description"><?php _e('Automatically sync coupon codes, discount rules, and restrictions. Product/category IDs are resolved via SKU/slug across stores.', 'wc-multi-store-sync'); ?></p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label><?php _e('Review Sync', 'wc-multi-store-sync'); ?></label>
+                    </th>
+                    <td>
+                        <label class="wc-mss-toggle">
+                            <input type="checkbox" class="wc-mss-feature-toggle"
+                                   data-action="wc_mss_toggle_review_sync"
+                                   <?php checked(!empty($review_settings['enabled'])); ?>>
+                            <?php _e('Sync product reviews to remote stores', 'wc-multi-store-sync'); ?>
+                        </label>
+                        <p class="description"><?php _e('Automatically sync new/edited/deleted product reviews. Products are matched by SKU; synced reviews never carry the "verified owner" badge on the remote store.', 'wc-multi-store-sync'); ?></p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label><?php _e('Attribute Sync', 'wc-multi-store-sync'); ?></label>
+                    </th>
+                    <td>
+                        <label class="wc-mss-toggle">
+                            <input type="checkbox" class="wc-mss-feature-toggle"
+                                   data-action="wc_mss_toggle_attribute_sync"
+                                   <?php checked(!empty($attribute_sync_settings['enabled'])); ?>>
+                            <?php _e('Sync global product attributes and terms to remote stores', 'wc-multi-store-sync'); ?>
+                        </label>
+                        <p class="description"><?php _e('Creates/updates/deletes global attributes (e.g. Color, Size) and their terms on remote stores when they change locally, matched by slug. For renaming attribute/term names only in the synced product data instead, use Attribute Remapping below.', 'wc-multi-store-sync'); ?></p>
                     </td>
                 </tr>
 

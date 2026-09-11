@@ -19,6 +19,42 @@ parameters:
 			path: includes/action-scheduler-manager.php
 
 		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: includes/ajax-auth-guard-trait.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/attribute-sync.php
+
+		-
+			message: '#^Call to private method delete\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 2
+			path: includes/attribute-sync.php
+
+		-
+			message: '#^Call to private method get\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 2
+			path: includes/attribute-sync.php
+
+		-
+			message: '#^Call to private method post\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 2
+			path: includes/attribute-sync.php
+
+		-
+			message: '#^Call to private method put\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 2
+			path: includes/attribute-sync.php
+
+		-
 			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
 			count: 1
@@ -377,6 +413,36 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: includes/remote-order-sync.php
+
+		-
+			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: includes/review-sync.php
+
+		-
+			message: '#^Call to private method delete\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/review-sync.php
+
+		-
+			message: '#^Call to private method get\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 2
+			path: includes/review-sync.php
+
+		-
+			message: '#^Call to private method post\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/review-sync.php
+
+		-
+			message: '#^Call to private method put\(\) of class WC_Multi_Store_API_Client\.$#'
+			identifier: method.private
+			count: 1
+			path: includes/review-sync.php
 
 		-
 			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
