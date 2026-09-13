@@ -183,6 +183,32 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('Line 2', $content);
     }
 
+    /**
+     * WC rotates to a new dated log file each day. When today's file doesn't
+     * exist yet (nothing logged today), get_log() should fall back to the
+     * most recent existing file instead of reporting "no log entries".
+     */
+    public function test_get_log_falls_back_to_most_recent_file_when_todays_is_missing(): void
+    {
+        $logger = $this->createLogger();
+        $todays_file = $this->getActualLogFile();
+        $this->prepareLogDir($todays_file); // ensures dir exists, deletes today's file
+
+        $handle = WC_Multi_Store_Logger::LOG_HANDLE;
+        $dir = dirname($todays_file);
+        $older_file = $dir . '/' . $handle . '-2024-01-14-abc123.log';
+        $newer_file = $dir . '/' . $handle . '-2024-01-15-abc123.log';
+        file_put_contents($older_file, "Yesterday line\n");
+        file_put_contents($newer_file, "Day before yesterday-plus-one line\n");
+
+        $content = $logger->get_log(0);
+
+        $this->assertStringContainsString('Day before yesterday-plus-one line', $content);
+
+        @unlink($older_file);
+        @unlink($newer_file);
+    }
+
     // ── clear_log ────────────────────────────────────────────────
 
     public function test_clear_log_removes_existing_file(): void

@@ -25,9 +25,9 @@ class WC_Multi_Store_Dead_Letter_Queue {
     const int NOTIFICATION_THRESHOLD = 10;
 
     /**
-     * Minimum seconds between repeated notifications (1 hour)
+     * Minimum seconds between repeated notifications (1 day)
      */
-    const int NOTIFICATION_COOLDOWN = 3600;
+    const int NOTIFICATION_COOLDOWN = DAY_IN_SECONDS;
 
     /**
      * Option key for tracking last notification timestamp
@@ -152,7 +152,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
         $admin_email = get_option('admin_email');
         $subject = sprintf('[%s] Dead Letter Queue: %d failed sync items', $site_name, $total_dead);
         $message = sprintf(
-            "The WooCommerce Multi-Store Sync dead letter queue has %d failed items.\n\nPlease review them at: %s\n\nThis notification will not repeat for at least 1 hour.",
+            "The WooCommerce Multi-Store Sync dead letter queue has %d failed items.\n\nPlease review them at: %s\n\nThis notification will not repeat for at least 24 hours.",
             $total_dead,
             admin_url('admin.php?page=wc-multi-store-sync&tab=dead-letter-queue')
         );

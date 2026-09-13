@@ -287,20 +287,28 @@ class WC_Multi_Store_Logger extends AbstractLogger {
     /**
      * Get log contents
      *
+     * WooCommerce's file logger rotates to a new file every day, so
+     * $this->log_file (today's file) is legitimately empty/missing until
+     * the first entry of the day is written. Fall back to the most recent
+     * existing log file so the admin page doesn't look broken first thing
+     * each day.
+     *
      * @param int $lines Number of lines to read (0 = all)
      * @return string Log contents
      */
     public function get_log(int $lines = 100): string {
-        if (!file_exists($this->log_file)) {
+        $log_file = file_exists($this->log_file) ? $this->log_file : $this->find_most_recent_log_file();
+
+        if ($log_file === null) {
             return '';
         }
 
         if ($lines === 0) {
-            return file_get_contents($this->log_file);
+            return file_get_contents($log_file);
         }
 
         // Read last N lines
-        $file = new SplFileObject($this->log_file, 'r');
+        $file = new SplFileObject($log_file, 'r');
         $file->seek(PHP_INT_MAX);
         $total_lines = $file->key();
 
@@ -314,6 +322,24 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         }
 
         return $log_content;
+    }
+
+    /**
+     * Find the most recently dated log file for this handle (WC names them
+     * "{handle}-{Y-m-d}-{hash}.log", so lexicographic sort matches date order).
+     *
+     * @return string|null
+     */
+    private function find_most_recent_log_file(): ?string {
+        $files = glob(dirname($this->log_file) . '/' . self::LOG_HANDLE . '-*.log');
+
+        if (empty($files)) {
+            return null;
+        }
+
+        rsort($files);
+
+        return $files[0];
     }
 
     /**

@@ -361,12 +361,6 @@ parameters:
 			path: includes/product-extractor.php
 
 		-
-			message: '#^Call to function is_array\(\) with non\-empty\-array will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: includes/queue-manager.php
-
-		-
 			message: '#^Comparison operation "\>" between int\<1, max\> and 0 is always true\.$#'
 			identifier: greater.alwaysTrue
 			count: 1
@@ -485,18 +479,6 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: includes/stock-allocator.php
-
-		-
-			message: '#^Parameter \#2 \$trigger of method WC_Multi_Store_Queue_Manager\:\:add_product\(\) expects string, int given\.$#'
-			identifier: argument.type
-			count: 1
-			path: includes/stock-verifier.php
-
-		-
-			message: '#^Parameter \#3 \$priority of method WC_Multi_Store_Queue_Manager\:\:add_product\(\) expects int, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: includes/stock-verifier.php
 
 		-
 			message: '#^Action callback returns array but should not return anything\.$#'

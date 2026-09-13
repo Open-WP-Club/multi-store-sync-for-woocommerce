@@ -230,11 +230,6 @@ class QueueManagerFunctionalTest extends WC_Multi_Store_TestCase
         $this->assertEquals(0, WC_MSS()->queue_manager->add_products([], 'manual'));
     }
 
-    public function test_add_products_with_null_returns_zero(): void
-    {
-        $this->assertEquals(0, WC_MSS()->queue_manager->add_products(null, 'manual'));
-    }
-
     // ── add_product_deletion ─────────────────────────────────────
 
     public function test_add_product_deletion_queues_for_all_stores(): void

@@ -352,12 +352,8 @@ class WC_Multi_Store_Stock_Verifier {
         // Queue product for immediate sync
         WC_MSS()->queue_manager->add_product(
             $discrepancy['product_id'],
-            1, // Highest priority
             'discrepancy_correction',
-            [
-                'discrepancy_id' => $discrepancy_id,
-                'store_url' => $discrepancy['store_url'],
-            ]
+            WC_Multi_Store_Queue_Manager::PRIORITY_CRITICAL
         );
 
         WC_Multi_Store_Logger::write(sprintf(

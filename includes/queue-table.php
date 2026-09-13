@@ -74,12 +74,12 @@ class WC_Multi_Store_Queue_Table {
      * @param string $sync_type Sync type
      * @param int $priority Priority (1-10, lower = higher priority)
      * @param string $source Source of sync
-     * @param datetime|null $scheduled_at When to run (null = immediate)
+     * @param string|null $scheduled_at MySQL datetime string for when to run (null = immediate)
      * @param string|null $product_sku Product SKU (stored for deletion operations)
      * @param array|null $extra_data Additional data for special operations (will be JSON encoded)
      * @return int|false Insert ID or false on failure
      */
-    public static function add($product_id, $store_url, $sync_type = 'full_product', $priority = 5, $source = 'manual', $scheduled_at = null, $product_sku = null, $extra_data = null): int|false {
+    public static function add(int $product_id, string $store_url, string $sync_type = 'full_product', int $priority = 5, string $source = 'manual', ?string $scheduled_at = null, ?string $product_sku = null, ?array $extra_data = null): int|false {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
@@ -277,7 +277,7 @@ class WC_Multi_Store_Queue_Table {
      * @param bool $no_retry If true, skip retries and fail immediately
      * @return bool Success
      */
-    public static function mark_failed($id, $error = '', $no_retry = false): int|false {
+    public static function mark_failed(int $id, string $error = '', bool $no_retry = false): int|false {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;

@@ -1601,7 +1601,7 @@ class WC_Multi_Store_Sync_Engine {
      * @param string $sync_type Sync type
      * @return int Number of API calls made
      */
-    private function sync_variations($product, $remote_parent_id, $api, $store_url = '', $store_config = [], $sync_type = 'full_product'): int {
+    private function sync_variations(WC_Product $product, int $remote_parent_id, WC_Multi_Store_API_Client $api, string $store_url = '', array $store_config = [], string $sync_type = 'full_product'): int {
         return $this->variation_sync->sync_variations($product, $remote_parent_id, $api, $store_url, $store_config, $sync_type);
     }
 

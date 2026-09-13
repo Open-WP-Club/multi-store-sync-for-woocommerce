@@ -215,9 +215,10 @@ class WC_Multi_Store_Queue_Manager {
      * @param int $product_id Product ID
      * @param string $trigger What triggered the queue (e.g., 'product_save', 'order', 'manual')
      * @param int $priority Priority (lower number = higher priority)
+     * @param string|null $sync_type_override Sync type to use instead of the store default
      * @return int Number of queue items added
      */
-    public function add_product($product_id, $trigger = 'unknown', $priority = self::PRIORITY_LOW, $sync_type_override = null): int {
+    public function add_product(int $product_id, string $trigger = 'unknown', int $priority = self::PRIORITY_LOW, ?string $sync_type_override = null): int {
         $stores = WC_Multi_Store_Settings::get_active_stores();
 
         if (empty($stores)) {
@@ -382,10 +383,11 @@ class WC_Multi_Store_Queue_Manager {
      * @param array $product_ids Array of product IDs
      * @param string $trigger What triggered the queue
      * @param int $priority Priority level
+     * @param string|null $sync_type_override Sync type to use instead of the store default
      * @return int Number of queue items added
      */
-    public function add_products($product_ids, $trigger = 'unknown', $priority = self::PRIORITY_LOW, $sync_type_override = null): int {
-        if (empty($product_ids) || !is_array($product_ids)) {
+    public function add_products(array $product_ids, string $trigger = 'unknown', int $priority = self::PRIORITY_LOW, ?string $sync_type_override = null): int {
+        if (empty($product_ids)) {
             return 0;
         }
 
@@ -459,7 +461,7 @@ class WC_Multi_Store_Queue_Manager {
      * @param int|null $audit_id Optional deletion audit ID for tracking
      * @return int Number of queue items added
      */
-    public function add_product_deletion($product_id, $trigger = 'product_delete', $priority = self::PRIORITY_HIGH, $specific_stores = null, $audit_id = null, ?array $pre_cached_data = null): int {
+    public function add_product_deletion(int $product_id, string $trigger = 'product_delete', int $priority = self::PRIORITY_HIGH, ?array $specific_stores = null, ?int $audit_id = null, ?array $pre_cached_data = null): int {
         $product_data = $pre_cached_data ?? $this->get_product_queue_data($product_id);
 
         if (!$product_data) {
@@ -506,7 +508,7 @@ class WC_Multi_Store_Queue_Manager {
      * @param int $priority Priority (lower number = higher priority)
      * @return bool Whether the item was queued successfully
      */
-    public function add_remote_orphan_deletion(array $orphan_data, $trigger = 'orphan_cleanup', $priority = self::PRIORITY_HIGH): bool {
+    public function add_remote_orphan_deletion(array $orphan_data, string $trigger = 'orphan_cleanup', int $priority = self::PRIORITY_HIGH): bool {
         $store_url = $orphan_data['store_url'] ?? '';
         $remote_product_id = $orphan_data['remote_product_id'] ?? null;
         $product_id = $orphan_data['product_id'] ?? 0;
@@ -563,7 +565,7 @@ class WC_Multi_Store_Queue_Manager {
      * @param int $priority Priority (lower number = higher priority)
      * @return int Number of queue items added
      */
-    public function add_product_restoration($product_id, $trigger = 'product_restore', $priority = self::PRIORITY_HIGH): int {
+    public function add_product_restoration(int $product_id, string $trigger = 'product_restore', int $priority = self::PRIORITY_HIGH): int {
         $product_data = $this->get_product_queue_data($product_id);
 
         if (!$product_data) {
@@ -597,7 +599,7 @@ class WC_Multi_Store_Queue_Manager {
      * @param int $priority Priority (lower number = higher priority)
      * @return int Number of queue items added
      */
-    public function add_product_status_change($product_id, $old_status, $new_status, $trigger = 'status_change', $priority = self::PRIORITY_HIGH): int {
+    public function add_product_status_change(int $product_id, string $old_status, string $new_status, string $trigger = 'status_change', int $priority = self::PRIORITY_HIGH): int {
         $product_data = $this->get_product_queue_data($product_id);
 
         if (!$product_data) {
@@ -641,7 +643,7 @@ class WC_Multi_Store_Queue_Manager {
      * @param int $priority Priority (lower number = higher priority)
      * @return int Number of queue items added
      */
-    public function add_variation_deletion($variation_id, $trigger = 'variation_delete', $priority = self::PRIORITY_HIGH): int {
+    public function add_variation_deletion(int $variation_id, string $trigger = 'variation_delete', int $priority = self::PRIORITY_HIGH): int {
         global $wpdb;
 
         // Get variation data and parent ID with direct SQL - no product object loading
