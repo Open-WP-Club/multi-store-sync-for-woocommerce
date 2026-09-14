@@ -870,6 +870,161 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $this->assertTrue($error_sent);
     }
 
+    // ── background cleanup ("Delete Selected") ────────────────────
+
+    public function test_schedule_background_cleanup_returns_false_when_as_unavailable(): void
+    {
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $this->assertFalse($cleanup->schedule_background_cleanup([
+            ['store_url' => 'https://store1.com', 'product_id' => 10],
+        ]));
+    }
+
+    public function test_ajax_cleanup_orphans_schedules_background_job_when_as_available(): void
+    {
+        $saved_options = [];
+        Functions\when('update_option')->alias(function ($name, $value) use (&$saved_options) {
+            $saved_options[$name] = $value;
+            return true;
+        });
+
+        $_POST['orphans'] = json_encode([
+            ['store_url' => 'https://store1.com', 'product_id' => 10],
+        ]);
+
+        $sent_data = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent_data) {
+            $sent_data = $data;
+        });
+
+        // Bypass is_available() check via subclass, same pattern used for scan scheduling above.
+        $cleanup = new class extends WC_Multi_Store_Orphan_Cleanup {
+            public function schedule_background_cleanup(array $orphans): bool {
+                update_option(self::CLEANUP_STATUS_OPTION, [
+                    'status' => 'scheduled', 'total' => count($orphans),
+                    'started_at' => null, 'finished_at' => null, 'error' => null, 'message' => null,
+                ], false);
+                return true;
+            }
+        };
+
+        $cleanup->ajax_cleanup_orphans();
+        unset($_POST['orphans']);
+
+        $this->assertNotNull($sent_data);
+        $this->assertTrue($sent_data['scheduled']);
+        $this->assertEquals('scheduled', $saved_options[WC_Multi_Store_Orphan_Cleanup::CLEANUP_STATUS_OPTION]['status']);
+    }
+
+    public function test_run_background_cleanup_sets_running_then_done(): void
+    {
+        Functions\when('wp_remote_request')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 10, 'deleted' => true]),
+        ]);
+
+        $status_log = [];
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === WC_Multi_Store_Orphan_Cleanup::CLEANUP_STATUS_OPTION) {
+                return ['status' => 'scheduled', 'total' => 1];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs']];
+            }
+            return $default;
+        });
+        Functions\when('update_option')->alias(function ($name, $value) use (&$status_log) {
+            if ($name === WC_Multi_Store_Orphan_Cleanup::CLEANUP_STATUS_OPTION) {
+                $status_log[] = $value;
+            }
+            return true;
+        });
+
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $cleanup->run_background_cleanup([
+            ['store_url' => 'https://store1.com', 'product_id' => 10],
+        ]);
+
+        $statuses = array_column($status_log, 'status');
+        $this->assertContains('running', $statuses);
+        $this->assertContains('done', $statuses);
+
+        $final = end($status_log);
+        $this->assertEquals(1, $final['deleted']);
+        $this->assertEquals(0, $final['failed']);
+        $this->assertStringContainsString('1 deleted', $final['message']);
+    }
+
+    public function test_run_background_cleanup_sets_failed_on_exception(): void
+    {
+        $status_log = [];
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === WC_Multi_Store_Orphan_Cleanup::CLEANUP_STATUS_OPTION) {
+                return ['status' => 'scheduled'];
+            }
+            return $default;
+        });
+        Functions\when('update_option')->alias(function ($name, $value) use (&$status_log) {
+            if ($name === WC_Multi_Store_Orphan_Cleanup::CLEANUP_STATUS_OPTION) {
+                $status_log[] = $value['status'];
+            }
+            return true;
+        });
+
+        // Store not found for every orphan would just fail them individually
+        // rather than throw — force a real exception via a bad wpdb-less path
+        // is unnecessary here; missing store_url triggers the empty-orphans
+        // guard inside cleanup_orphans() instead, so throw directly via a
+        // store lookup that errors.
+        Functions\when('sanitize_text_field')->alias(fn($v) => $v);
+
+        $cleanup = new class extends WC_Multi_Store_Orphan_Cleanup {
+            public function cleanup_orphans(array $orphans, bool $force = true): array {
+                throw new \RuntimeException('boom');
+            }
+        };
+
+        $cleanup->run_background_cleanup([
+            ['store_url' => 'https://store1.com', 'product_id' => 10],
+        ]);
+
+        $this->assertContains('running', $status_log);
+        $this->assertContains('failed', $status_log);
+    }
+
+    public function test_ajax_get_cleanup_status_returns_idle_by_default(): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === WC_Multi_Store_Orphan_Cleanup::CLEANUP_STATUS_OPTION) return $default;
+            return $default;
+        });
+
+        $sent_data = null;
+        Functions\when('wp_send_json_success')->alias(function ($data) use (&$sent_data) {
+            $sent_data = $data;
+        });
+
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $cleanup->ajax_get_cleanup_status();
+
+        $this->assertEquals('idle', $sent_data['status']['status']);
+    }
+
+    public function test_ajax_get_cleanup_status_no_permission(): void
+    {
+        Functions\when('current_user_can')->justReturn(false);
+
+        $error_sent = false;
+        Functions\when('wp_send_json_error')->alias(function () use (&$error_sent) {
+            $error_sent = true;
+        });
+
+        $cleanup = new WC_Multi_Store_Orphan_Cleanup();
+        $cleanup->ajax_get_cleanup_status();
+
+        $this->assertTrue($error_sent);
+    }
+
     // ── send_scan_complete_email ─────────────────────────────────
 
     public function test_send_scan_complete_email_not_sent_without_recipient(): void

@@ -20,6 +20,15 @@ class WC_Multi_Store_Orphan_Cleanup {
     const string RESULTS_OPTION    = 'wc_mss_orphan_scan_results';
 
     /**
+     * Background deletion — "Delete Selected" can involve 100+ sequential
+     * remote HTTP calls (each with its own retry/backoff), so it runs as an
+     * Action Scheduler job instead of inside the AJAX request, mirroring the
+     * scan's BACKGROUND_HOOK/STATUS_OPTION pattern above.
+     */
+    const string CLEANUP_HOOK           = 'wc_mss_orphan_cleanup_background';
+    const string CLEANUP_STATUS_OPTION  = 'wc_mss_orphan_cleanup_status';
+
+    /**
      * Recurring hook that scans all active stores and trashes any orphans
      * found, when auto-trash is enabled (see WC_Multi_Store_Toggleable_Feature).
      */
@@ -64,10 +73,12 @@ class WC_Multi_Store_Orphan_Cleanup {
         add_action('wp_ajax_wc_mss_cleanup_orphans',     $this->ajax_cleanup_orphans(...));
         add_action('wp_ajax_wc_mss_schedule_orphan_scan', $this->ajax_schedule_scan(...));
         add_action('wp_ajax_wc_mss_orphan_scan_status',  $this->ajax_get_scan_status(...));
+        add_action('wp_ajax_wc_mss_orphan_cleanup_status', $this->ajax_get_cleanup_status(...));
 
         // Action Scheduler background hooks
         add_action(self::BACKGROUND_HOOK, $this->run_background_scan(...));
         add_action(self::AUTO_TRASH_HOOK, $this->run_auto_trash(...));
+        add_action(self::CLEANUP_HOOK,    $this->run_background_cleanup(...));
     }
 
     /**
@@ -519,6 +530,78 @@ class WC_Multi_Store_Orphan_Cleanup {
     }
 
     /**
+     * Schedule the "Delete Selected" batch as a background Action Scheduler
+     * job instead of running it inline in the AJAX request.
+     */
+    public function schedule_background_cleanup(array $orphans): bool {
+        if (!WC_Multi_Store_Action_Scheduler_Manager::is_available()) {
+            return false;
+        }
+
+        update_option(self::CLEANUP_STATUS_OPTION, [
+            'status'      => 'scheduled',
+            'total'       => count($orphans),
+            'started_at'  => null,
+            'finished_at' => null,
+            'error'       => null,
+            'message'     => null,
+        ], false);
+
+        as_schedule_single_action(
+            time() + 5,
+            self::CLEANUP_HOOK,
+            [$orphans],
+            WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP
+        );
+
+        return true;
+    }
+
+    /**
+     * Action Scheduler callback — deletes the given orphans and stores the
+     * outcome in CLEANUP_STATUS_OPTION for the admin page to poll.
+     */
+    public function run_background_cleanup(array $orphans): void {
+        @set_time_limit(0);
+
+        $status = get_option(self::CLEANUP_STATUS_OPTION, []);
+        $status['status']     = 'running';
+        $status['started_at'] = current_time('mysql');
+        update_option(self::CLEANUP_STATUS_OPTION, $status, false);
+
+        WC_Multi_Store_Logger::write(sprintf('Background orphan cleanup started: %d products', count($orphans)));
+
+        try {
+            $results = $this->cleanup_orphans($orphans);
+
+            $status['status']      = $results['success'] ? 'done' : 'failed';
+            $status['finished_at'] = current_time('mysql');
+            $status['deleted']     = $results['deleted'] ?? 0;
+            $status['failed']      = $results['failed'] ?? 0;
+            $status['errors']      = $results['errors'] ?? [];
+            $status['message']     = $results['success']
+                ? sprintf(
+                    __('Cleanup complete: %d deleted, %d failed.', 'wc-multi-store-sync'),
+                    $results['deleted'],
+                    $results['failed']
+                )
+                : ($results['message'] ?? '');
+            update_option(self::CLEANUP_STATUS_OPTION, $status, false);
+
+            WC_Multi_Store_Logger::write('Background orphan cleanup finished.');
+        } catch (\Throwable $e) {
+            $status['status']      = 'failed';
+            $status['finished_at'] = current_time('mysql');
+            $status['error']       = $e->getMessage();
+            update_option(self::CLEANUP_STATUS_OPTION, $status, false);
+
+            WC_Multi_Store_Logger::write(
+                'Background orphan cleanup failed: ' . $e->getMessage(), 'error'
+            );
+        }
+    }
+
+    /**
      * Send email summary after a background scan completes.
      */
     private function send_scan_complete_email(array $results, string $store_url = ''): void {
@@ -642,6 +725,22 @@ class WC_Multi_Store_Orphan_Cleanup {
     }
 
     /**
+     * AJAX: Return current background cleanup status.
+     */
+    public function ajax_get_cleanup_status(): void {
+        check_ajax_referer('wc_mss_orphan_cleanup', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'wc-multi-store-sync')]);
+            return;
+        }
+
+        wp_send_json_success([
+            'status' => get_option(self::CLEANUP_STATUS_OPTION, ['status' => 'idle']),
+        ]);
+    }
+
+    /**
      * AJAX handler for scanning orphans
      */
     public function ajax_scan_orphans(): void {
@@ -709,6 +808,21 @@ class WC_Multi_Store_Orphan_Cleanup {
                     'message' => __('No orphan products specified.', 'wc-multi-store-sync'),
                 ]);
             }
+
+            // Deleting can mean 100+ sequential remote HTTP calls — run it as
+            // a background Action Scheduler job so the AJAX request doesn't
+            // have to stay open (and risk hitting PHP/webserver timeouts)
+            // for the whole batch. Falls back to running inline only if
+            // Action Scheduler isn't available.
+            if ($this->schedule_background_cleanup($orphans)) {
+                wp_send_json_success([
+                    'scheduled' => true,
+                    'message'   => __('Cleanup started in the background…', 'wc-multi-store-sync'),
+                ]);
+                return;
+            }
+
+            @set_time_limit(0);
 
             WC_Multi_Store_Logger::write(sprintf('Starting orphan cleanup via AJAX: %d products', count($orphans)));
 
@@ -1086,7 +1200,9 @@ class WC_Multi_Store_Orphan_Cleanup {
                         url: ajaxurl, type: 'POST',
                         data: { action: 'wc_mss_cleanup_orphans', nonce: nonce, orphans: JSON.stringify(orphans) },
                         success: function(res) {
-                            if (res.success) {
+                            if (res.success && res.data.scheduled) {
+                                pollCleanupStatus(button);
+                            } else if (res.success) {
                                 alert(res.data.message);
                                 scanBtn.trigger('click');
                             } else {
@@ -1100,6 +1216,28 @@ class WC_Multi_Store_Orphan_Cleanup {
                         }
                     });
                 });
+            }
+
+            // Poll the background cleanup job started by "Delete Selected"
+            // until it's done, then report the result and re-scan.
+            function pollCleanupStatus(button) {
+                var timer = setInterval(function() {
+                    $.ajax({
+                        url: ajaxurl, type: 'POST',
+                        data: { action: 'wc_mss_orphan_cleanup_status', nonce: nonce },
+                        success: function(res) {
+                            if (!res.success) return;
+                            var st = (res.data.status || {}).status || 'idle';
+
+                            if (st === 'done' || st === 'failed') {
+                                clearInterval(timer);
+                                alert(res.data.status.message || '<?php echo esc_js(__('Failed.', 'wc-multi-store-sync')); ?>');
+                                button.prop('disabled', false).text('<?php echo esc_js(__('Delete Selected', 'wc-multi-store-sync')); ?>');
+                                if (st === 'done') scanBtn.trigger('click');
+                            }
+                        }
+                    });
+                }, 3000);
             }
         });
         </script>
