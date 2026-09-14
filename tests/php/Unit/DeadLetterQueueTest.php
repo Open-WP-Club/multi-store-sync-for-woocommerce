@@ -110,6 +110,74 @@ class DeadLetterQueueTest extends WC_Multi_Store_TestCase
         $this->assertEquals(1, $result);
     }
 
+    public function test_add_from_queue_does_not_notify_below_threshold(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('insert')->once()->andReturn(1);
+        $wpdb->shouldReceive('get_var')->once()->andReturn(9);
+        Functions\expect('wp_mail')->never();
+
+        $result = WC_Multi_Store_Dead_Letter_Queue::add_from_queue([
+            'product_id' => 1,
+            'store_url' => 'https://shop.example.com',
+        ]);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function test_add_from_queue_respects_notification_cooldown(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('insert')->once()->andReturn(1);
+        $wpdb->shouldReceive('get_var')->once()->andReturn(10);
+        Functions\when('get_option')->alias(fn(string $key, mixed $default = false): mixed =>
+            $key === WC_Multi_Store_Dead_Letter_Queue::NOTIFICATION_OPTION ? time() : $default
+        );
+        Functions\expect('wp_mail')->never();
+
+        $result = WC_Multi_Store_Dead_Letter_Queue::add_from_queue([
+            'product_id' => 1,
+            'store_url' => 'https://shop.example.com',
+        ]);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function test_add_from_queue_notifies_when_threshold_is_reached(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('insert')->once()->andReturn(1);
+        $wpdb->shouldReceive('get_var')->once()->andReturn(10);
+        Functions\when('get_option')->alias(fn(string $key, mixed $default = false): mixed => match ($key) {
+            WC_Multi_Store_Dead_Letter_Queue::NOTIFICATION_OPTION => 0,
+            'admin_email' => 'admin@example.com',
+            default => $default,
+        });
+        Functions\when('get_bloginfo')->justReturn('Test Shop');
+        Functions\when('admin_url')->alias(fn(string $path): string => 'https://example.com/wp-admin/' . $path);
+        Functions\expect('wp_mail')->once()->with(
+            'admin@example.com',
+            '[Test Shop] Dead Letter Queue: 10 failed sync items',
+            \Mockery::on(fn(string $message): bool => str_contains($message, 'dead letter queue has 10 failed items'))
+        );
+
+        $result = WC_Multi_Store_Dead_Letter_Queue::add_from_queue([
+            'product_id' => 1,
+            'store_url' => 'https://shop.example.com',
+        ]);
+
+        $this->assertSame(1, $result);
+    }
+
     // ─── get_items ─────────────────────────────────
 
     public function test_get_items_returns_results_and_total(): void
@@ -172,6 +240,48 @@ class DeadLetterQueueTest extends WC_Multi_Store_TestCase
         $this->assertIsArray($items);
     }
 
+    public function test_get_items_normalizes_store_url_and_filters_sync_type(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('esc_like')->once()->with('shop.example.com')->andReturn('shop.example.com');
+        $wpdb->shouldReceive('prepare')->times(4)->andReturnUsing(fn(string $sql): string => $sql);
+        $wpdb->shouldReceive('get_results')->once()->with(
+            \Mockery::on(fn(string $sql): bool =>
+                str_contains($sql, 'store_url LIKE') && str_contains($sql, 'sync_type =')
+            ),
+            ARRAY_A
+        )->andReturn([]);
+        $wpdb->shouldReceive('get_var')->once()->andReturn(0);
+        Functions\expect('sanitize_sql_orderby')->once()->andReturn('failed_at DESC');
+
+        $items = WC_Multi_Store_Dead_Letter_Queue::get_items([
+            'store_url' => 'https://shop.example.com/',
+            'sync_type' => 'quantity_only',
+        ]);
+
+        $this->assertSame(0, $items['total']);
+    }
+
+    public function test_get_items_falls_back_to_safe_ordering(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->twice()->andReturnUsing(fn(string $sql): string => $sql);
+        $wpdb->shouldReceive('get_results')->once()->with(
+            \Mockery::on(fn(string $sql): bool => str_contains($sql, 'ORDER BY failed_at DESC')),
+            ARRAY_A
+        )->andReturn([]);
+        $wpdb->shouldReceive('get_var')->once()->andReturn(0);
+        Functions\expect('sanitize_sql_orderby')->once()->andReturn(false);
+
+        $this->assertSame([], WC_Multi_Store_Dead_Letter_Queue::get_items([
+            'orderby' => 'DROP TABLE',
+        ])['results']);
+    }
+
     // ─── retry_item ────────────────────────────────
 
     public function test_retry_item_returns_false_when_not_found(): void
@@ -185,6 +295,93 @@ class DeadLetterQueueTest extends WC_Multi_Store_TestCase
 
         $result = WC_Multi_Store_Dead_Letter_Queue::retry_item(999);
         $this->assertFalse($result);
+    }
+
+    public function test_retry_item_requeues_and_marks_dead_letter_retried(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $item = [
+            'id' => 7,
+            'product_id' => 42,
+            'product_sku' => 'SKU-42',
+            'store_url' => 'https://shop.example.com',
+            'sync_type' => 'full_product',
+            'extra_data' => '{"force":true}',
+            'original_queue_id' => 99,
+        ];
+
+        $wpdb->shouldReceive('prepare')->andReturn('SQL');
+        $wpdb->shouldReceive('get_row')->twice()->andReturn($item, null);
+        $wpdb->shouldReceive('get_var')->twice()->andReturn(1); // GET_LOCK + RELEASE_LOCK.
+        $wpdb->shouldReceive('insert')->once()->with(
+            'wp_wc_mss_queue',
+            \Mockery::on(fn(array $data): bool =>
+                $data['product_id'] === 42
+                && $data['product_sku'] === 'SKU-42'
+                && $data['source'] === 'dlq_retry'
+                && $data['extra_data'] === '{"force":true}'
+            ),
+            \Mockery::type('array')
+        )->andReturnUsing(function () use ($wpdb): bool {
+            $wpdb->insert_id = 123;
+            return true;
+        });
+        $wpdb->shouldReceive('update')->once()->with(
+            'wp_wc_mss_dead_letter_queue',
+            ['status' => 'retried', 'retried_at' => '2026-01-01 12:00:00'],
+            ['id' => 7],
+            ['%s', '%s'],
+            ['%d']
+        )->andReturn(1);
+        $wpdb->shouldReceive('delete')->once()->with(
+            'wp_wc_mss_queue',
+            ['id' => 99, 'status' => 'failed'],
+            ['%d', '%s']
+        )->andReturn(1);
+
+        $this->assertTrue(WC_Multi_Store_Dead_Letter_Queue::retry_item(7));
+    }
+
+    public function test_retry_item_leaves_dead_letter_untouched_when_requeue_fails(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $wpdb->shouldReceive('prepare')->andReturn('SQL');
+        $wpdb->shouldReceive('get_row')->once()->andReturn([
+            'id' => 7,
+            'product_id' => 42,
+            'product_sku' => 'SKU-42',
+            'store_url' => 'https://shop.example.com',
+            'sync_type' => 'full_product',
+            'extra_data' => null,
+            'original_queue_id' => 99,
+        ]);
+        $wpdb->shouldReceive('get_var')->once()->andReturn(0); // Queue lock not acquired.
+        $wpdb->shouldNotReceive('update');
+        $wpdb->shouldNotReceive('delete');
+
+        $this->assertFalse(WC_Multi_Store_Dead_Letter_Queue::retry_item(7));
+    }
+
+    public function test_retry_item_does_not_requeue_an_already_retried_item(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $wpdb->shouldReceive('prepare')
+            ->once()
+            ->with(\Mockery::on(fn(string $sql): bool => str_contains($sql, "status = 'dead'")), 7)
+            ->andReturn('SQL');
+        $wpdb->shouldReceive('get_row')->once()->andReturn(null);
+        $wpdb->shouldNotReceive('insert');
+
+        $this->assertFalse(WC_Multi_Store_Dead_Letter_Queue::retry_item(7));
     }
 
     // ─── resolve_item ──────────────────────────────

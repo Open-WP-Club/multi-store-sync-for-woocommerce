@@ -453,6 +453,158 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $this->assertEquals(65, $stats['total']);
     }
 
+    public function test_get_stats_returns_zeroes_for_empty_table(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('get_row')->once()->andReturn(null);
+
+        $this->assertSame([
+            'pending' => 0,
+            'processing' => 0,
+            'completed' => 0,
+            'failed' => 0,
+            'total' => 0,
+        ], WC_Multi_Store_Queue_Table::get_stats());
+    }
+
+    public function test_get_recent_items_returns_empty_queue(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->with(\Mockery::pattern('/SELECT \*/'), 50)->andReturn('SQL');
+        $wpdb->shouldReceive('get_results')->once()->with('SQL', ARRAY_A)->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Queue_Table::get_recent_items());
+    }
+
+    public function test_get_recent_items_filters_by_status(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->with(
+            \Mockery::on(fn(string $sql): bool => str_contains($sql, 'WHERE status = %s')),
+            'failed',
+            5
+        )->andReturn('FILTERED');
+        $wpdb->shouldReceive('get_results')->once()->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Queue_Table::get_recent_items(5, 'failed'));
+    }
+
+    public function test_get_recent_items_clamps_limit_to_one(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->with(\Mockery::type('string'), 1)->andReturn('SQL');
+        $wpdb->shouldReceive('get_results')->once()->andReturn([]);
+
+        WC_Multi_Store_Queue_Table::get_recent_items(0);
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_get_recent_items_adds_product_name_and_preserves_stored_sku(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn('SQL');
+        $wpdb->shouldReceive('get_results')->once()->andReturn([
+            ['product_id' => 7, 'product_sku' => 'STORED-SKU'],
+        ]);
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('get_name')->once()->andReturn('Test Product');
+        $product->shouldNotReceive('get_sku');
+        Functions\when('wc_get_product')->justReturn($product);
+
+        $item = WC_Multi_Store_Queue_Table::get_recent_items()[0];
+        $this->assertSame('STORED-SKU', $item['product_sku']);
+        $this->assertSame('Test Product', $item['product_name']);
+    }
+
+    public function test_get_recent_items_marks_missing_product_as_deleted(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn('SQL');
+        $wpdb->shouldReceive('get_results')->once()->andReturn([
+            ['product_id' => 404, 'product_sku' => ''],
+        ]);
+        Functions\when('wc_get_product')->justReturn(null);
+
+        $item = WC_Multi_Store_Queue_Table::get_recent_items()[0];
+        $this->assertSame('N/A', $item['product_sku']);
+        $this->assertSame('Deleted', $item['product_name']);
+    }
+
+    // ─── retry_item ───────────────────────────────
+
+    public function test_retry_item_returns_false_when_failed_item_is_missing(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn('SQL');
+        $wpdb->shouldReceive('get_row')->once()->andReturn(null);
+
+        $this->assertFalse(WC_Multi_Store_Queue_Table::retry_item(99));
+    }
+
+    public function test_retry_item_returns_false_when_queue_update_fails(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn('SQL');
+        $wpdb->shouldReceive('get_row')->once()->andReturn([
+            'id' => 9, 'product_id' => 42, 'store_url' => 'https://shop.example.com',
+        ]);
+        $wpdb->shouldReceive('update')->once()->andReturn(false);
+        $wpdb->shouldNotReceive('query');
+
+        $this->assertFalse(WC_Multi_Store_Queue_Table::retry_item(9));
+    }
+
+    public function test_retry_item_resets_state_and_marks_dead_letter_retried(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->twice()->andReturn('SELECT', 'UPDATE DLQ');
+        $wpdb->shouldReceive('get_row')->once()->andReturn([
+            'id' => 9, 'product_id' => 42, 'store_url' => 'https://shop.example.com',
+        ]);
+        $wpdb->shouldReceive('update')->once()->with(
+            'wp_wc_mss_queue',
+            [
+                'status' => 'pending', 'attempts' => 0, 'last_error' => null,
+                'started_at' => null, 'completed_at' => null, 'scheduled_at' => null,
+            ],
+            ['id' => 9],
+            ['%s', '%d', '%s', '%s', '%s', '%s'],
+            ['%d']
+        )->andReturn(1);
+        $wpdb->shouldReceive('query')->once()->with('UPDATE DLQ')->andReturn(1);
+
+        $this->assertTrue(WC_Multi_Store_Queue_Table::retry_item(9));
+    }
+
+    public function test_retry_failed_items_does_not_touch_dlq_when_nothing_was_reset(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('query')->once()->andReturn(0);
+        $wpdb->shouldNotReceive('prepare');
+
+        $this->assertSame(0, WC_Multi_Store_Queue_Table::retry_failed_items());
+    }
+
     // ─── cleanup ───────────────────────────────────
 
     public function test_cleanup_deletes_old_items(): void

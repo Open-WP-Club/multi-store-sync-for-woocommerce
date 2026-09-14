@@ -133,6 +133,65 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
         $this->assertEquals(1, $result);
     }
 
+    public function test_insert_encodes_every_json_field(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('insert')->once()->with(
+            'wp_wc_mss_remote_orders',
+            \Mockery::on(fn(array $data): bool =>
+                $data['billing_address'] === '{"city":"Sofia"}'
+                && $data['shipping_address'] === '{"city":"Plovdiv"}'
+                && $data['line_items'] === '[]'
+                && $data['order_meta'] === '{"source":"api"}'
+            ),
+            \Mockery::type('array')
+        )->andReturn(true);
+
+        $this->assertSame(1, WC_Multi_Store_Remote_Order_Table::insert([
+            'billing_address' => ['city' => 'Sofia'],
+            'shipping_address' => ['city' => 'Plovdiv'],
+            'line_items' => [],
+            'order_meta' => ['source' => 'api'],
+        ]));
+    }
+
+    public function test_insert_line_item_encodes_meta_data(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 10;
+        $wpdb->shouldReceive('insert')->once()->with('wp_wc_mss_remote_orders', \Mockery::any(), \Mockery::any())->andReturn(true);
+        $wpdb->shouldReceive('insert')->once()->with(
+            'wp_wc_mss_remote_order_items',
+            \Mockery::on(fn(array $data): bool => $data['meta_data'] === '{"size":"XL"}'),
+            \Mockery::type('array')
+        )->andReturn(true);
+
+        $this->assertSame(10, WC_Multi_Store_Remote_Order_Table::insert([
+            'line_items' => [['product_name' => 'T-shirt', 'meta_data' => ['size' => 'XL']]],
+        ]));
+    }
+
+    public function test_insert_line_items_reports_partial_failure(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->last_error = 'disk full';
+        $wpdb->shouldReceive('insert')->twice()->andReturn(true, false);
+
+        $method = (new ReflectionClass('WC_Multi_Store_Remote_Order_Table'))->getMethod('insert_line_items');
+
+        $this->assertFalse($method->invoke(null, 10, [
+            ['product_name' => 'First'],
+            ['product_name' => 'Second'],
+        ]));
+    }
+
     public function test_insert_returns_false_on_failure(): void
     {
         global $wpdb;
@@ -225,6 +284,32 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
         $this->assertTrue($result);
     }
 
+    public function test_update_encodes_all_optional_json_fields(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('update')->once()->with(
+            'wp_wc_mss_remote_orders',
+            \Mockery::on(fn(array $data): bool =>
+                is_string($data['billing_address'])
+                && is_string($data['shipping_address'])
+                && is_string($data['line_items'])
+                && is_string($data['order_meta'])
+            ),
+            ['id' => 1],
+            null,
+            ['%d']
+        )->andReturn(1);
+
+        $this->assertTrue(WC_Multi_Store_Remote_Order_Table::update(1, [
+            'billing_address' => [],
+            'shipping_address' => [],
+            'line_items' => [],
+            'order_meta' => [],
+        ]));
+    }
+
     // ─── get ───────────────────────────────────────
 
     public function test_get_returns_order_with_decoded_json(): void
@@ -291,6 +376,17 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
         $this->assertCount(1, $result);
         $this->assertIsArray($result[0]->meta_data);
         $this->assertEquals('value', $result[0]->meta_data['key']);
+    }
+
+    public function test_get_order_items_returns_empty_array(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn('SELECT ...');
+        $wpdb->shouldReceive('get_results')->once()->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Remote_Order_Table::get_order_items(1));
     }
 
     // ─── delete ────────────────────────────────────
@@ -397,6 +493,30 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
         $this->assertEquals(25, $result);
     }
 
+    public function test_get_count_applies_status_customer_and_date_filters(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->with(
+            \Mockery::on(fn(string $sql): bool =>
+                str_contains($sql, 'status = %s')
+                && str_contains($sql, 'customer_email = %s')
+                && str_contains($sql, 'date_created >= %s')
+                && str_contains($sql, 'date_created <= %s')
+            ),
+            ['completed', 'buyer@example.com', '2026-01-01', '2026-01-31']
+        )->andReturn('FILTERED COUNT');
+        $wpdb->shouldReceive('get_var')->once()->with('FILTERED COUNT')->andReturn('4');
+
+        $this->assertSame(4, WC_Multi_Store_Remote_Order_Table::get_count([
+            'status' => 'completed',
+            'customer_email' => 'buyer@example.com',
+            'date_from' => '2026-01-01',
+            'date_to' => '2026-01-31',
+        ]));
+    }
+
     // ─── get_orders ────────────────────────────────
 
     public function test_get_orders_returns_decoded_json(): void
@@ -441,6 +561,52 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
         $this->assertIsArray($result);
     }
 
+    public function test_get_orders_supports_ascending_allowed_order(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn(' LIMIT 10 OFFSET 0');
+        $wpdb->shouldReceive('get_results')->once()->with(
+            \Mockery::on(fn(string $sql): bool => str_contains($sql, 'ORDER BY total ASC'))
+        )->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Remote_Order_Table::get_orders([
+            'orderby' => 'total',
+            'order' => 'asc',
+            'limit' => 10,
+        ]));
+    }
+
+    public function test_get_orders_uses_descending_order_for_invalid_direction(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn(' LIMIT 20 OFFSET 0');
+        $wpdb->shouldReceive('get_results')->once()->with(
+            \Mockery::on(fn(string $sql): bool => str_contains($sql, 'ORDER BY status DESC'))
+        )->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Remote_Order_Table::get_orders([
+            'orderby' => 'status',
+            'order' => 'sideways',
+        ]));
+    }
+
+    public function test_get_orders_can_disable_pagination(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->never();
+        $wpdb->shouldReceive('get_results')->once()->with(
+            \Mockery::on(fn(string $sql): bool => !str_contains($sql, ' LIMIT '))
+        )->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Remote_Order_Table::get_orders(['limit' => 0]));
+    }
+
     // ─── get_statistics ────────────────────────────
 
     public function test_get_statistics_returns_expected_keys(): void
@@ -478,6 +644,38 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
         $this->assertArrayHasKey('average_order_value', $result);
         $this->assertArrayHasKey('unique_customers', $result);
         $this->assertArrayHasKey('by_status', $result);
+    }
+
+    public function test_get_statistics_returns_safe_defaults_when_no_aggregate_row_exists(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('get_row')->once()->andReturn(null);
+        $wpdb->shouldReceive('get_results')->once()->andReturn([]);
+
+        $result = WC_Multi_Store_Remote_Order_Table::get_statistics();
+
+        $this->assertSame(0, $result['total_orders']);
+        $this->assertSame([], $result['by_status']);
+    }
+
+    public function test_get_statistics_applies_store_and_date_filters_to_both_queries(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->twice()->andReturnUsing(fn(string $sql): string => $sql);
+        $wpdb->shouldReceive('get_row')->once()->andReturn([]);
+        $wpdb->shouldReceive('get_results')->once()->andReturn([]);
+
+        $result = WC_Multi_Store_Remote_Order_Table::get_statistics([
+            'store_url' => 'https://shop.example.com',
+            'date_from' => '2026-01-01',
+            'date_to' => '2026-01-31',
+        ]);
+
+        $this->assertSame([], $result['by_status']);
     }
 
     // ─── cleanup_old_records ───────────────────────
