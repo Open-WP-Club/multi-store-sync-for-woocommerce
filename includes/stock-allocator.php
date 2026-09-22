@@ -299,6 +299,7 @@ class WC_Multi_Store_Stock_Allocator {
 
         if ($preview['_summary']['over_allocated']) {
             $warnings[] = sprintf(
+                /* translators: 1: allocated stock quantity, 2: available stock quantity. */
                 __('Total allocated stock (%1$d) exceeds available stock (%2$d)', 'multi-store-sync-for-woocommerce'),
                 $preview['_summary']['total_allocated'],
                 $total_stock
@@ -307,6 +308,7 @@ class WC_Multi_Store_Stock_Allocator {
 
         if ($preview['_summary']['unallocated'] > 0) {
             $warnings[] = sprintf(
+                /* translators: %d: unallocated stock quantity. */
                 __('%d units of stock will not be allocated to any store', 'multi-store-sync-for-woocommerce'),
                 $preview['_summary']['unallocated']
             );
