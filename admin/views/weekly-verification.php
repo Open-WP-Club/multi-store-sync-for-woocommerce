@@ -822,7 +822,7 @@ foreach ($active_stores as $store_url => $store_config) {
 
                     <p class="wc-mss-health-note">
                         <small>
-                            <?php echo esc_html(sprintf(esc_html__('Match: %s', 'multi-store-sync-for-woocommerce'), $match_by)); ?><br>
+                            <?php /* translators: %s: product matching method. */ echo esc_html(sprintf(esc_html__('Match: %s', 'multi-store-sync-for-woocommerce'), $match_by)); ?><br>
                             <?php esc_html_e('Cache: 24h', 'multi-store-sync-for-woocommerce'); ?>
                         </small>
                     </p>
