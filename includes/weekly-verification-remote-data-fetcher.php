@@ -140,8 +140,8 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
         if (is_wp_error($remote_products)) {
             throw new Exception(sprintf(
                 'API error fetching products from %s: %s',
-                $store_url,
-                $remote_products->get_error_message()
+                esc_url_raw($store_url),
+                esc_html($remote_products->get_error_message())
             ));
         }
 
