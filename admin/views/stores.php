@@ -44,7 +44,7 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
     <!-- Edit Store Form -->
     <div class="wc-mss-store-form">
         <div class="wc-mss-store-form-header">
-            <h2><?php printf(esc_html__('Edit Store: %s', 'multi-store-sync-for-woocommerce'), esc_html($editing_store_url)); ?></h2>
+            <h2><?php /* translators: %s: store URL. */ printf(esc_html__('Edit Store: %s', 'multi-store-sync-for-woocommerce'), esc_html($editing_store_url)); ?></h2>
             <a href="<?php echo esc_url(remove_query_arg('edit_store')); ?>" class="button"><?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?></a>
         </div>
         <div class="wc-mss-store-form-body">
@@ -242,15 +242,19 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
                         if (!empty($exc_cats) || !empty($exc_tags)) {
                             $exclusions = [];
                             if (!empty($exc_cats)) {
+                                /* translators: %d: number of excluded categories. */
                                 $exclusions[] = sprintf(_n('%d cat', '%d cats', count($exc_cats), 'multi-store-sync-for-woocommerce'), count($exc_cats));
                             }
                             if (!empty($exc_tags)) {
+                                /* translators: %d: number of excluded tags. */
                                 $exclusions[] = sprintf(_n('%d tag', '%d tags', count($exc_tags), 'multi-store-sync-for-woocommerce'), count($exc_tags));
                             }
                             echo '<span style="color:#b32d2e;">' . esc_html(implode(', ', $exclusions)) . '</span>';
+                            /* translators: 1: products selected for sync, 2: total products. */
                             echo '<br><strong style="color:#2271b1;">' . sprintf(esc_html__('%1$d / %2$d products', 'multi-store-sync-for-woocommerce'), absint($sync_count), absint($total_products)) . '</strong>';
                         } else {
                             echo '<span style="color:#999;">None</span>';
+                            /* translators: %d: total number of products. */
                             echo '<br><strong style="color:#2271b1;">' . sprintf(esc_html__('%d products', 'multi-store-sync-for-woocommerce'), absint($total_products)) . '</strong>';
                         }
                         ?>
