@@ -168,7 +168,7 @@ class WC_Multi_Store_Sync {
     public function woocommerce_missing_notice() {
         ?>
         <div class="error">
-            <p><?php _e('WooCommerce Multi-Store Sync requires WooCommerce to be installed and active.', 'multi-store-sync-for-woocommerce'); ?></p>
+            <p><?php esc_html_e('WooCommerce Multi-Store Sync requires WooCommerce to be installed and active.', 'multi-store-sync-for-woocommerce'); ?></p>
         </div>
         <?php
     }
