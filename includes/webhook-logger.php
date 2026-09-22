@@ -263,6 +263,7 @@ class WC_Multi_Store_Webhook_Logger {
             'remote_order_id' => $remote_order_id,
             'product_sku' => $sku,
             'status' => 'failed',
+            /* translators: %s: product SKU. */
             'error_message' => sprintf(__('Product with SKU "%s" not found in main store', 'multi-store-sync-for-woocommerce'), $sku),
             'change_reason' => sprintf(
                 /* translators: 1: product SKU, 2: order ID */
