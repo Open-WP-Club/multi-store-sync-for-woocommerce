@@ -755,6 +755,8 @@ class WeeklyVerificationComparatorTest extends WC_Multi_Store_TestCase
 
     public function test_verify_product_handles_api_error(): void
     {
+        Functions\when('esc_url_raw')->alias(fn($url) => $url);
+        Functions\when('esc_html')->alias(fn($text) => htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'));
         Functions\when('wc_get_product')->alias(function ($id) {
             $product = \Mockery::mock('WC_Product');
             $product->shouldReceive('get_id')->andReturn($id);

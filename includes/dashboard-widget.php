@@ -75,13 +75,13 @@ class WC_Multi_Store_Dashboard_Widget {
             <div class="wc-mss-w-status">
                 <span class="wc-mss-w-dot <?php echo esc_attr($settings['enabled'] ? 'active' : 'inactive'); ?>"></span>
                 <strong><?php echo $settings['enabled'] ? esc_html__('Sync Active', 'multi-store-sync-for-woocommerce') : esc_html__('Sync Disabled', 'multi-store-sync-for-woocommerce'); ?></strong>
-                <span style="margin-left: auto; color: #646970;"><?php echo esc_html(count($stores)); ?> <?php esc_html_e('store(s)', 'multi-store-sync-for-woocommerce'); ?></span>
+                <span style="margin-left: auto; color: #646970;"><?php echo esc_html(number_format_i18n(count($stores))); ?> <?php esc_html_e('store(s)', 'multi-store-sync-for-woocommerce'); ?></span>
             </div>
 
             <!-- Stats Grid -->
             <div class="wc-mss-w-grid">
                 <div class="wc-mss-w-stat">
-                    <div class="wc-mss-w-num"><?php echo esc_html((int) ($overall['total_syncs'] ?? 0)); ?></div>
+                    <div class="wc-mss-w-num"><?php echo esc_html(number_format_i18n((int) ($overall['total_syncs'] ?? 0))); ?></div>
                     <div class="wc-mss-w-label"><?php esc_html_e('Syncs Today', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div class="wc-mss-w-stat">

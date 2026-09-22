@@ -664,6 +664,8 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         Functions\when('get_bloginfo')->justReturn('Test Site');
         Functions\when('admin_url')->justReturn('http://example.com/wp-admin/admin.php');
         Functions\when('get_site_url')->justReturn('http://example.com');
+        Functions\when('esc_html')->alias(fn($text) => htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'));
+        Functions\when('esc_url')->alias(fn($url) => $url);
         Functions\expect('wp_mail')->once()->andReturn(true);
 
         $this->callFinalizeAsyncVerification();
