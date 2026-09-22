@@ -154,6 +154,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
+            /* translators: %s: site name. */
             __('[%s] Product Sync Failed', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
@@ -192,6 +193,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
+            /* translators: %s: site name. */
             __('[%s] API Error Alert', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
@@ -238,6 +240,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
+            /* translators: %s: site name. */
             __('[%s] Low Stock Alert', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
@@ -288,6 +291,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
+            /* translators: %s: site name. */
             __('[%s] Sync Conflict Detected', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
@@ -361,6 +365,7 @@ class WC_Multi_Store_Email_Notifications {
         ), ARRAY_A);
 
         $subject = sprintf(
+            /* translators: 1: site name, 2: report date. */
             __('[%1$s] Daily Sync Summary - %2$s', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name'),
             $yesterday_date->format('F j, Y')
@@ -715,6 +720,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         return $this->wrap_email(
+            /* translators: %s: report date. */
             sprintf(__('Daily Sync Summary — %s', 'multi-store-sync-for-woocommerce'), $data['date']),
             __('Daily Report', 'multi-store-sync-for-woocommerce'),
             '#0070a7',
