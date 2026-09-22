@@ -899,10 +899,10 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         ?>
         <div class="wrap wc-mss-orphan-cleanup">
-            <h1><?php _e('Orphan Product Cleanup', 'multi-store-sync-for-woocommerce'); ?></h1>
+            <h1><?php esc_html_e('Orphan Product Cleanup', 'multi-store-sync-for-woocommerce'); ?></h1>
 
             <p class="description">
-                <?php _e('Find and remove products on remote stores that don\'t exist on your main site.', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Find and remove products on remote stores that don\'t exist on your main site.', 'multi-store-sync-for-woocommerce'); ?>
             </p>
 
             <p>
@@ -910,15 +910,15 @@ class WC_Multi_Store_Orphan_Cleanup {
                     <input type="checkbox" class="wc-mss-feature-toggle"
                            data-action="wc_mss_toggle_orphan_auto_trash"
                            <?php checked(self::is_enabled()); ?>>
-                    <?php _e('Automatically move orphans to trash every 2 weeks', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Automatically move orphans to trash every 2 weeks', 'multi-store-sync-for-woocommerce'); ?>
                 </label>
                 <p class="description">
-                    <?php _e('Moves to trash only — never permanently deletes. Products with no SKU are always skipped.', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Moves to trash only — never permanently deletes. Products with no SKU are always skipped.', 'multi-store-sync-for-woocommerce'); ?>
                     <?php if ($auto_trash_status): ?>
                         <br>
                         <?php printf(
                             /* translators: 1: date, 2: trashed count, 3: failed count */
-                            __('Last run: %1$s — %2$d trashed, %3$d failed.', 'multi-store-sync-for-woocommerce'),
+                            esc_html__('Last run: %1$s — %2$d trashed, %3$d failed.', 'multi-store-sync-for-woocommerce'),
                             esc_html($auto_trash_status['last_run_at'] ?? ''),
                             (int) ($auto_trash_status['trashed'] ?? 0),
                             (int) ($auto_trash_status['failed'] ?? 0)
@@ -929,18 +929,18 @@ class WC_Multi_Store_Orphan_Cleanup {
 
             <?php if (empty($stores)): ?>
                 <div class="notice notice-warning">
-                    <p><?php _e('No active stores configured. Please configure stores first.', 'multi-store-sync-for-woocommerce'); ?></p>
+                    <p><?php esc_html_e('No active stores configured. Please configure stores first.', 'multi-store-sync-for-woocommerce'); ?></p>
                 </div>
             <?php else: ?>
                 <div class="wc-mss-orphan-scan-section">
-                    <h2><?php _e('Scan for Orphan Products', 'multi-store-sync-for-woocommerce'); ?></h2>
+                    <h2><?php esc_html_e('Scan for Orphan Products', 'multi-store-sync-for-woocommerce'); ?></h2>
 
                     <p>
                         <label for="wc-mss-store-select">
-                            <?php _e('Select Store:', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Select Store:', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
                         <select id="wc-mss-store-select">
-                            <option value=""><?php _e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value=""><?php esc_html_e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
                             <?php foreach ($stores as $store_url => $config): ?>
                                 <option value="<?php echo esc_attr($store_url); ?>">
                                     <?php echo esc_html($config['name'] ?? $store_url); ?>
@@ -951,17 +951,17 @@ class WC_Multi_Store_Orphan_Cleanup {
 
                     <p class="wc-mss-scan-actions">
                         <button type="button" class="button button-primary" id="wc-mss-scan-orphans">
-                            <?php _e('Scan Now (synchronous)', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Scan Now (synchronous)', 'multi-store-sync-for-woocommerce'); ?>
                         </button>
 
                         <?php if ($as_available): ?>
                             <button type="button" class="button" id="wc-mss-schedule-scan"
                                 <?php echo in_array($scan_status['status'] ?? 'idle', ['scheduled', 'running'], true) ? 'disabled' : ''; ?>>
-                                <?php _e('Schedule Background Scan', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Schedule Background Scan', 'multi-store-sync-for-woocommerce'); ?>
                             </button>
                         <?php else: ?>
                             <span class="description" style="margin-left:8px;">
-                                <?php _e('(Background scan requires Action Scheduler / WooCommerce)', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('(Background scan requires Action Scheduler / WooCommerce)', 'multi-store-sync-for-woocommerce'); ?>
                             </span>
                         <?php endif; ?>
 
@@ -987,8 +987,8 @@ class WC_Multi_Store_Orphan_Cleanup {
                         };
                         if ($status_label):
                         ?>
-                        <div class="notice <?php echo $status_class; ?> inline" id="wc-mss-bg-status-notice">
-                            <p id="wc-mss-bg-status-text"><?php echo $status_label; ?></p>
+                        <div class="notice <?php echo esc_attr($status_class); ?> inline" id="wc-mss-bg-status-notice">
+                            <p id="wc-mss-bg-status-text"><?php echo esc_html($status_label); ?></p>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -1023,7 +1023,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                         };
                         if ($cleanup_status_label):
                         ?>
-                        <div class="notice <?php echo $cleanup_status_class; ?> inline" id="wc-mss-cleanup-status-notice">
+                        <div class="notice <?php echo esc_attr($cleanup_status_class); ?> inline" id="wc-mss-cleanup-status-notice">
                             <p id="wc-mss-cleanup-status-text"><?php echo esc_html($cleanup_status_label); ?></p>
                         </div>
                         <?php endif; ?>
@@ -1035,7 +1035,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                                 <p><?php
                                     $finished = $scan_status['finished_at'] ?? '';
                                     printf(
-                                        __('Showing results from last background scan (%s).', 'multi-store-sync-for-woocommerce'),
+                                        esc_html__('Showing results from last background scan (%s).', 'multi-store-sync-for-woocommerce'),
                                         esc_html($finished)
                                     );
                                 ?></p>
