@@ -54,7 +54,7 @@ class WC_Multi_Store_Orphan_Cleanup {
      * @return string
      */
     public static function feature_label(): string {
-        return __('Orphan auto-trash', 'wc-multi-store-sync');
+        return __('Orphan auto-trash', 'multi-store-sync-for-woocommerce');
     }
 
     /**
@@ -192,37 +192,37 @@ class WC_Multi_Store_Orphan_Cleanup {
         }
 
         $accent = $cleanup['failed'] > 0 ? '#b32d2e' : '#00a32a';
-        $badge  = __('Orphan Auto-Trash', 'wc-multi-store-sync');
+        $badge  = __('Orphan Auto-Trash', 'multi-store-sync-for-woocommerce');
         $title  = sprintf(
-            __('%d Product(s) Moved to Trash', 'wc-multi-store-sync'),
+            __('%d Product(s) Moved to Trash', 'multi-store-sync-for-woocommerce'),
             $cleanup['deleted']
         );
 
         $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
-            . __('Products found on a remote store but no longer on the main site were moved to trash there (not permanently deleted).', 'wc-multi-store-sync')
+            . __('Products found on a remote store but no longer on the main site were moved to trash there (not permanently deleted).', 'multi-store-sync-for-woocommerce')
             . '</p>';
 
         $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;border:1px solid #dcdcde;border-radius:6px;overflow:hidden;margin-bottom:24px;">'
             . '<thead><tr>'
             . '<th style="padding:10px 12px;background:#f6f7f7;font-size:12px;font-weight:600;color:#646970;text-align:left;border-bottom:1px solid #dcdcde;">'
-            . __('Store', 'wc-multi-store-sync') . '</th>'
+            . __('Store', 'multi-store-sync-for-woocommerce') . '</th>'
             . '<th style="padding:10px 12px;background:#f6f7f7;font-size:12px;font-weight:600;color:#646970;text-align:left;border-bottom:1px solid #dcdcde;">'
-            . __('Orphans Found', 'wc-multi-store-sync') . '</th>'
+            . __('Orphans Found', 'multi-store-sync-for-woocommerce') . '</th>'
             . '</tr></thead><tbody>'
             . $store_rows
             . '</tbody></table>';
 
         $failed_note = $cleanup['failed'] > 0
             ? '<p style="margin:0 0 20px;font-size:13px;color:#b32d2e;">'
-                . sprintf(__('%d product(s) failed to trash — check the logs.', 'wc-multi-store-sync'), $cleanup['failed'])
+                . sprintf(__('%d product(s) failed to trash — check the logs.', 'multi-store-sync-for-woocommerce'), $cleanup['failed'])
                 . '</p>'
             : '';
 
         $body = $this->wrap_email($title, $badge, $accent, $lead . $table . $failed_note);
 
         $subject = sprintf(
-            __('[%s] Orphan Auto-Trash — %d trashed, %d failed', 'wc-multi-store-sync'),
+            __('[%1$s] Orphan Auto-Trash — %2$d trashed, %3$d failed', 'multi-store-sync-for-woocommerce'),
             $site,
             $cleanup['deleted'],
             $cleanup['failed']
@@ -258,7 +258,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if ($config === null) {
                 return [
                     'success' => false,
-                    'message' => sprintf(__('Store not found: %s', 'wc-multi-store-sync'), $store_url),
+                    'message' => sprintf(__('Store not found: %s', 'multi-store-sync-for-woocommerce'), $store_url),
                 ];
             }
 
@@ -270,7 +270,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         if (empty($stores)) {
             return [
                 'success' => false,
-                'message' => __('No active stores configured.', 'wc-multi-store-sync'),
+                'message' => __('No active stores configured.', 'multi-store-sync-for-woocommerce'),
             ];
         }
 
@@ -404,7 +404,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         if (empty($orphans)) {
             return [
                 'success' => false,
-                'message' => __('No orphan products specified.', 'wc-multi-store-sync'),
+                'message' => __('No orphan products specified.', 'multi-store-sync-for-woocommerce'),
             ];
         }
 
@@ -426,7 +426,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if (!$config) {
                 $results['failed']++;
                 $results['errors'][] = sprintf(
-                    __('Store not found: %s', 'wc-multi-store-sync'),
+                    __('Store not found: %s', 'multi-store-sync-for-woocommerce'),
                     $store_url
                 );
                 continue;
@@ -439,7 +439,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if (is_wp_error($response)) {
                 $results['failed']++;
                 $results['errors'][] = sprintf(
-                    __('Failed to delete product ID %d from %s: %s', 'wc-multi-store-sync'),
+                    __('Failed to delete product ID %1$d from %2$s: %3$s', 'multi-store-sync-for-woocommerce'),
                     $product_id,
                     $store_url,
                     $response->get_error_message()
@@ -615,7 +615,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             $status['errors']      = $results['errors'] ?? [];
             $status['message']     = $results['success']
                 ? sprintf(
-                    __('Cleanup complete: %d deleted, %d failed.', 'wc-multi-store-sync'),
+                    __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
                     $results['deleted'],
                     $results['failed']
                 )
@@ -667,26 +667,26 @@ class WC_Multi_Store_Orphan_Cleanup {
         }
 
         $accent   = $total_orphans > 0 ? '#b32d2e' : '#00a32a';
-        $badge    = __('Orphan Cleanup', 'wc-multi-store-sync');
+        $badge    = __('Orphan Cleanup', 'multi-store-sync-for-woocommerce');
         $title    = $total_orphans > 0
-            ? sprintf(__('Found %d Orphan Product(s)', 'wc-multi-store-sync'), $total_orphans)
-            : __('No Orphan Products Found', 'wc-multi-store-sync');
+            ? sprintf(__('Found %d Orphan Product(s)', 'multi-store-sync-for-woocommerce'), $total_orphans)
+            : __('No Orphan Products Found', 'multi-store-sync-for-woocommerce');
 
         $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
             . ($store_url
-                ? sprintf(__('Background scan of <strong>%s</strong> completed.', 'wc-multi-store-sync'), esc_html($store_url))
-                : __('Background scan of all active stores completed.', 'wc-multi-store-sync'))
+                ? sprintf(__('Background scan of <strong>%s</strong> completed.', 'multi-store-sync-for-woocommerce'), esc_html($store_url))
+                : __('Background scan of all active stores completed.', 'multi-store-sync-for-woocommerce'))
             . '</p>';
 
         $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;border:1px solid #dcdcde;border-radius:6px;overflow:hidden;margin-bottom:24px;">'
             . '<thead><tr>'
             . '<th style="padding:10px 12px;background:#f6f7f7;font-size:12px;font-weight:600;color:#646970;text-align:left;border-bottom:1px solid #dcdcde;">'
-            . __('Store', 'wc-multi-store-sync') . '</th>'
+            . __('Store', 'multi-store-sync-for-woocommerce') . '</th>'
             . '<th style="padding:10px 12px;background:#f6f7f7;font-size:12px;font-weight:600;color:#646970;text-align:left;border-bottom:1px solid #dcdcde;">'
-            . __('Remote Products', 'wc-multi-store-sync') . '</th>'
+            . __('Remote Products', 'multi-store-sync-for-woocommerce') . '</th>'
             . '<th style="padding:10px 12px;background:#f6f7f7;font-size:12px;font-weight:600;color:#646970;text-align:left;border-bottom:1px solid #dcdcde;">'
-            . __('Orphans', 'wc-multi-store-sync') . '</th>'
+            . __('Orphans', 'multi-store-sync-for-woocommerce') . '</th>'
             . '</tr></thead><tbody>'
             . $store_rows
             . '</tbody></table>';
@@ -694,13 +694,13 @@ class WC_Multi_Store_Orphan_Cleanup {
         $cleanup_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=orphan-cleanup');
         $button = '<p style="margin:0;">'
             . '<a href="' . esc_url($cleanup_url) . '" style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:600;color:#ffffff;text-decoration:none;line-height:1;border-radius:5px;background:#0070a7;">'
-            . __('View Results &amp; Clean Up', 'wc-multi-store-sync')
+            . __('View Results &amp; Clean Up', 'multi-store-sync-for-woocommerce')
             . '</a></p>';
 
         $body = $this->wrap_email($title, $badge, $accent, $lead . $table . $button);
 
         $subject = sprintf(
-            __('[%s] Orphan Scan Complete — %d orphan(s) found', 'wc-multi-store-sync'),
+            __('[%1$s] Orphan Scan Complete — %2$d orphan(s) found', 'multi-store-sync-for-woocommerce'),
             $site,
             $total_orphans
         );
@@ -718,14 +718,14 @@ class WC_Multi_Store_Orphan_Cleanup {
         check_ajax_referer('wc_mss_orphan_cleanup', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Permission denied.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $store_url = sanitize_text_field($_POST['store_url'] ?? '');
 
         if (!$this->schedule_background_scan($store_url)) {
-            wp_send_json_error(['message' => __('Action Scheduler is not available. Please ensure WooCommerce is active.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Action Scheduler is not available. Please ensure WooCommerce is active.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -733,7 +733,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             ?? get_option('admin_email');
 
         wp_send_json_success([
-            'message'   => __('Scan scheduled. You will receive an email when it completes.', 'wc-multi-store-sync'),
+            'message'   => __('Scan scheduled. You will receive an email when it completes.', 'multi-store-sync-for-woocommerce'),
             'recipient' => $recipient,
         ]);
     }
@@ -745,7 +745,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         check_ajax_referer('wc_mss_orphan_cleanup', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Permission denied.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -765,7 +765,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         check_ajax_referer('wc_mss_orphan_cleanup', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Permission denied.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -782,7 +782,7 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error([
-                'message' => __('You do not have permission to perform this action.', 'wc-multi-store-sync'),
+                'message' => __('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
 
@@ -808,7 +808,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                 $e->getLine()
             ), 'error');
             wp_send_json_error([
-                'message' => __('An error occurred while scanning for orphans', 'wc-multi-store-sync'),
+                'message' => __('An error occurred while scanning for orphans', 'multi-store-sync-for-woocommerce'),
                 'error' => $e->getMessage(),
             ]);
         }
@@ -822,7 +822,7 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error([
-                'message' => __('You do not have permission to perform this action.', 'wc-multi-store-sync'),
+                'message' => __('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
 
@@ -831,7 +831,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if (!empty($_POST['orphans'])) {
                 $orphans = json_decode(wp_unslash($_POST['orphans']), true);
                 if (json_last_error() !== JSON_ERROR_NONE || !is_array($orphans)) {
-                    wp_send_json_error(['message' => __('Invalid orphan data format.', 'wc-multi-store-sync')]);
+                    wp_send_json_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
                     return;
                 }
                 $orphans = array_values(array_filter($orphans, fn($o) => is_array($o) && !empty($o['store_url']) && !empty($o['product_id'])));
@@ -839,7 +839,7 @@ class WC_Multi_Store_Orphan_Cleanup {
 
             if (empty($orphans)) {
                 wp_send_json_error([
-                    'message' => __('No orphan products specified.', 'wc-multi-store-sync'),
+                    'message' => __('No orphan products specified.', 'multi-store-sync-for-woocommerce'),
                 ]);
             }
 
@@ -851,7 +851,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if ($this->schedule_background_cleanup($orphans)) {
                 wp_send_json_success([
                     'scheduled' => true,
-                    'message'   => __('Cleanup started in the background…', 'wc-multi-store-sync'),
+                    'message'   => __('Cleanup started in the background…', 'multi-store-sync-for-woocommerce'),
                 ]);
                 return;
             }
@@ -865,7 +865,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if ($results['success']) {
                 wp_send_json_success([
                     'message' => sprintf(
-                        __('Cleanup complete: %d deleted, %d failed.', 'wc-multi-store-sync'),
+                        __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
                         $results['deleted'],
                         $results['failed']
                     ),
@@ -877,7 +877,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         } catch (\Throwable $e) {
             WC_Multi_Store_Logger::write('AJAX cleanup_orphans error: ' . $e->getMessage(), 'error');
             wp_send_json_error([
-                'message' => __('An error occurred while cleaning up orphans', 'wc-multi-store-sync'),
+                'message' => __('An error occurred while cleaning up orphans', 'multi-store-sync-for-woocommerce'),
                 'error' => WP_DEBUG ? $e->getMessage() : null,
             ]);
         }
@@ -899,10 +899,10 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         ?>
         <div class="wrap wc-mss-orphan-cleanup">
-            <h1><?php _e('Orphan Product Cleanup', 'wc-multi-store-sync'); ?></h1>
+            <h1><?php _e('Orphan Product Cleanup', 'multi-store-sync-for-woocommerce'); ?></h1>
 
             <p class="description">
-                <?php _e('Find and remove products on remote stores that don\'t exist on your main site.', 'wc-multi-store-sync'); ?>
+                <?php _e('Find and remove products on remote stores that don\'t exist on your main site.', 'multi-store-sync-for-woocommerce'); ?>
             </p>
 
             <p>
@@ -910,15 +910,15 @@ class WC_Multi_Store_Orphan_Cleanup {
                     <input type="checkbox" class="wc-mss-feature-toggle"
                            data-action="wc_mss_toggle_orphan_auto_trash"
                            <?php checked(self::is_enabled()); ?>>
-                    <?php _e('Automatically move orphans to trash every 2 weeks', 'wc-multi-store-sync'); ?>
+                    <?php _e('Automatically move orphans to trash every 2 weeks', 'multi-store-sync-for-woocommerce'); ?>
                 </label>
                 <p class="description">
-                    <?php _e('Moves to trash only — never permanently deletes. Products with no SKU are always skipped.', 'wc-multi-store-sync'); ?>
+                    <?php _e('Moves to trash only — never permanently deletes. Products with no SKU are always skipped.', 'multi-store-sync-for-woocommerce'); ?>
                     <?php if ($auto_trash_status): ?>
                         <br>
                         <?php printf(
                             /* translators: 1: date, 2: trashed count, 3: failed count */
-                            __('Last run: %1$s — %2$d trashed, %3$d failed.', 'wc-multi-store-sync'),
+                            __('Last run: %1$s — %2$d trashed, %3$d failed.', 'multi-store-sync-for-woocommerce'),
                             esc_html($auto_trash_status['last_run_at'] ?? ''),
                             (int) ($auto_trash_status['trashed'] ?? 0),
                             (int) ($auto_trash_status['failed'] ?? 0)
@@ -929,18 +929,18 @@ class WC_Multi_Store_Orphan_Cleanup {
 
             <?php if (empty($stores)): ?>
                 <div class="notice notice-warning">
-                    <p><?php _e('No active stores configured. Please configure stores first.', 'wc-multi-store-sync'); ?></p>
+                    <p><?php _e('No active stores configured. Please configure stores first.', 'multi-store-sync-for-woocommerce'); ?></p>
                 </div>
             <?php else: ?>
                 <div class="wc-mss-orphan-scan-section">
-                    <h2><?php _e('Scan for Orphan Products', 'wc-multi-store-sync'); ?></h2>
+                    <h2><?php _e('Scan for Orphan Products', 'multi-store-sync-for-woocommerce'); ?></h2>
 
                     <p>
                         <label for="wc-mss-store-select">
-                            <?php _e('Select Store:', 'wc-multi-store-sync'); ?>
+                            <?php _e('Select Store:', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
                         <select id="wc-mss-store-select">
-                            <option value=""><?php _e('All Stores', 'wc-multi-store-sync'); ?></option>
+                            <option value=""><?php _e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
                             <?php foreach ($stores as $store_url => $config): ?>
                                 <option value="<?php echo esc_attr($store_url); ?>">
                                     <?php echo esc_html($config['name'] ?? $store_url); ?>
@@ -951,17 +951,17 @@ class WC_Multi_Store_Orphan_Cleanup {
 
                     <p class="wc-mss-scan-actions">
                         <button type="button" class="button button-primary" id="wc-mss-scan-orphans">
-                            <?php _e('Scan Now (synchronous)', 'wc-multi-store-sync'); ?>
+                            <?php _e('Scan Now (synchronous)', 'multi-store-sync-for-woocommerce'); ?>
                         </button>
 
                         <?php if ($as_available): ?>
                             <button type="button" class="button" id="wc-mss-schedule-scan"
                                 <?php echo in_array($scan_status['status'] ?? 'idle', ['scheduled', 'running'], true) ? 'disabled' : ''; ?>>
-                                <?php _e('Schedule Background Scan', 'wc-multi-store-sync'); ?>
+                                <?php _e('Schedule Background Scan', 'multi-store-sync-for-woocommerce'); ?>
                             </button>
                         <?php else: ?>
                             <span class="description" style="margin-left:8px;">
-                                <?php _e('(Background scan requires Action Scheduler / WooCommerce)', 'wc-multi-store-sync'); ?>
+                                <?php _e('(Background scan requires Action Scheduler / WooCommerce)', 'multi-store-sync-for-woocommerce'); ?>
                             </span>
                         <?php endif; ?>
 
@@ -979,10 +979,10 @@ class WC_Multi_Store_Orphan_Cleanup {
                             default                 => 'notice-info',
                         };
                         $status_label = match($status_val) {
-                            'scheduled' => __('Background scan scheduled — waiting for Action Scheduler to pick it up…', 'wc-multi-store-sync'),
-                            'running'   => __('Background scan is running…', 'wc-multi-store-sync'),
-                            'done'      => sprintf(__('Background scan completed at %s.', 'wc-multi-store-sync'), esc_html($scan_status['finished_at'] ?? '')),
-                            'failed'    => sprintf(__('Background scan failed: %s', 'wc-multi-store-sync'), esc_html($scan_status['error'] ?? '')),
+                            'scheduled' => __('Background scan scheduled — waiting for Action Scheduler to pick it up…', 'multi-store-sync-for-woocommerce'),
+                            'running'   => __('Background scan is running…', 'multi-store-sync-for-woocommerce'),
+                            'done'      => sprintf(__('Background scan completed at %s.', 'multi-store-sync-for-woocommerce'), esc_html($scan_status['finished_at'] ?? '')),
+                            'failed'    => sprintf(__('Background scan failed: %s', 'multi-store-sync-for-woocommerce'), esc_html($scan_status['error'] ?? '')),
                             default     => '',
                         };
                         if ($status_label):
@@ -1006,19 +1006,19 @@ class WC_Multi_Store_Orphan_Cleanup {
                         $cleanup_processed = (int) ($cleanup_status['processed'] ?? 0);
                         $cleanup_total     = (int) ($cleanup_status['total'] ?? 0);
                         $cleanup_status_label = match($cleanup_status_val) {
-                            'scheduled' => __('Deletion queued — waiting for Action Scheduler to pick it up…', 'wc-multi-store-sync'),
+                            'scheduled' => __('Deletion queued — waiting for Action Scheduler to pick it up…', 'multi-store-sync-for-woocommerce'),
                             'running'   => sprintf(
                                 /* translators: 1: number processed so far, 2: total number queued for deletion */
-                                __('Deleting products… %1$d of %2$d processed.', 'wc-multi-store-sync'),
+                                __('Deleting products… %1$d of %2$d processed.', 'multi-store-sync-for-woocommerce'),
                                 $cleanup_processed,
                                 $cleanup_total
                             ),
                             'done'      => $cleanup_status['message'] ?? sprintf(
-                                __('Cleanup complete: %1$d deleted, %2$d failed.', 'wc-multi-store-sync'),
+                                __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
                                 (int) ($cleanup_status['deleted'] ?? 0),
                                 (int) ($cleanup_status['failed'] ?? 0)
                             ),
-                            'failed'    => sprintf(__('Cleanup failed: %s', 'wc-multi-store-sync'), esc_html($cleanup_status['error'] ?? $cleanup_status['message'] ?? '')),
+                            'failed'    => sprintf(__('Cleanup failed: %s', 'multi-store-sync-for-woocommerce'), esc_html($cleanup_status['error'] ?? $cleanup_status['message'] ?? '')),
                             default     => '',
                         };
                         if ($cleanup_status_label):
@@ -1035,7 +1035,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                                 <p><?php
                                     $finished = $scan_status['finished_at'] ?? '';
                                     printf(
-                                        __('Showing results from last background scan (%s).', 'wc-multi-store-sync'),
+                                        __('Showing results from last background scan (%s).', 'multi-store-sync-for-woocommerce'),
                                         esc_html($finished)
                                     );
                                 ?></p>
@@ -1099,7 +1099,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                 var storeUrl = $('#wc-mss-store-select').val();
                 scanBtn.prop('disabled', true);
                 spinner.addClass('is-active');
-                resultsDiv.html('<p><?php echo esc_js(__('Scanning stores…', 'wc-multi-store-sync')); ?></p>');
+                resultsDiv.html('<p><?php echo esc_js(__('Scanning stores…', 'multi-store-sync-for-woocommerce')); ?></p>');
 
                 $.ajax({
                     url: ajaxurl, type: 'POST',
@@ -1109,13 +1109,13 @@ class WC_Multi_Store_Orphan_Cleanup {
                             resultsDiv.html(buildResultsHtml(res.data));
                             bindResultsEvents();
                         } else {
-                            var msg    = (res.data && res.data.message) || '<?php echo esc_js(__('An error occurred while scanning for orphans', 'wc-multi-store-sync')); ?>';
+                            var msg    = (res.data && res.data.message) || '<?php echo esc_js(__('An error occurred while scanning for orphans', 'multi-store-sync-for-woocommerce')); ?>';
                             var detail = (res.data && res.data.error) ? '<br><small>' + res.data.error + '</small>' : '';
                             resultsDiv.html('<div class="notice notice-error"><p>' + msg + detail + '</p></div>');
                         }
                     },
                     error: function() {
-                        resultsDiv.html('<div class="notice notice-error"><p><?php echo esc_js(__('An error occurred while scanning.', 'wc-multi-store-sync')); ?></p></div>');
+                        resultsDiv.html('<div class="notice notice-error"><p><?php echo esc_js(__('An error occurred while scanning.', 'multi-store-sync-for-woocommerce')); ?></p></div>');
                     },
                     complete: function() { scanBtn.prop('disabled', false); spinner.removeClass('is-active'); }
                 });
@@ -1138,13 +1138,13 @@ class WC_Multi_Store_Orphan_Cleanup {
                             showBgStatus('notice-info', msg);
                             startPolling();
                         } else {
-                            var errMsg = (res.data && res.data.message) || '<?php echo esc_js(__('Failed to schedule scan.', 'wc-multi-store-sync')); ?>';
+                            var errMsg = (res.data && res.data.message) || '<?php echo esc_js(__('Failed to schedule scan.', 'multi-store-sync-for-woocommerce')); ?>';
                             showBgStatus('notice-error', errMsg);
                             scheduleBtn.prop('disabled', false);
                         }
                     },
                     error: function() {
-                        showBgStatus('notice-error', '<?php echo esc_js(__('An error occurred.', 'wc-multi-store-sync')); ?>');
+                        showBgStatus('notice-error', '<?php echo esc_js(__('An error occurred.', 'multi-store-sync-for-woocommerce')); ?>');
                         scheduleBtn.prop('disabled', false);
                     },
                     complete: function() { spinner.removeClass('is-active'); }
@@ -1170,13 +1170,13 @@ class WC_Multi_Store_Orphan_Cleanup {
                         var st = s.status || 'idle';
 
                         if (st === 'scheduled') {
-                            showBgStatus('notice-info', '<?php echo esc_js(__('Background scan scheduled — waiting for Action Scheduler…', 'wc-multi-store-sync')); ?>');
+                            showBgStatus('notice-info', '<?php echo esc_js(__('Background scan scheduled — waiting for Action Scheduler…', 'multi-store-sync-for-woocommerce')); ?>');
                         } else if (st === 'running') {
-                            showBgStatus('notice-info', '<?php echo esc_js(__('Background scan is running…', 'wc-multi-store-sync')); ?>');
+                            showBgStatus('notice-info', '<?php echo esc_js(__('Background scan is running…', 'multi-store-sync-for-woocommerce')); ?>');
                         } else if (st === 'done') {
                             stopPolling();
                             scheduleBtn.prop('disabled', false);
-                            var finMsg = '<?php echo esc_js(__('Background scan completed at', 'wc-multi-store-sync')); ?> ' + (s.finished_at || '');
+                            var finMsg = '<?php echo esc_js(__('Background scan completed at', 'multi-store-sync-for-woocommerce')); ?> ' + (s.finished_at || '');
                             showBgStatus('notice-success', finMsg);
                             if (res.data.results && res.data.results.results) {
                                 resultsDiv.html(buildResultsHtml(res.data.results));
@@ -1185,7 +1185,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                         } else if (st === 'failed') {
                             stopPolling();
                             scheduleBtn.prop('disabled', false);
-                            showBgStatus('notice-error', '<?php echo esc_js(__('Background scan failed:', 'wc-multi-store-sync')); ?> ' + (s.error || ''));
+                            showBgStatus('notice-error', '<?php echo esc_js(__('Background scan failed:', 'multi-store-sync-for-woocommerce')); ?> ' + (s.error || ''));
                         } else {
                             stopPolling();
                         }
@@ -1205,27 +1205,27 @@ class WC_Multi_Store_Orphan_Cleanup {
             }
 
             function buildResultsHtml(data) {
-                var html = '<h2><?php echo esc_js(__('Scan Results', 'wc-multi-store-sync')); ?></h2>';
+                var html = '<h2><?php echo esc_js(__('Scan Results', 'multi-store-sync-for-woocommerce')); ?></h2>';
 
                 $.each(data.results, function(index, store) {
                     html += '<div class="orphan-store-section">';
                     html += '<h3>' + store.store_name + '</h3>';
 
                     if (store.error) {
-                        html += '<p class="error"><?php echo esc_js(__('Error:', 'wc-multi-store-sync')); ?> ' + store.error + '</p>';
+                        html += '<p class="error"><?php echo esc_js(__('Error:', 'multi-store-sync-for-woocommerce')); ?> ' + store.error + '</p>';
                     } else if (store.total_orphans === 0) {
-                        html += '<p class="no-orphans"><?php echo esc_js(__('No orphan products found!', 'wc-multi-store-sync')); ?></p>';
-                        html += '<p><?php echo esc_js(__('Scanned', 'wc-multi-store-sync')); ?> <strong>' + store.total_remote + '</strong> <?php echo esc_js(__('remote products.', 'wc-multi-store-sync')); ?></p>';
+                        html += '<p class="no-orphans"><?php echo esc_js(__('No orphan products found!', 'multi-store-sync-for-woocommerce')); ?></p>';
+                        html += '<p><?php echo esc_js(__('Scanned', 'multi-store-sync-for-woocommerce')); ?> <strong>' + store.total_remote + '</strong> <?php echo esc_js(__('remote products.', 'multi-store-sync-for-woocommerce')); ?></p>';
                     } else {
-                        html += '<p><?php echo esc_js(__('Found', 'wc-multi-store-sync')); ?> <strong>' + store.total_orphans + '</strong> <?php echo esc_js(__('orphan product(s) out of', 'wc-multi-store-sync')); ?> ' + store.total_remote + ' <?php echo esc_js(__('total products.', 'wc-multi-store-sync')); ?></p>';
+                        html += '<p><?php echo esc_js(__('Found', 'multi-store-sync-for-woocommerce')); ?> <strong>' + store.total_orphans + '</strong> <?php echo esc_js(__('orphan product(s) out of', 'multi-store-sync-for-woocommerce')); ?> ' + store.total_remote + ' <?php echo esc_js(__('total products.', 'multi-store-sync-for-woocommerce')); ?></p>';
                         html += '<table class="wp-list-table widefat fixed striped">';
                         html += '<thead><tr>';
                         html += '<th style="width:32px"><input type="checkbox" class="select-all-orphans" data-store="' + index + '"></th>';
-                        html += '<th><?php echo esc_js(__('ID', 'wc-multi-store-sync')); ?></th>';
-                        html += '<th><?php echo esc_js(__('Name', 'wc-multi-store-sync')); ?></th>';
-                        html += '<th><?php echo esc_js(__('SKU', 'wc-multi-store-sync')); ?></th>';
-                        html += '<th><?php echo esc_js(__('Price', 'wc-multi-store-sync')); ?></th>';
-                        html += '<th><?php echo esc_js(__('Stock', 'wc-multi-store-sync')); ?></th>';
+                        html += '<th><?php echo esc_js(__('ID', 'multi-store-sync-for-woocommerce')); ?></th>';
+                        html += '<th><?php echo esc_js(__('Name', 'multi-store-sync-for-woocommerce')); ?></th>';
+                        html += '<th><?php echo esc_js(__('SKU', 'multi-store-sync-for-woocommerce')); ?></th>';
+                        html += '<th><?php echo esc_js(__('Price', 'multi-store-sync-for-woocommerce')); ?></th>';
+                        html += '<th><?php echo esc_js(__('Stock', 'multi-store-sync-for-woocommerce')); ?></th>';
                         html += '</tr></thead><tbody>';
                         $.each(store.orphans, function(i, orphan) {
                             html += '<tr>';
@@ -1239,7 +1239,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                         });
                         html += '</tbody></table>';
                         html += '<p style="margin-top:10px;">';
-                        html += '<button type="button" class="button button-link-delete cleanup-selected" data-store="' + index + '"><?php echo esc_js(__('Delete Selected', 'wc-multi-store-sync')); ?></button>';
+                        html += '<button type="button" class="button button-link-delete cleanup-selected" data-store="' + index + '"><?php echo esc_js(__('Delete Selected', 'multi-store-sync-for-woocommerce')); ?></button>';
                         html += '</p>';
                     }
 
@@ -1259,7 +1259,7 @@ class WC_Multi_Store_Orphan_Cleanup {
 
                 // Delete selected
                 resultsDiv.off('click', '.cleanup-selected').on('click', '.cleanup-selected', function() {
-                    if (!confirm('<?php echo esc_js(__('Are you sure you want to delete the selected orphan products? This action cannot be undone.', 'wc-multi-store-sync')); ?>')) {
+                    if (!confirm('<?php echo esc_js(__('Are you sure you want to delete the selected orphan products? This action cannot be undone.', 'multi-store-sync-for-woocommerce')); ?>')) {
                         return;
                     }
                     var orphans = [];
@@ -1271,12 +1271,12 @@ class WC_Multi_Store_Orphan_Cleanup {
                         });
                     });
                     if (orphans.length === 0) {
-                        alert('<?php echo esc_js(__('Please select at least one product to delete.', 'wc-multi-store-sync')); ?>');
+                        alert('<?php echo esc_js(__('Please select at least one product to delete.', 'multi-store-sync-for-woocommerce')); ?>');
                         return;
                     }
 
                     disableCleanupButtons();
-                    $(this).text('<?php echo esc_js(__('Deleting…', 'wc-multi-store-sync')); ?>');
+                    $(this).text('<?php echo esc_js(__('Deleting…', 'multi-store-sync-for-woocommerce')); ?>');
 
                     $.ajax({
                         url: ajaxurl, type: 'POST',
@@ -1286,7 +1286,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                                 // Show feedback immediately — this is the "yes, it's queued"
                                 // confirmation the admin needs before the background job
                                 // (which can take minutes for 100+ products) even starts.
-                                var queuedMsg = res.data.message || '<?php echo esc_js(__('Cleanup started in the background…', 'wc-multi-store-sync')); ?>';
+                                var queuedMsg = res.data.message || '<?php echo esc_js(__('Cleanup started in the background…', 'multi-store-sync-for-woocommerce')); ?>';
                                 showCleanupStatus('notice-info', queuedMsg);
                                 startCleanupPolling();
                             } else if (res.success) {
@@ -1294,12 +1294,12 @@ class WC_Multi_Store_Orphan_Cleanup {
                                 resetCleanupButtons();
                                 scanBtn.trigger('click');
                             } else {
-                                showCleanupStatus('notice-error', (res.data && res.data.message) || '<?php echo esc_js(__('Failed.', 'wc-multi-store-sync')); ?>');
+                                showCleanupStatus('notice-error', (res.data && res.data.message) || '<?php echo esc_js(__('Failed.', 'multi-store-sync-for-woocommerce')); ?>');
                                 resetCleanupButtons();
                             }
                         },
                         error: function() {
-                            showCleanupStatus('notice-error', '<?php echo esc_js(__('An error occurred while cleaning up orphans.', 'wc-multi-store-sync')); ?>');
+                            showCleanupStatus('notice-error', '<?php echo esc_js(__('An error occurred while cleaning up orphans.', 'multi-store-sync-for-woocommerce')); ?>');
                             resetCleanupButtons();
                         }
                     });
@@ -1311,7 +1311,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             }
 
             function resetCleanupButtons() {
-                resultsDiv.find('.cleanup-selected').prop('disabled', false).text('<?php echo esc_js(__('Delete Selected', 'wc-multi-store-sync')); ?>');
+                resultsDiv.find('.cleanup-selected').prop('disabled', false).text('<?php echo esc_js(__('Delete Selected', 'multi-store-sync-for-woocommerce')); ?>');
             }
 
             function showCleanupStatus(cssClass, message) {
@@ -1349,20 +1349,20 @@ class WC_Multi_Store_Orphan_Cleanup {
                         var st = s.status || 'idle';
 
                         if (st === 'scheduled') {
-                            showCleanupStatus('notice-info', '<?php echo esc_js(__('Deletion queued — waiting for Action Scheduler to pick it up…', 'wc-multi-store-sync')); ?>');
+                            showCleanupStatus('notice-info', '<?php echo esc_js(__('Deletion queued — waiting for Action Scheduler to pick it up…', 'multi-store-sync-for-woocommerce')); ?>');
                         } else if (st === 'running') {
                             var processed = s.processed || 0;
                             var total     = s.total || 0;
-                            var progressMsg = '<?php echo esc_js(__('Deleting products…', 'wc-multi-store-sync')); ?>' + ' ' + processed + ' / ' + total;
+                            var progressMsg = '<?php echo esc_js(__('Deleting products…', 'multi-store-sync-for-woocommerce')); ?>' + ' ' + processed + ' / ' + total;
                             showCleanupStatus('notice-info', progressMsg);
                         } else if (st === 'done') {
                             stopCleanupPolling();
-                            showCleanupStatus('notice-success', s.message || '<?php echo esc_js(__('Cleanup complete.', 'wc-multi-store-sync')); ?>');
+                            showCleanupStatus('notice-success', s.message || '<?php echo esc_js(__('Cleanup complete.', 'multi-store-sync-for-woocommerce')); ?>');
                             resetCleanupButtons();
                             scanBtn.trigger('click');
                         } else if (st === 'failed') {
                             stopCleanupPolling();
-                            showCleanupStatus('notice-error', '<?php echo esc_js(__('Cleanup failed:', 'wc-multi-store-sync')); ?> ' + (s.error || s.message || ''));
+                            showCleanupStatus('notice-error', '<?php echo esc_js(__('Cleanup failed:', 'multi-store-sync-for-woocommerce')); ?> ' + (s.error || s.message || ''));
                             resetCleanupButtons();
                         } else {
                             stopCleanupPolling();

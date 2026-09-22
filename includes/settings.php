@@ -281,7 +281,7 @@ class WC_Multi_Store_Settings {
         if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
             return new \WP_Error(
                 'invalid_url',
-                __('Invalid store URL format.', 'wc-multi-store-sync')
+                __('Invalid store URL format.', 'multi-store-sync-for-woocommerce')
             );
         }
 
@@ -296,7 +296,7 @@ class WC_Multi_Store_Settings {
         if (!$is_local && isset($parsed['scheme']) && $parsed['scheme'] !== 'https') {
             return new \WP_Error(
                 'insecure_url',
-                __('Store URL must use HTTPS for security.', 'wc-multi-store-sync')
+                __('Store URL must use HTTPS for security.', 'multi-store-sync-for-woocommerce')
             );
         }
 
@@ -311,7 +311,7 @@ class WC_Multi_Store_Settings {
         if ($host !== '' && filter_var($host, FILTER_VALIDATE_IP) && self::is_blocked_link_local_ip($host)) {
             return new \WP_Error(
                 'unsafe_url',
-                __('Store URL resolves to a blocked address range.', 'wc-multi-store-sync')
+                __('Store URL resolves to a blocked address range.', 'multi-store-sync-for-woocommerce')
             );
         }
 

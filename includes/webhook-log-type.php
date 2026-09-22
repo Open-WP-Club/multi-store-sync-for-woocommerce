@@ -23,13 +23,13 @@ enum WC_Multi_Store_Webhook_Log_Type: string {
      */
     public function label(): string {
         return match ($this) {
-            self::ORDER_RECEIVED => __('Order received', 'wc-multi-store-sync'),
-            self::STOCK_DEDUCTED => __('Stock deducted', 'wc-multi-store-sync'),
-            self::STOCK_SYNCED => __('Stock synced', 'wc-multi-store-sync'),
-            self::AUTH_FAILED => __('Auth failed', 'wc-multi-store-sync'),
-            self::VALIDATION_ERROR => __('Validation error', 'wc-multi-store-sync'),
-            self::PRODUCT_NOT_FOUND => __('Product not found', 'wc-multi-store-sync'),
-            self::RATE_LIMITED => __('Rate limited', 'wc-multi-store-sync'),
+            self::ORDER_RECEIVED => __('Order received', 'multi-store-sync-for-woocommerce'),
+            self::STOCK_DEDUCTED => __('Stock deducted', 'multi-store-sync-for-woocommerce'),
+            self::STOCK_SYNCED => __('Stock synced', 'multi-store-sync-for-woocommerce'),
+            self::AUTH_FAILED => __('Auth failed', 'multi-store-sync-for-woocommerce'),
+            self::VALIDATION_ERROR => __('Validation error', 'multi-store-sync-for-woocommerce'),
+            self::PRODUCT_NOT_FOUND => __('Product not found', 'multi-store-sync-for-woocommerce'),
+            self::RATE_LIMITED => __('Rate limited', 'multi-store-sync-for-woocommerce'),
         };
     }
 }

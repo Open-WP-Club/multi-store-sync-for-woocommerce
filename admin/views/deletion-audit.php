@@ -38,10 +38,10 @@ $total_pages = ceil($total_logs / $per_page);
 
 ?>
 <div class="wrap wc-mss-deletion-audit">
-    <h1><?php _e('Deletion Audit Log', 'wc-multi-store-sync'); ?></h1>
+    <h1><?php esc_html_e('Deletion Audit Log', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <p class="description">
-        <?php _e('View detailed logs of all product deletions synced to remote stores.', 'wc-multi-store-sync'); ?>
+        <?php esc_html_e('View detailed logs of all product deletions synced to remote stores.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
     <!-- Filters -->
@@ -50,42 +50,42 @@ $total_pages = ceil($total_logs / $per_page);
             <input type="hidden" name="page" value="wc-multi-store-sync-deletion-audit">
 
             <select name="status" id="status-filter">
-                <option value=""><?php _e('All Statuses', 'wc-multi-store-sync'); ?></option>
-                <option value="pending" <?php selected($status_filter, 'pending'); ?>><?php _e('Pending', 'wc-multi-store-sync'); ?></option>
-                <option value="completed" <?php selected($status_filter, 'completed'); ?>><?php _e('Completed', 'wc-multi-store-sync'); ?></option>
-                <option value="failed" <?php selected($status_filter, 'failed'); ?>><?php _e('Failed', 'wc-multi-store-sync'); ?></option>
+                <option value=""><?php esc_html_e('All Statuses', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value="pending" <?php selected($status_filter, 'pending'); ?>><?php esc_html_e('Pending', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value="completed" <?php selected($status_filter, 'completed'); ?>><?php esc_html_e('Completed', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value="failed" <?php selected($status_filter, 'failed'); ?>><?php esc_html_e('Failed', 'multi-store-sync-for-woocommerce'); ?></option>
             </select>
 
             <select name="type" id="type-filter">
-                <option value=""><?php _e('All Types', 'wc-multi-store-sync'); ?></option>
-                <option value="manual" <?php selected($type_filter, 'manual'); ?>><?php _e('Manual', 'wc-multi-store-sync'); ?></option>
-                <option value="bulk" <?php selected($type_filter, 'bulk'); ?>><?php _e('Bulk', 'wc-multi-store-sync'); ?></option>
-                <option value="category_deletion" <?php selected($type_filter, 'category_deletion'); ?>><?php _e('Category Deletion', 'wc-multi-store-sync'); ?></option>
-                <option value="tag_deletion" <?php selected($type_filter, 'tag_deletion'); ?>><?php _e('Tag Deletion', 'wc-multi-store-sync'); ?></option>
+                <option value=""><?php esc_html_e('All Types', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value="manual" <?php selected($type_filter, 'manual'); ?>><?php esc_html_e('Manual', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value="bulk" <?php selected($type_filter, 'bulk'); ?>><?php esc_html_e('Bulk', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value="category_deletion" <?php selected($type_filter, 'category_deletion'); ?>><?php esc_html_e('Category Deletion', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value="tag_deletion" <?php selected($type_filter, 'tag_deletion'); ?>><?php esc_html_e('Tag Deletion', 'multi-store-sync-for-woocommerce'); ?></option>
             </select>
 
-            <button type="submit" class="button"><?php _e('Filter', 'wc-multi-store-sync'); ?></button>
+            <button type="submit" class="button"><?php esc_html_e('Filter', 'multi-store-sync-for-woocommerce'); ?></button>
         </form>
     </div>
 
     <!-- Audit Log Table -->
     <?php if (empty($logs)): ?>
         <div class="notice notice-info">
-            <p><?php _e('No deletion audit logs found.', 'wc-multi-store-sync'); ?></p>
+            <p><?php esc_html_e('No deletion audit logs found.', 'multi-store-sync-for-woocommerce'); ?></p>
         </div>
     <?php else: ?>
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
-                    <th><?php _e('ID', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('Product', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('SKU', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('User', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('Type', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('Stores', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('Status', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('Deleted At', 'wc-multi-store-sync'); ?></th>
-                    <th><?php _e('Actions', 'wc-multi-store-sync'); ?></th>
+                    <th><?php esc_html_e('ID', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Product', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('SKU', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('User', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Type', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Stores', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Deleted At', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Actions', 'multi-store-sync-for-woocommerce'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -111,7 +111,7 @@ $total_pages = ceil($total_logs / $per_page);
                         <td>
                             <?php
                             $stores = is_array($log['stores_affected']) ? $log['stores_affected'] : [];
-                            echo count($stores) . ' ' . _n('store', 'stores', count($stores), 'wc-multi-store-sync');
+                            echo esc_html(count($stores) . ' ' . _n('store', 'stores', count($stores), 'multi-store-sync-for-woocommerce'));
                             ?>
                         </td>
                         <td>
@@ -132,7 +132,7 @@ $total_pages = ceil($total_logs / $per_page);
                         </td>
                         <td>
                             <button type="button" class="button button-small view-details" data-log-id="<?php echo esc_attr($log['id']); ?>">
-                                <?php _e('View Details', 'wc-multi-store-sync'); ?>
+                                <?php esc_html_e('View Details', 'multi-store-sync-for-woocommerce'); ?>
                             </button>
                         </td>
                     </tr>
@@ -141,10 +141,10 @@ $total_pages = ceil($total_logs / $per_page);
                     <tr id="details-<?php echo esc_attr($log['id']); ?>" class="audit-details" style="display: none;">
                         <td colspan="9">
                             <div class="audit-details-content">
-                                <h3><?php _e('Deletion Details', 'wc-multi-store-sync'); ?></h3>
+                                <h3><?php esc_html_e('Deletion Details', 'multi-store-sync-for-woocommerce'); ?></h3>
 
                                 <div class="details-section">
-                                    <h4><?php _e('Affected Stores', 'wc-multi-store-sync'); ?></h4>
+                                    <h4><?php esc_html_e('Affected Stores', 'multi-store-sync-for-woocommerce'); ?></h4>
                                     <ul>
                                         <?php foreach ($stores as $store_url => $store_config): ?>
                                             <li>
@@ -158,14 +158,14 @@ $total_pages = ceil($total_logs / $per_page);
 
                                 <?php if (!empty($log['error_message'])): ?>
                                     <div class="details-section error-message">
-                                        <h4><?php _e('Error Message', 'wc-multi-store-sync'); ?></h4>
+                                        <h4><?php esc_html_e('Error Message', 'multi-store-sync-for-woocommerce'); ?></h4>
                                         <pre><?php echo esc_html($log['error_message']); ?></pre>
                                     </div>
                                 <?php endif; ?>
 
                                 <?php if (!empty($log['product_data_before'])): ?>
                                     <div class="details-section">
-                                        <h4><?php _e('Product Data (Before Deletion)', 'wc-multi-store-sync'); ?></h4>
+                                        <h4><?php esc_html_e('Product Data (Before Deletion)', 'multi-store-sync-for-woocommerce'); ?></h4>
                                         <pre><?php echo esc_html(json_encode($log['product_data_before'], JSON_PRETTY_PRINT)); ?></pre>
                                     </div>
                                 <?php endif; ?>
@@ -184,14 +184,14 @@ $total_pages = ceil($total_logs / $per_page);
                     $page_links = paginate_links([
                         'base' => add_query_arg('paged', '%#%'),
                         'format' => '',
-                        'prev_text' => __('&laquo;', 'wc-multi-store-sync'),
-                        'next_text' => __('&raquo;', 'wc-multi-store-sync'),
+                        'prev_text' => __('&laquo;', 'multi-store-sync-for-woocommerce'),
+                        'next_text' => __('&raquo;', 'multi-store-sync-for-woocommerce'),
                         'total' => $total_pages,
                         'current' => $page_num,
                     ]);
 
                     if ($page_links) {
-                        echo '<span class="pagination-links">' . $page_links . '</span>';
+                        echo wp_kses_post('<span class="pagination-links">' . $page_links . '</span>');
                     }
                     ?>
                 </div>

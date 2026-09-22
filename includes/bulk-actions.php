@@ -36,11 +36,11 @@ class WC_Multi_Store_Bulk_Actions {
      * @return array Modified actions
      */
     public function add_bulk_actions(array $actions): array {
-        $actions['mss_sync_full'] = __('Multi-Store: Full Sync', 'wc-multi-store-sync');
-        $actions['mss_sync_prices'] = __('Multi-Store: Sync Prices & Stock', 'wc-multi-store-sync');
-        $actions['mss_sync_stock'] = __('Multi-Store: Sync Stock Only', 'wc-multi-store-sync');
-        $actions['mss_queue_high'] = __('Multi-Store: Add to Queue (High Priority)', 'wc-multi-store-sync');
-        $actions['mss_bulk_delete'] = __('Multi-Store: Bulk Delete from Remote Stores', 'wc-multi-store-sync');
+        $actions['mss_sync_full'] = __('Multi-Store: Full Sync', 'multi-store-sync-for-woocommerce');
+        $actions['mss_sync_prices'] = __('Multi-Store: Sync Prices & Stock', 'multi-store-sync-for-woocommerce');
+        $actions['mss_sync_stock'] = __('Multi-Store: Sync Stock Only', 'multi-store-sync-for-woocommerce');
+        $actions['mss_queue_high'] = __('Multi-Store: Add to Queue (High Priority)', 'multi-store-sync-for-woocommerce');
+        $actions['mss_bulk_delete'] = __('Multi-Store: Bulk Delete from Remote Stores', 'multi-store-sync-for-woocommerce');
 
         return $actions;
     }
@@ -171,7 +171,7 @@ class WC_Multi_Store_Bulk_Actions {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
-                    __('Successfully synced %d product(s) to remote stores.', 'wc-multi-store-sync'),
+                    __('Successfully synced %d product(s) to remote stores.', 'multi-store-sync-for-woocommerce'),
                     $synced
                 )
             );
@@ -182,7 +182,7 @@ class WC_Multi_Store_Bulk_Actions {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
-                    __('Added %d product(s) to sync queue.', 'wc-multi-store-sync'),
+                    __('Added %d product(s) to sync queue.', 'multi-store-sync-for-woocommerce'),
                     $queued
                 )
             );
@@ -193,7 +193,7 @@ class WC_Multi_Store_Bulk_Actions {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
-                    __('Queued %d product(s) for deletion from remote stores.', 'wc-multi-store-sync'),
+                    __('Queued %d product(s) for deletion from remote stores.', 'multi-store-sync-for-woocommerce'),
                     $deleted
                 )
             );

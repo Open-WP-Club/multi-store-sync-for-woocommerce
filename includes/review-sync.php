@@ -341,7 +341,7 @@ class WC_Multi_Store_Review_Sync {
      * AJAX handler: Toggle review sync on/off
      */
     public static function ajax_toggle(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -352,8 +352,8 @@ class WC_Multi_Store_Review_Sync {
 
         wp_send_json_success([
             'message' => $enabled
-                ? __('Review sync enabled', 'wc-multi-store-sync')
-                : __('Review sync disabled', 'wc-multi-store-sync'),
+                ? __('Review sync enabled', 'multi-store-sync-for-woocommerce')
+                : __('Review sync disabled', 'multi-store-sync-for-woocommerce'),
             'enabled' => $enabled,
         ]);
     }

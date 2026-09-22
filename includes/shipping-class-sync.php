@@ -46,7 +46,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
      * @return string
      */
     public static function feature_label(): string {
-        return __('Shipping class sync', 'wc-multi-store-sync');
+        return __('Shipping class sync', 'multi-store-sync-for-woocommerce');
     }
 
     /**
@@ -358,7 +358,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
      * AJAX handler: Sync all shipping classes
      */
     public static function ajax_sync_all(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -366,7 +366,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
 
         wp_send_json_success([
             'message' => sprintf(
-                __('Shipping classes synced: %d successful, %d failed (out of %d total)', 'wc-multi-store-sync'),
+                __('Shipping classes synced: %1$d successful, %2$d failed (out of %3$d total)', 'multi-store-sync-for-woocommerce'),
                 $results['synced'],
                 $results['failed'],
                 $results['total']

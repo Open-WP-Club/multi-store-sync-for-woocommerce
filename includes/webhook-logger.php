@@ -133,7 +133,7 @@ class WC_Multi_Store_Webhook_Logger {
             ],
             'change_reason' => sprintf(
                 /* translators: 1: order ID, 2: store hostname, 3: order status */
-                __('Order #%1$d received from %2$s with status "%3$s"', 'wc-multi-store-sync'),
+                __('Order #%1$d received from %2$s with status "%3$s"', 'multi-store-sync-for-woocommerce'),
                 $order_data['id'] ?? 0,
                 parse_url($store_url, PHP_URL_HOST),
                 $order_data['status'] ?? 'unknown'
@@ -173,7 +173,7 @@ class WC_Multi_Store_Webhook_Logger {
             'quantity_changed' => -$quantity,
             'change_reason' => sprintf(
                 /* translators: 1: old stock, 2: new stock, 3: quantity, 4: order ID, 5: store hostname */
-                __('Stock reduced from %1$d to %2$d (-%3$d units) due to order #%4$d from %5$s', 'wc-multi-store-sync'),
+                __('Stock reduced from %1$d to %2$d (-%3$d units) due to order #%4$d from %5$s', 'multi-store-sync-for-woocommerce'),
                 $old_stock,
                 $new_stock,
                 $quantity,
@@ -205,7 +205,7 @@ class WC_Multi_Store_Webhook_Logger {
             'new_stock' => $stock_quantity,
             'change_reason' => sprintf(
                 /* translators: 1: stock quantity, 2: store hostname */
-                __('Stock (%1$d units) synced to all stores after order from %2$s', 'wc-multi-store-sync'),
+                __('Stock (%1$d units) synced to all stores after order from %2$s', 'multi-store-sync-for-woocommerce'),
                 $stock_quantity,
                 parse_url($originating_store, PHP_URL_HOST)
             ),
@@ -227,7 +227,7 @@ class WC_Multi_Store_Webhook_Logger {
             'request_data' => $request_data,
             'status' => 'failed',
             'error_message' => $reason,
-            'change_reason' => __('Authentication failed: ', 'wc-multi-store-sync') . $reason,
+            'change_reason' => __('Authentication failed: ', 'multi-store-sync-for-woocommerce') . $reason,
         ]);
     }
 
@@ -245,7 +245,7 @@ class WC_Multi_Store_Webhook_Logger {
             'request_data' => $request_data,
             'status' => 'failed',
             'error_message' => $error,
-            'change_reason' => __('Validation error: ', 'wc-multi-store-sync') . $error,
+            'change_reason' => __('Validation error: ', 'multi-store-sync-for-woocommerce') . $error,
         ]);
     }
 
@@ -263,10 +263,10 @@ class WC_Multi_Store_Webhook_Logger {
             'remote_order_id' => $remote_order_id,
             'product_sku' => $sku,
             'status' => 'failed',
-            'error_message' => sprintf(__('Product with SKU "%s" not found in main store', 'wc-multi-store-sync'), $sku),
+            'error_message' => sprintf(__('Product with SKU "%s" not found in main store', 'multi-store-sync-for-woocommerce'), $sku),
             'change_reason' => sprintf(
                 /* translators: 1: product SKU, 2: order ID */
-                __('Product SKU "%1$s" from order #%2$d not found', 'wc-multi-store-sync'),
+                __('Product SKU "%1$s" from order #%2$d not found', 'multi-store-sync-for-woocommerce'),
                 $sku,
                 $remote_order_id
             ),
@@ -596,8 +596,8 @@ class WC_Multi_Store_Webhook_Logger {
      */
     public static function get_status_badge(string $status): string {
         $badges = [
-            'success' => '<span class="wc-mss-badge wc-mss-badge-success">' . esc_html__('Success', 'wc-multi-store-sync') . '</span>',
-            'failed' => '<span class="wc-mss-badge wc-mss-badge-error">' . esc_html__('Failed', 'wc-multi-store-sync') . '</span>',
+            'success' => '<span class="wc-mss-badge wc-mss-badge-success">' . esc_html__('Success', 'multi-store-sync-for-woocommerce') . '</span>',
+            'failed' => '<span class="wc-mss-badge wc-mss-badge-error">' . esc_html__('Failed', 'multi-store-sync-for-woocommerce') . '</span>',
         ];
 
         return $badges[$status] ?? '<span class="wc-mss-badge">' . esc_html($status) . '</span>';
@@ -615,20 +615,20 @@ class WC_Multi_Store_Webhook_Logger {
 
         $csv = [];
         $csv[] = [
-            __('ID', 'wc-multi-store-sync'),
-            __('Date/Time', 'wc-multi-store-sync'),
-            __('Type', 'wc-multi-store-sync'),
-            __('Store', 'wc-multi-store-sync'),
-            __('Order #', 'wc-multi-store-sync'),
-            __('Product ID', 'wc-multi-store-sync'),
-            __('SKU', 'wc-multi-store-sync'),
-            __('Old stock', 'wc-multi-store-sync'),
-            __('New stock', 'wc-multi-store-sync'),
-            __('Change', 'wc-multi-store-sync'),
-            __('Reason', 'wc-multi-store-sync'),
-            __('IP address', 'wc-multi-store-sync'),
-            __('Status', 'wc-multi-store-sync'),
-            __('Error', 'wc-multi-store-sync'),
+            __('ID', 'multi-store-sync-for-woocommerce'),
+            __('Date/Time', 'multi-store-sync-for-woocommerce'),
+            __('Type', 'multi-store-sync-for-woocommerce'),
+            __('Store', 'multi-store-sync-for-woocommerce'),
+            __('Order #', 'multi-store-sync-for-woocommerce'),
+            __('Product ID', 'multi-store-sync-for-woocommerce'),
+            __('SKU', 'multi-store-sync-for-woocommerce'),
+            __('Old stock', 'multi-store-sync-for-woocommerce'),
+            __('New stock', 'multi-store-sync-for-woocommerce'),
+            __('Change', 'multi-store-sync-for-woocommerce'),
+            __('Reason', 'multi-store-sync-for-woocommerce'),
+            __('IP address', 'multi-store-sync-for-woocommerce'),
+            __('Status', 'multi-store-sync-for-woocommerce'),
+            __('Error', 'multi-store-sync-for-woocommerce'),
         ];
 
         foreach ($result['logs'] as $log) {

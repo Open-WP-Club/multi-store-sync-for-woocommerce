@@ -158,32 +158,32 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
      */
     public static function format_discrepancy_message(array $disc): string {
         return match (true) {
-            $disc['type'] === 'missing' => __('Product not found', 'wc-multi-store-sync'),
+            $disc['type'] === 'missing' => __('Product not found', 'multi-store-sync-for-woocommerce'),
             $disc['type'] === 'orphan' => self::format_orphan_discrepancy_message($disc),
             $disc['type'] === 'ghost' => self::format_ghost_discrepancy_message($disc),
             $disc['type'] === 'stock' => sprintf(
                 /* translators: 1: expected stock, 2: actual stock, 3: signed difference */
-                __('Stock mismatch - Expected: %1$d, Actual: %2$d (Diff: %3$+d)', 'wc-multi-store-sync'),
+                __('Stock mismatch - Expected: %1$d, Actual: %2$d (Diff: %3$+d)', 'multi-store-sync-for-woocommerce'),
                 $disc['expected'],
                 $disc['actual'],
                 $disc['difference']
             ),
             $disc['type'] === 'price' => sprintf(
                 /* translators: 1: field name, 2: expected value, 3: actual value */
-                __('%1$s mismatch - Expected: %2$s, Actual: %3$s', 'wc-multi-store-sync'),
+                __('%1$s mismatch - Expected: %2$s, Actual: %3$s', 'multi-store-sync-for-woocommerce'),
                 ucfirst($disc['field']),
                 $disc['expected'],
                 $disc['actual']
             ),
             in_array($disc['type'], ['tag', 'image', 'category'], true) => self::format_list_discrepancy_message($disc),
-            $disc['type'] === 'attribute' => __('Attribute mismatch', 'wc-multi-store-sync'),
+            $disc['type'] === 'attribute' => __('Attribute mismatch', 'multi-store-sync-for-woocommerce'),
             default => self::format_generic_field_discrepancy_message($disc),
         };
     }
 
     private static function format_orphan_discrepancy_message(array $disc): string {
-        $message = '<strong style="color: #d63638;">' . __('ORPHAN', 'wc-multi-store-sync') . '</strong> - '
-            . __('Product exists but should be excluded', 'wc-multi-store-sync');
+        $message = '<strong style="color: #d63638;">' . __('ORPHAN', 'multi-store-sync-for-woocommerce') . '</strong> - '
+            . __('Product exists but should be excluded', 'multi-store-sync-for-woocommerce');
 
         if (!empty($disc['exclusion_reasons'])) {
             $message .= ' (' . esc_html(implode(', ', $disc['exclusion_reasons'])) . ')';
@@ -193,8 +193,8 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
     }
 
     private static function format_ghost_discrepancy_message(array $disc): string {
-        $message = '<strong style="color: #8c3800;">' . __('GHOST', 'wc-multi-store-sync') . '</strong> - '
-            . __('Remote product has no local counterpart', 'wc-multi-store-sync');
+        $message = '<strong style="color: #8c3800;">' . __('GHOST', 'multi-store-sync-for-woocommerce') . '</strong> - '
+            . __('Remote product has no local counterpart', 'multi-store-sync-for-woocommerce');
 
         if (!empty($disc['remote_sku'])) {
             $message .= ' (SKU: ' . esc_html($disc['remote_sku']) . ')';
@@ -204,14 +204,14 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
     }
 
     private static function format_list_discrepancy_message(array $disc): string {
-        $message = esc_html(ucfirst($disc['type'])) . ' ' . __('mismatch', 'wc-multi-store-sync');
+        $message = esc_html(ucfirst($disc['type'])) . ' ' . __('mismatch', 'multi-store-sync-for-woocommerce');
 
         if (!empty($disc['missing'])) {
-            $message .= ' — ' . __('missing:', 'wc-multi-store-sync') . ' ' . esc_html(implode(', ', (array) $disc['missing']));
+            $message .= ' — ' . __('missing:', 'multi-store-sync-for-woocommerce') . ' ' . esc_html(implode(', ', (array) $disc['missing']));
         }
 
         if (!empty($disc['extra'])) {
-            $message .= ' — ' . __('extra:', 'wc-multi-store-sync') . ' ' . esc_html(implode(', ', (array) $disc['extra']));
+            $message .= ' — ' . __('extra:', 'multi-store-sync-for-woocommerce') . ' ' . esc_html(implode(', ', (array) $disc['extra']));
         }
 
         return $message;
@@ -222,7 +222,7 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
         $actual   = is_scalar($disc['actual'])   ? $disc['actual']   : json_encode($disc['actual']);
 
         return esc_html(ucfirst(str_replace('_', ' ', $disc['field'] ?? $disc['type'])))
-            . ' ' . __('mismatch', 'wc-multi-store-sync') . ' — Expected: ' . esc_html(mb_substr((string) $expected, 0, 80))
+            . ' ' . __('mismatch', 'multi-store-sync-for-woocommerce') . ' — Expected: ' . esc_html(mb_substr((string) $expected, 0, 80))
             . ', Actual: ' . esc_html(mb_substr((string) $actual, 0, 80));
     }
 }

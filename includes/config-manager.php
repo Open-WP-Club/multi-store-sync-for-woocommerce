@@ -62,7 +62,7 @@ class WC_Multi_Store_Config_Manager {
     public static function import(array $config): bool|\WP_Error {
         // Validate config structure
         if (empty($config['plugin_version'])) {
-            return new \WP_Error('invalid_config', __('Invalid configuration file: missing plugin_version.', 'wc-multi-store-sync'));
+            return new \WP_Error('invalid_config', __('Invalid configuration file: missing plugin_version.', 'multi-store-sync-for-woocommerce'));
         }
 
         // Import general settings
@@ -146,7 +146,7 @@ class WC_Multi_Store_Config_Manager {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -166,18 +166,18 @@ class WC_Multi_Store_Config_Manager {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         if (empty($_POST['config'])) {
-            wp_send_json_error(['message' => __('No configuration data provided.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('No configuration data provided.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $config = json_decode(wp_unslash($_POST['config']), true);
         if ($config === null) {
-            wp_send_json_error(['message' => __('Invalid JSON data.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid JSON data.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -188,6 +188,6 @@ class WC_Multi_Store_Config_Manager {
             return;
         }
 
-        wp_send_json_success(['message' => __('Configuration imported successfully.', 'wc-multi-store-sync')]);
+        wp_send_json_success(['message' => __('Configuration imported successfully.', 'multi-store-sync-for-woocommerce')]);
     }
 }

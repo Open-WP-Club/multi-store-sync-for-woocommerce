@@ -32,7 +32,7 @@ class WC_Multi_Store_Dashboard_Widget {
 
         wp_add_dashboard_widget(
             'wc_mss_dashboard_widget',
-            __('Multi-Store Sync', 'wc-multi-store-sync'),
+            __('Multi-Store Sync', 'multi-store-sync-for-woocommerce'),
             [$this, 'render_widget']
         );
     }
@@ -74,31 +74,31 @@ class WC_Multi_Store_Dashboard_Widget {
             <!-- Status -->
             <div class="wc-mss-w-status">
                 <span class="wc-mss-w-dot <?php echo $settings['enabled'] ? 'active' : 'inactive'; ?>"></span>
-                <strong><?php echo $settings['enabled'] ? __('Sync Active', 'wc-multi-store-sync') : __('Sync Disabled', 'wc-multi-store-sync'); ?></strong>
-                <span style="margin-left: auto; color: #646970;"><?php echo count($stores); ?> <?php _e('store(s)', 'wc-multi-store-sync'); ?></span>
+                <strong><?php echo $settings['enabled'] ? __('Sync Active', 'multi-store-sync-for-woocommerce') : __('Sync Disabled', 'multi-store-sync-for-woocommerce'); ?></strong>
+                <span style="margin-left: auto; color: #646970;"><?php echo count($stores); ?> <?php _e('store(s)', 'multi-store-sync-for-woocommerce'); ?></span>
             </div>
 
             <!-- Stats Grid -->
             <div class="wc-mss-w-grid">
                 <div class="wc-mss-w-stat">
                     <div class="wc-mss-w-num"><?php echo (int) ($overall['total_syncs'] ?? 0); ?></div>
-                    <div class="wc-mss-w-label"><?php _e('Syncs Today', 'wc-multi-store-sync'); ?></div>
+                    <div class="wc-mss-w-label"><?php _e('Syncs Today', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div class="wc-mss-w-stat">
                     <div class="wc-mss-w-num" style="color: <?php echo $success_rate_color; ?>;">
                         <?php echo $has_syncs_today ? esc_html($success_rate) . '%' : '&mdash;'; ?>
                     </div>
-                    <div class="wc-mss-w-label"><?php _e('Success Rate', 'wc-multi-store-sync'); ?></div>
+                    <div class="wc-mss-w-label"><?php _e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div class="wc-mss-w-stat">
                     <div class="wc-mss-w-num"><?php echo $queue_stats['pending']; ?></div>
-                    <div class="wc-mss-w-label"><?php _e('Queue Pending', 'wc-multi-store-sync'); ?></div>
+                    <div class="wc-mss-w-label"><?php _e('Queue Pending', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div class="wc-mss-w-stat">
                     <div class="wc-mss-w-num" style="color: <?php echo $dlq_stats['total_dead'] > 0 ? '#d63638' : '#646970'; ?>;">
                         <?php echo $dlq_stats['total_dead']; ?>
                     </div>
-                    <div class="wc-mss-w-label"><?php _e('Dead Letters', 'wc-multi-store-sync'); ?></div>
+                    <div class="wc-mss-w-label"><?php _e('Dead Letters', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
             </div>
 
@@ -113,17 +113,17 @@ class WC_Multi_Store_Dashboard_Widget {
             <?php if ($queue_stats['failed'] > 0): ?>
             <div class="wc-mss-w-status" style="margin-top: 8px;">
                 <span class="wc-mss-w-dot warning"></span>
-                <span><?php echo sprintf(__('%d failed item(s) in queue', 'wc-multi-store-sync'), $queue_stats['failed']); ?></span>
+                <span><?php echo sprintf(__('%d failed item(s) in queue', 'multi-store-sync-for-woocommerce'), $queue_stats['failed']); ?></span>
             </div>
             <?php endif; ?>
 
             <!-- Quick Links -->
             <div class="wc-mss-w-links">
-                <a href="<?php echo esc_url($admin_url); ?>" class="button button-small button-primary"><?php _e('Dashboard', 'wc-multi-store-sync'); ?></a>
-                <a href="<?php echo esc_url($admin_url . '&section=queue'); ?>" class="button button-small"><?php _e('Queue', 'wc-multi-store-sync'); ?></a>
-                <a href="<?php echo esc_url($admin_url . '&section=history'); ?>" class="button button-small"><?php _e('History', 'wc-multi-store-sync'); ?></a>
+                <a href="<?php echo esc_url($admin_url); ?>" class="button button-small button-primary"><?php _e('Dashboard', 'multi-store-sync-for-woocommerce'); ?></a>
+                <a href="<?php echo esc_url($admin_url . '&section=queue'); ?>" class="button button-small"><?php _e('Queue', 'multi-store-sync-for-woocommerce'); ?></a>
+                <a href="<?php echo esc_url($admin_url . '&section=history'); ?>" class="button button-small"><?php _e('History', 'multi-store-sync-for-woocommerce'); ?></a>
                 <?php if ($dlq_stats['total_dead'] > 0): ?>
-                <a href="<?php echo esc_url($admin_url . '&section=dead-letter-queue'); ?>" class="button button-small" style="color: #d63638;"><?php _e('Dead Letters', 'wc-multi-store-sync'); ?></a>
+                <a href="<?php echo esc_url($admin_url . '&section=dead-letter-queue'); ?>" class="button button-small" style="color: #d63638;"><?php _e('Dead Letters', 'multi-store-sync-for-woocommerce'); ?></a>
                 <?php endif; ?>
             </div>
         </div>
@@ -137,7 +137,7 @@ class WC_Multi_Store_Dashboard_Widget {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 

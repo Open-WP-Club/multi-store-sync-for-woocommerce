@@ -42,13 +42,13 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
     public function get_columns(): array {
         return [
             'cb'              => '<input type="checkbox" />',
-            'order'           => __('Order', 'wc-multi-store-sync'),
-            'date'            => __('Date', 'wc-multi-store-sync'),
-            'status'          => __('Status', 'wc-multi-store-sync'),
-            'store'           => __('Store', 'wc-multi-store-sync'),
-            'customer'        => __('Customer', 'wc-multi-store-sync'),
-            'total'           => __('Total', 'wc-multi-store-sync'),
-            'actions'         => __('Actions', 'wc-multi-store-sync'),
+            'order'           => __('Order', 'multi-store-sync-for-woocommerce'),
+            'date'            => __('Date', 'multi-store-sync-for-woocommerce'),
+            'status'          => __('Status', 'multi-store-sync-for-woocommerce'),
+            'store'           => __('Store', 'multi-store-sync-for-woocommerce'),
+            'customer'        => __('Customer', 'multi-store-sync-for-woocommerce'),
+            'total'           => __('Total', 'multi-store-sync-for-woocommerce'),
+            'actions'         => __('Actions', 'multi-store-sync-for-woocommerce'),
         ];
     }
 
@@ -76,7 +76,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
     #[\Override]
     protected function get_bulk_actions(): array {
         return [
-            'delete' => __('Delete', 'wc-multi-store-sync'),
+            'delete' => __('Delete', 'multi-store-sync-for-woocommerce'),
         ];
     }
 
@@ -115,8 +115,8 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
         ], admin_url('admin.php'));
 
         $actions = [
-            'view'   => sprintf('<a href="%s">%s</a>', esc_url($view_url), __('View', 'wc-multi-store-sync')),
-            'delete' => sprintf('<a href="%s" class="delete-order">%s</a>', esc_url($delete_url), __('Delete', 'wc-multi-store-sync')),
+            'view'   => sprintf('<a href="%s">%s</a>', esc_url($view_url), __('View', 'multi-store-sync-for-woocommerce')),
+            'delete' => sprintf('<a href="%s" class="delete-order">%s</a>', esc_url($delete_url), __('Delete', 'multi-store-sync-for-woocommerce')),
         ];
 
         return sprintf(
@@ -148,8 +148,8 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
         $yesterday = strtotime('yesterday');
 
         $date_prefix = match (true) {
-            $date >= $today => __('Today at', 'wc-multi-store-sync'),
-            $date >= $yesterday => __('Yesterday at', 'wc-multi-store-sync'),
+            $date >= $today => __('Today at', 'multi-store-sync-for-woocommerce'),
+            $date >= $yesterday => __('Yesterday at', 'multi-store-sync-for-woocommerce'),
             default => null,
         };
 
@@ -296,7 +296,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
         return sprintf(
             '<a href="%s" class="button button-small">%s</a>',
             esc_url($view_url),
-            __('View', 'wc-multi-store-sync')
+            __('View', 'multi-store-sync-for-woocommerce')
         );
     }
 
@@ -399,7 +399,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
             if (!empty($stores)) {
                 ?>
                 <select name="store_url" id="filter-by-store">
-                    <option value=""><?php _e('All stores', 'wc-multi-store-sync'); ?></option>
+                    <option value=""><?php _e('All stores', 'multi-store-sync-for-woocommerce'); ?></option>
                     <?php
                     $current_store = $_GET['store_url'] ?? '';
                     foreach ($stores as $store) {
@@ -418,16 +418,16 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
             // Status filter
             ?>
             <select name="status" id="filter-by-status">
-                <option value=""><?php _e('All statuses', 'wc-multi-store-sync'); ?></option>
+                <option value=""><?php _e('All statuses', 'multi-store-sync-for-woocommerce'); ?></option>
                 <?php
                 $statuses = [
-                    'pending'    => __('Pending payment', 'wc-multi-store-sync'),
-                    'processing' => __('Processing', 'wc-multi-store-sync'),
-                    'on-hold'    => __('On hold', 'wc-multi-store-sync'),
-                    'completed'  => __('Completed', 'wc-multi-store-sync'),
-                    'cancelled'  => __('Cancelled', 'wc-multi-store-sync'),
-                    'refunded'   => __('Refunded', 'wc-multi-store-sync'),
-                    'failed'     => __('Failed', 'wc-multi-store-sync'),
+                    'pending'    => __('Pending payment', 'multi-store-sync-for-woocommerce'),
+                    'processing' => __('Processing', 'multi-store-sync-for-woocommerce'),
+                    'on-hold'    => __('On hold', 'multi-store-sync-for-woocommerce'),
+                    'completed'  => __('Completed', 'multi-store-sync-for-woocommerce'),
+                    'cancelled'  => __('Cancelled', 'multi-store-sync-for-woocommerce'),
+                    'refunded'   => __('Refunded', 'multi-store-sync-for-woocommerce'),
+                    'failed'     => __('Failed', 'multi-store-sync-for-woocommerce'),
                 ];
 
                 $current_status = $_GET['status'] ?? '';
@@ -442,7 +442,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
                 ?>
             </select>
 
-            <?php submit_button(__('Filter', 'wc-multi-store-sync'), 'button', 'filter_action', false); ?>
+            <?php submit_button(__('Filter', 'multi-store-sync-for-woocommerce'), 'button', 'filter_action', false); ?>
         </div>
         <?php
     }
@@ -467,7 +467,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
      */
     #[\Override]
     public function no_items(): void {
-        _e('No remote orders found.', 'wc-multi-store-sync');
+        _e('No remote orders found.', 'multi-store-sync-for-woocommerce');
     }
 
     /**
@@ -481,7 +481,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
         <form id="<?php echo esc_attr($singular); ?>-filter" method="get">
             <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
             <?php
-            $this->search_box(__('Search orders', 'wc-multi-store-sync'), 'order');
+            $this->search_box(__('Search orders', 'multi-store-sync-for-woocommerce'), 'order');
             $this->views();
             parent::display();
             ?>

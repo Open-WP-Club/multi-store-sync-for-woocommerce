@@ -22,7 +22,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     public function __construct() {
         $this->id    = 'multi_store_sync';
-        $this->label = __('Multi-Store Sync', 'wc-multi-store-sync');
+        $this->label = __('Multi-Store Sync', 'multi-store-sync-for-woocommerce');
 
         // Parent constructor registers section/settings filters automatically
         parent::__construct();
@@ -52,35 +52,35 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         // — their tabs only show up once turned on, so a store that never enabled
         // them doesn't have to look at empty, irrelevant screens.
         $sections = [
-            ''                    => __('Dashboard', 'wc-multi-store-sync'),
-            'stores'              => __('Stores', 'wc-multi-store-sync'),
+            ''                    => __('Dashboard', 'multi-store-sync-for-woocommerce'),
+            'stores'              => __('Stores', 'multi-store-sync-for-woocommerce'),
         ];
 
         if (class_exists('WC_Multi_Store_Category_Mapper') && WC_Multi_Store_Category_Mapper::is_enabled()) {
-            $sections['category-mapping'] = __('Category Mapping', 'wc-multi-store-sync');
+            $sections['category-mapping'] = __('Category Mapping', 'multi-store-sync-for-woocommerce');
         }
 
         if (class_exists('WC_Multi_Store_Attribute_Remapper') && WC_Multi_Store_Attribute_Remapper::is_enabled()) {
-            $sections['attribute-mapping'] = __('Attribute Mapping', 'wc-multi-store-sync');
+            $sections['attribute-mapping'] = __('Attribute Mapping', 'multi-store-sync-for-woocommerce');
         }
 
-        $sections['settings']            = __('Settings', 'wc-multi-store-sync');
-        $sections['queue']               = __('Queue', 'wc-multi-store-sync');
-        $sections['weekly-verification'] = __('Weekly Verification', 'wc-multi-store-sync');
-        $sections['history']             = __('History', 'wc-multi-store-sync');
-        $sections['api-usage']           = __('API Usage', 'wc-multi-store-sync');
-        $sections['discrepancies']       = __('Discrepancies', 'wc-multi-store-sync');
+        $sections['settings']            = __('Settings', 'multi-store-sync-for-woocommerce');
+        $sections['queue']               = __('Queue', 'multi-store-sync-for-woocommerce');
+        $sections['weekly-verification'] = __('Weekly Verification', 'multi-store-sync-for-woocommerce');
+        $sections['history']             = __('History', 'multi-store-sync-for-woocommerce');
+        $sections['api-usage']           = __('API Usage', 'multi-store-sync-for-woocommerce');
+        $sections['discrepancies']       = __('Discrepancies', 'multi-store-sync-for-woocommerce');
 
         if (class_exists('WC_Multi_Store_Conflict_Detector') && !empty(WC_Multi_Store_Conflict_Detector::get_settings()['enabled'])) {
-            $sections['conflicts'] = __('Conflicts', 'wc-multi-store-sync');
+            $sections['conflicts'] = __('Conflicts', 'multi-store-sync-for-woocommerce');
         }
 
-        $sections['deletion-audit']    = __('Deletion Audit', 'wc-multi-store-sync');
-        $sections['orphan-cleanup']    = __('Orphan Cleanup', 'wc-multi-store-sync');
-        $sections['dead-letter-queue'] = __('Dead Letters', 'wc-multi-store-sync');
-        $sections['sync-profiles']     = __('Sync Profiles', 'wc-multi-store-sync');
-        $sections['config']            = __('Export/Import', 'wc-multi-store-sync');
-        $sections['logs']              = __('Logs', 'wc-multi-store-sync');
+        $sections['deletion-audit']    = __('Deletion Audit', 'multi-store-sync-for-woocommerce');
+        $sections['orphan-cleanup']    = __('Orphan Cleanup', 'multi-store-sync-for-woocommerce');
+        $sections['dead-letter-queue'] = __('Dead Letters', 'multi-store-sync-for-woocommerce');
+        $sections['sync-profiles']     = __('Sync Profiles', 'multi-store-sync-for-woocommerce');
+        $sections['config']            = __('Export/Import', 'multi-store-sync-for-woocommerce');
+        $sections['logs']              = __('Logs', 'multi-store-sync-for-woocommerce');
 
         return $sections;
     }
@@ -255,9 +255,9 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if (isset($_POST['wc_mss_clear_api_usage']) && check_admin_referer('wc_mss_clear_api_usage')) {
             $result = WC_Multi_Store_API_Usage_Tracker::clear_all_data();
             if ($result !== false) {
-                WC_Admin_Settings::add_message(__('API usage data cleared successfully.', 'wc-multi-store-sync'));
+                WC_Admin_Settings::add_message(__('API usage data cleared successfully.', 'multi-store-sync-for-woocommerce'));
             } else {
-                WC_Admin_Settings::add_error(__('Failed to clear API usage data.', 'wc-multi-store-sync'));
+                WC_Admin_Settings::add_error(__('Failed to clear API usage data.', 'multi-store-sync-for-woocommerce'));
             }
         }
 
@@ -344,8 +344,8 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
     private function require_manage_capability(): void {
         if (!current_user_can('manage_woocommerce')) {
             wp_die(
-                esc_html__('You do not have permission to perform this action.', 'wc-multi-store-sync'),
-                esc_html__('Insufficient permissions', 'wc-multi-store-sync'),
+                esc_html__('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'),
+                esc_html__('Insufficient permissions', 'multi-store-sync-for-woocommerce'),
                 ['response' => 403]
             );
         }
@@ -374,12 +374,12 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             : 'GET';
 
         if (empty($store_url) || empty($consumer_key) || empty($consumer_secret)) {
-            WC_Admin_Settings::add_error(__('Please fill in all required fields.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_error(__('Please fill in all required fields.', 'multi-store-sync-for-woocommerce'));
             return;
         }
 
         if (!filter_var($store_url, FILTER_VALIDATE_URL)) {
-            WC_Admin_Settings::add_error(__('Invalid store URL. Please enter a valid URL including https://.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_error(__('Invalid store URL. Please enter a valid URL including https://.', 'multi-store-sync-for-woocommerce'));
             return;
         }
 
@@ -397,7 +397,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         ];
 
         if (WC_Multi_Store_Settings::update_store($store_url, $store_config)) {
-            WC_Admin_Settings::add_message(__('Store added successfully.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_message(__('Store added successfully.', 'multi-store-sync-for-woocommerce'));
             if (function_exists('as_schedule_single_action')) {
                 as_schedule_single_action(time(), 'wc_multi_store_health_check_single', [$store_url], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
             }
@@ -412,7 +412,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         $store_url = sanitize_text_field($_POST['store_url']);
 
         if (WC_Multi_Store_Settings::delete_store($store_url)) {
-            WC_Admin_Settings::add_message(__('Store deleted successfully.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_message(__('Store deleted successfully.', 'multi-store-sync-for-woocommerce'));
         }
     }
 
@@ -453,12 +453,12 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         }
 
         if (empty($store_url) || empty($consumer_key) || empty($consumer_secret)) {
-            WC_Admin_Settings::add_error(__('Please fill in all required fields.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_error(__('Please fill in all required fields.', 'multi-store-sync-for-woocommerce'));
             return;
         }
 
         if (!filter_var($store_url, FILTER_VALIDATE_URL)) {
-            WC_Admin_Settings::add_error(__('Invalid store URL. Please enter a valid URL including https://.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_error(__('Invalid store URL. Please enter a valid URL including https://.', 'multi-store-sync-for-woocommerce'));
             return;
         }
 
@@ -481,7 +481,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         }
 
         if (WC_Multi_Store_Settings::update_store($store_url, $store_config)) {
-            WC_Admin_Settings::add_message(__('Store updated successfully.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_message(__('Store updated successfully.', 'multi-store-sync-for-woocommerce'));
             if (function_exists('as_schedule_single_action')) {
                 as_schedule_single_action(time(), 'wc_multi_store_health_check_single', [$store_url], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
             }
@@ -614,7 +614,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         }
 
         if (WC_Multi_Store_Settings::update_all($settings)) {
-            WC_Admin_Settings::add_message(__('Settings saved successfully.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_message(__('Settings saved successfully.', 'multi-store-sync-for-woocommerce'));
 
             $category_match_changed = ($previous_settings['category_match_by'] ?? 'slug') !== $settings['category_match_by']
                 || ($previous_settings['category_match_mode'] ?? 'full_path') !== $settings['category_match_mode'];
@@ -625,7 +625,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             if ($category_match_changed && !empty(WC_Multi_Store_Settings::get_stores())) {
                 WC_Admin_Settings::add_message(__(
                     'Category/tag matching method changed: remote stores already have categories/tags created under the previous rule. Products synced under the new rule may create duplicate categories/tags on remote stores instead of reusing the existing ones. Review remote categories/tags after the next sync.',
-                    'wc-multi-store-sync'
+                    'multi-store-sync-for-woocommerce'
                 ));
             }
         }
@@ -669,7 +669,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             // Reschedule if settings changed
             WC_Multi_Store_Weekly_Sync_Verifier::schedule_verification();
 
-            WC_Admin_Settings::add_message(__('Weekly verification settings saved successfully.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_message(__('Weekly verification settings saved successfully.', 'multi-store-sync-for-woocommerce'));
         }
     }
 
@@ -679,19 +679,19 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
     private function handle_reschedule_actions(): void {
         $this->require_manage_capability();
         if (!class_exists('WC_Multi_Store_Action_Scheduler_Manager')) {
-            WC_Admin_Settings::add_error(__('Action Scheduler Manager not available.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_error(__('Action Scheduler Manager not available.', 'multi-store-sync-for-woocommerce'));
             return;
         }
 
         if (!WC_Multi_Store_Action_Scheduler_Manager::is_available()) {
-            WC_Admin_Settings::add_error(__('Action Scheduler is not available. Make sure WooCommerce is active.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_error(__('Action Scheduler is not available. Make sure WooCommerce is active.', 'multi-store-sync-for-woocommerce'));
             return;
         }
 
         WC_Multi_Store_Action_Scheduler_Manager::reschedule_all();
 
         WC_Admin_Settings::add_message(sprintf(
-            __('Actions rescheduled successfully at %s. Refresh the page to see updated times.', 'wc-multi-store-sync'),
+            __('Actions rescheduled successfully at %s. Refresh the page to see updated times.', 'multi-store-sync-for-woocommerce'),
             date('H:i:s', time())
         ));
     }
@@ -710,7 +710,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         };
 
         WC_Admin_Settings::add_message(sprintf(
-            __('Cleared %d %s queue items.', 'wc-multi-store-sync'),
+            __('Cleared %1$d %2$s queue items.', 'multi-store-sync-for-woocommerce'),
             $deleted ?: 0,
             $status
         ));
@@ -725,11 +725,11 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         if ($reset_count > 0) {
             WC_Admin_Settings::add_message(sprintf(
-                __('Reset %d stuck items back to pending status.', 'wc-multi-store-sync'),
+                __('Reset %d stuck items back to pending status.', 'multi-store-sync-for-woocommerce'),
                 $reset_count
             ));
         } else {
-            WC_Admin_Settings::add_message(__('No stuck items found.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_message(__('No stuck items found.', 'multi-store-sync-for-woocommerce'));
         }
     }
 
@@ -742,11 +742,11 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         if ($retry_count > 0) {
             WC_Admin_Settings::add_message(sprintf(
-                __('Queued %d failed items for retry.', 'wc-multi-store-sync'),
+                __('Queued %d failed items for retry.', 'multi-store-sync-for-woocommerce'),
                 $retry_count
             ));
         } else {
-            WC_Admin_Settings::add_message(__('No failed items to retry.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_message(__('No failed items to retry.', 'multi-store-sync-for-woocommerce'));
         }
     }
 
@@ -759,7 +759,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         // Check if WC_Multi_Store_Weekly_Sync_Verifier exists
         if (!class_exists('WC_Multi_Store_Weekly_Sync_Verifier')) {
-            WC_Admin_Settings::add_error(__('Weekly Sync Verifier class not found.', 'wc-multi-store-sync'));
+            WC_Admin_Settings::add_error(__('Weekly Sync Verifier class not found.', 'multi-store-sync-for-woocommerce'));
             return;
         }
 
@@ -770,9 +770,9 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             // Handle error responses
             if (isset($result['error'])) {
                 $error_messages = [
-                    'No stores configured' => __('No stores are configured. Please add stores in the Stores tab first.', 'wc-multi-store-sync'),
-                    'No active stores' => __('No active stores found. Please ensure at least one store has "Active" status.', 'wc-multi-store-sync'),
-                    'No products to verify' => __('No products found to verify. Check your verification settings.', 'wc-multi-store-sync'),
+                    'No stores configured' => __('No stores are configured. Please add stores in the Stores tab first.', 'multi-store-sync-for-woocommerce'),
+                    'No active stores' => __('No active stores found. Please ensure at least one store has "Active" status.', 'multi-store-sync-for-woocommerce'),
+                    'No products to verify' => __('No products found to verify. Check your verification settings.', 'multi-store-sync-for-woocommerce'),
                 ];
                 $message = $error_messages[$result['error']] ?? $result['error'];
                 WC_Admin_Settings::add_error($message);
@@ -782,25 +782,25 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             if ($result && isset($result['discrepancies_found'])) {
                 if ($result['discrepancies_found'] > 0) {
                     WC_Admin_Settings::add_message(sprintf(
-                        __('Verification completed! Checked %d products across %d stores. Found %d discrepancies. Scroll down to see the report.', 'wc-multi-store-sync'),
+                        __('Verification completed! Checked %1$d products across %2$d stores. Found %3$d discrepancies. Scroll down to see the report.', 'multi-store-sync-for-woocommerce'),
                         $result['products_checked'] ?? 0,
                         $result['stores_checked'] ?? 0,
                         $result['discrepancies_found']
                     ));
                 } else {
                     WC_Admin_Settings::add_message(sprintf(
-                        __('Verification completed! All %d products are in sync across %d stores.', 'wc-multi-store-sync'),
+                        __('Verification completed! All %1$d products are in sync across %2$d stores.', 'multi-store-sync-for-woocommerce'),
                         $result['products_checked'] ?? 0,
                         $result['stores_checked'] ?? 0
                     ));
                 }
             } else {
-                WC_Admin_Settings::add_message(__('Verification completed. Refresh the page to see results.', 'wc-multi-store-sync'));
+                WC_Admin_Settings::add_message(__('Verification completed. Refresh the page to see results.', 'multi-store-sync-for-woocommerce'));
             }
         } catch (Exception $e) {
             WC_Multi_Store_Logger::write('Verification error: ' . $e->getMessage(), 'error');
             WC_Admin_Settings::add_error(sprintf(
-                __('Verification failed: %s', 'wc-multi-store-sync'),
+                __('Verification failed: %s', 'multi-store-sync-for-woocommerce'),
                 $e->getMessage()
             ));
         }
@@ -868,17 +868,17 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'test_app_password_nonce' => wp_create_nonce('wc_mss_test_app_password'),
             'scan_categories_nonce' => wp_create_nonce('wc_mss_scan_categories'),
             'i18n' => [
-                'confirm_sync_all' => __('Are you sure you want to force sync ALL products? This will queue all products for immediate sync.', 'wc-multi-store-sync'),
-                'syncing' => __('Syncing...', 'wc-multi-store-sync'),
-                'request_failed' => __('Request failed', 'wc-multi-store-sync'),
-                'copied' => __('Copied!', 'wc-multi-store-sync'),
-                'copy_failed' => __('Failed to copy. Please copy manually.', 'wc-multi-store-sync'),
-                'view_details' => __('View Details', 'wc-multi-store-sync'),
-                'hide_details' => __('Hide Details', 'wc-multi-store-sync'),
-                'total_requests' => __('Total Requests', 'wc-multi-store-sync'),
-                'successful' => __('Successful', 'wc-multi-store-sync'),
-                'failed' => __('Failed', 'wc-multi-store-sync'),
-                'failed_to_update' => __('Failed to update setting', 'wc-multi-store-sync'),
+                'confirm_sync_all' => __('Are you sure you want to force sync ALL products? This will queue all products for immediate sync.', 'multi-store-sync-for-woocommerce'),
+                'syncing' => __('Syncing...', 'multi-store-sync-for-woocommerce'),
+                'request_failed' => __('Request failed', 'multi-store-sync-for-woocommerce'),
+                'copied' => __('Copied!', 'multi-store-sync-for-woocommerce'),
+                'copy_failed' => __('Failed to copy. Please copy manually.', 'multi-store-sync-for-woocommerce'),
+                'view_details' => __('View Details', 'multi-store-sync-for-woocommerce'),
+                'hide_details' => __('Hide Details', 'multi-store-sync-for-woocommerce'),
+                'total_requests' => __('Total Requests', 'multi-store-sync-for-woocommerce'),
+                'successful' => __('Successful', 'multi-store-sync-for-woocommerce'),
+                'failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
+                'failed_to_update' => __('Failed to update setting', 'multi-store-sync-for-woocommerce'),
             ],
         ]);
 
@@ -936,18 +936,18 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if ($section === 'logs') {
             wp_localize_script('wc-mss-admin', 'wcMssLogsData', [
                 'i18n' => [
-                    'confirm_clear_log' => __('Are you sure you want to clear all sync logs? This cannot be undone.', 'wc-multi-store-sync'),
-                    'no_log_entries' => __('No log entries found.', 'wc-multi-store-sync'),
-                    'failed_to_clear_logs' => __('Failed to clear logs', 'wc-multi-store-sync'),
-                    'confirm_clear_warnings_errors' => __('Remove all [WARNING] and [ERROR] entries from the log? INFO entries will be kept.', 'wc-multi-store-sync'),
-                    'no_warnings_errors' => __('No warnings or errors found — everything looks good!', 'wc-multi-store-sync'),
-                    'failed_to_clear' => __('Failed to clear', 'wc-multi-store-sync'),
-                    'please_enter_sku' => __('Please enter at least one SKU', 'wc-multi-store-sync'),
-                    'please_select_category' => __('Please select a category', 'wc-multi-store-sync'),
-                    'queuing' => __('Queuing...', 'wc-multi-store-sync'),
-                    'force_full_sync' => __('Force Full Sync', 'wc-multi-store-sync'),
-                    'refresh_to_see_logs' => __('Refresh the page in a moment to see the sync log entries appear below.', 'wc-multi-store-sync'),
-                    'an_error_occurred' => __('An error occurred', 'wc-multi-store-sync'),
+                    'confirm_clear_log' => __('Are you sure you want to clear all sync logs? This cannot be undone.', 'multi-store-sync-for-woocommerce'),
+                    'no_log_entries' => __('No log entries found.', 'multi-store-sync-for-woocommerce'),
+                    'failed_to_clear_logs' => __('Failed to clear logs', 'multi-store-sync-for-woocommerce'),
+                    'confirm_clear_warnings_errors' => __('Remove all [WARNING] and [ERROR] entries from the log? INFO entries will be kept.', 'multi-store-sync-for-woocommerce'),
+                    'no_warnings_errors' => __('No warnings or errors found — everything looks good!', 'multi-store-sync-for-woocommerce'),
+                    'failed_to_clear' => __('Failed to clear', 'multi-store-sync-for-woocommerce'),
+                    'please_enter_sku' => __('Please enter at least one SKU', 'multi-store-sync-for-woocommerce'),
+                    'please_select_category' => __('Please select a category', 'multi-store-sync-for-woocommerce'),
+                    'queuing' => __('Queuing...', 'multi-store-sync-for-woocommerce'),
+                    'force_full_sync' => __('Force Full Sync', 'multi-store-sync-for-woocommerce'),
+                    'refresh_to_see_logs' => __('Refresh the page in a moment to see the sync log entries appear below.', 'multi-store-sync-for-woocommerce'),
+                    'an_error_occurred' => __('An error occurred', 'multi-store-sync-for-woocommerce'),
                 ],
             ]);
         }
@@ -956,25 +956,25 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if ($section === 'discrepancies') {
             wp_localize_script('wc-mss-admin', 'wcMssDiscrepanciesData', [
                 'i18n' => [
-                    'no_active_stores' => __('No active stores found.', 'wc-multi-store-sync'),
-                    'starting_scan' => __('Starting scan…', 'wc-multi-store-sync'),
-                    'scanning' => __('Scanning:', 'wc-multi-store-sync'),
-                    'scan_complete' => __('Scan complete.', 'wc-multi-store-sync'),
-                    'unknown_error' => __('Unknown error', 'wc-multi-store-sync'),
-                    'request_failed' => __('Request failed.', 'wc-multi-store-sync'),
-                    'all_match' => __('All categories match across all stores!', 'wc-multi-store-sync'),
-                    'mismatch_count_label' => __('product(s) with category mismatch', 'wc-multi-store-sync'),
-                    'local' => __('local', 'wc-multi-store-sync'),
-                    'remote' => __('remote', 'wc-multi-store-sync'),
-                    'th_product' => __('Product', 'wc-multi-store-sync'),
-                    'th_sku' => __('SKU', 'wc-multi-store-sync'),
-                    'th_missing' => __('Missing on remote', 'wc-multi-store-sync'),
-                    'th_extra' => __('Extra on remote', 'wc-multi-store-sync'),
-                    'th_action' => __('Action', 'wc-multi-store-sync'),
-                    'resync' => __('Re-sync', 'wc-multi-store-sync'),
-                    'queuing' => __('Queuing…', 'wc-multi-store-sync'),
-                    'queued' => __('Queued ✓', 'wc-multi-store-sync'),
-                    'failed' => __('Failed', 'wc-multi-store-sync'),
+                    'no_active_stores' => __('No active stores found.', 'multi-store-sync-for-woocommerce'),
+                    'starting_scan' => __('Starting scan…', 'multi-store-sync-for-woocommerce'),
+                    'scanning' => __('Scanning:', 'multi-store-sync-for-woocommerce'),
+                    'scan_complete' => __('Scan complete.', 'multi-store-sync-for-woocommerce'),
+                    'unknown_error' => __('Unknown error', 'multi-store-sync-for-woocommerce'),
+                    'request_failed' => __('Request failed.', 'multi-store-sync-for-woocommerce'),
+                    'all_match' => __('All categories match across all stores!', 'multi-store-sync-for-woocommerce'),
+                    'mismatch_count_label' => __('product(s) with category mismatch', 'multi-store-sync-for-woocommerce'),
+                    'local' => __('local', 'multi-store-sync-for-woocommerce'),
+                    'remote' => __('remote', 'multi-store-sync-for-woocommerce'),
+                    'th_product' => __('Product', 'multi-store-sync-for-woocommerce'),
+                    'th_sku' => __('SKU', 'multi-store-sync-for-woocommerce'),
+                    'th_missing' => __('Missing on remote', 'multi-store-sync-for-woocommerce'),
+                    'th_extra' => __('Extra on remote', 'multi-store-sync-for-woocommerce'),
+                    'th_action' => __('Action', 'multi-store-sync-for-woocommerce'),
+                    'resync' => __('Re-sync', 'multi-store-sync-for-woocommerce'),
+                    'queuing' => __('Queuing…', 'multi-store-sync-for-woocommerce'),
+                    'queued' => __('Queued ✓', 'multi-store-sync-for-woocommerce'),
+                    'failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
                 ],
             ]);
         }
@@ -983,25 +983,25 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if ($section === 'conflicts') {
             wp_localize_script('wc-mss-admin', 'wcMssConflictsData', [
                 'i18n' => [
-                    'loading' => __('Loading…', 'wc-multi-store-sync'),
-                    'load_failed' => __('Failed to load conflicts.', 'wc-multi-store-sync'),
-                    'no_conflicts' => __('No conflicts found.', 'wc-multi-store-sync'),
-                    'th_product' => __('Product', 'wc-multi-store-sync'),
-                    'th_store' => __('Store', 'wc-multi-store-sync'),
-                    'th_changed_fields' => __('Changed Fields', 'wc-multi-store-sync'),
-                    'th_detected' => __('Detected', 'wc-multi-store-sync'),
-                    'th_status' => __('Status', 'wc-multi-store-sync'),
-                    'th_actions' => __('Actions', 'wc-multi-store-sync'),
-                    'resolved' => __('Resolved', 'wc-multi-store-sync'),
-                    'unresolved' => __('Unresolved', 'wc-multi-store-sync'),
-                    'overwrite' => __('Overwrite', 'wc-multi-store-sync'),
-                    'keep_remote' => __('Keep Remote', 'wc-multi-store-sync'),
-                    'merge' => __('Merge', 'wc-multi-store-sync'),
-                    'resolving' => __('Resolving…', 'wc-multi-store-sync'),
-                    'resolve_failed' => __('Failed to resolve conflict.', 'wc-multi-store-sync'),
-                    'confirm_resolve_all' => __('Resolve all unresolved conflicts shown below as "%s"?', 'wc-multi-store-sync'),
-                    'resolve_all' => __('Resolve All', 'wc-multi-store-sync'),
-                    'product_not_found' => __('(Product not found)', 'wc-multi-store-sync'),
+                    'loading' => __('Loading…', 'multi-store-sync-for-woocommerce'),
+                    'load_failed' => __('Failed to load conflicts.', 'multi-store-sync-for-woocommerce'),
+                    'no_conflicts' => __('No conflicts found.', 'multi-store-sync-for-woocommerce'),
+                    'th_product' => __('Product', 'multi-store-sync-for-woocommerce'),
+                    'th_store' => __('Store', 'multi-store-sync-for-woocommerce'),
+                    'th_changed_fields' => __('Changed Fields', 'multi-store-sync-for-woocommerce'),
+                    'th_detected' => __('Detected', 'multi-store-sync-for-woocommerce'),
+                    'th_status' => __('Status', 'multi-store-sync-for-woocommerce'),
+                    'th_actions' => __('Actions', 'multi-store-sync-for-woocommerce'),
+                    'resolved' => __('Resolved', 'multi-store-sync-for-woocommerce'),
+                    'unresolved' => __('Unresolved', 'multi-store-sync-for-woocommerce'),
+                    'overwrite' => __('Overwrite', 'multi-store-sync-for-woocommerce'),
+                    'keep_remote' => __('Keep Remote', 'multi-store-sync-for-woocommerce'),
+                    'merge' => __('Merge', 'multi-store-sync-for-woocommerce'),
+                    'resolving' => __('Resolving…', 'multi-store-sync-for-woocommerce'),
+                    'resolve_failed' => __('Failed to resolve conflict.', 'multi-store-sync-for-woocommerce'),
+                    'confirm_resolve_all' => __('Resolve all unresolved conflicts shown below as "%s"?', 'multi-store-sync-for-woocommerce'),
+                    'resolve_all' => __('Resolve All', 'multi-store-sync-for-woocommerce'),
+                    'product_not_found' => __('(Product not found)', 'multi-store-sync-for-woocommerce'),
                 ],
             ]);
         }
@@ -1010,16 +1010,16 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if ($section === 'sync-profiles') {
             wp_localize_script('wc-mss-admin', 'wcMssSyncProfilesData', [
                 'i18n' => [
-                    'enter_name' => __('Please enter a profile name.', 'wc-multi-store-sync'),
-                    'saving' => __('Saving…', 'wc-multi-store-sync'),
-                    'save_profile' => __('Save Profile', 'wc-multi-store-sync'),
-                    'error_saving' => __('Error saving profile.', 'wc-multi-store-sync'),
-                    'confirm_apply_preset' => __('Apply preset "%s"? This will overwrite your current settings.', 'wc-multi-store-sync'),
-                    'error_applying_preset' => __('Error applying preset.', 'wc-multi-store-sync'),
-                    'confirm_apply_profile' => __('Apply profile "%s"? This will overwrite your current settings.', 'wc-multi-store-sync'),
-                    'error_applying_profile' => __('Error applying profile.', 'wc-multi-store-sync'),
-                    'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'wc-multi-store-sync'),
-                    'error_deleting_profile' => __('Error deleting profile.', 'wc-multi-store-sync'),
+                    'enter_name' => __('Please enter a profile name.', 'multi-store-sync-for-woocommerce'),
+                    'saving' => __('Saving…', 'multi-store-sync-for-woocommerce'),
+                    'save_profile' => __('Save Profile', 'multi-store-sync-for-woocommerce'),
+                    'error_saving' => __('Error saving profile.', 'multi-store-sync-for-woocommerce'),
+                    'confirm_apply_preset' => __('Apply preset "%s"? This will overwrite your current settings.', 'multi-store-sync-for-woocommerce'),
+                    'error_applying_preset' => __('Error applying preset.', 'multi-store-sync-for-woocommerce'),
+                    'confirm_apply_profile' => __('Apply profile "%s"? This will overwrite your current settings.', 'multi-store-sync-for-woocommerce'),
+                    'error_applying_profile' => __('Error applying profile.', 'multi-store-sync-for-woocommerce'),
+                    'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'multi-store-sync-for-woocommerce'),
+                    'error_deleting_profile' => __('Error deleting profile.', 'multi-store-sync-for-woocommerce'),
                 ],
             ]);
         }
@@ -1028,13 +1028,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if ($section === 'category-mapping') {
             wp_localize_script('wc-mss-admin', 'wcMssCategoryMappingData', [
                 'i18n' => [
-                    'loading' => __('Loading…', 'wc-multi-store-sync'),
-                    'load_failed' => __('Failed to load categories/tags for this store.', 'wc-multi-store-sync'),
-                    'no_mapping' => __('— Don\'t map (send as-is) —', 'wc-multi-store-sync'),
-                    'skip' => __('— Skip (don\'t sync) —', 'wc-multi-store-sync'),
-                    'saving' => __('Saving…', 'wc-multi-store-sync'),
-                    'saved' => __('Saved ✓', 'wc-multi-store-sync'),
-                    'save_failed' => __('Failed to save', 'wc-multi-store-sync'),
+                    'loading' => __('Loading…', 'multi-store-sync-for-woocommerce'),
+                    'load_failed' => __('Failed to load categories/tags for this store.', 'multi-store-sync-for-woocommerce'),
+                    'no_mapping' => __('— Don\'t map (send as-is) —', 'multi-store-sync-for-woocommerce'),
+                    'skip' => __('— Skip (don\'t sync) —', 'multi-store-sync-for-woocommerce'),
+                    'saving' => __('Saving…', 'multi-store-sync-for-woocommerce'),
+                    'saved' => __('Saved ✓', 'multi-store-sync-for-woocommerce'),
+                    'save_failed' => __('Failed to save', 'multi-store-sync-for-woocommerce'),
                 ],
             ]);
         }
@@ -1043,14 +1043,14 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if ($section === 'attribute-mapping') {
             wp_localize_script('wc-mss-admin', 'wcMssAttributeMappingData', [
                 'i18n' => [
-                    'loading' => __('Loading…', 'wc-multi-store-sync'),
-                    'load_failed' => __('Failed to load attributes for this store.', 'wc-multi-store-sync'),
-                    'no_mapping' => __('— Don\'t map (send as-is) —', 'wc-multi-store-sync'),
-                    'skip' => __('— Skip (don\'t sync) —', 'wc-multi-store-sync'),
-                    'saving' => __('Saving…', 'wc-multi-store-sync'),
-                    'saved' => __('Saved ✓', 'wc-multi-store-sync'),
-                    'save_failed' => __('Failed to save', 'wc-multi-store-sync'),
-                    'no_values' => __('This attribute has no terms to map.', 'wc-multi-store-sync'),
+                    'loading' => __('Loading…', 'multi-store-sync-for-woocommerce'),
+                    'load_failed' => __('Failed to load attributes for this store.', 'multi-store-sync-for-woocommerce'),
+                    'no_mapping' => __('— Don\'t map (send as-is) —', 'multi-store-sync-for-woocommerce'),
+                    'skip' => __('— Skip (don\'t sync) —', 'multi-store-sync-for-woocommerce'),
+                    'saving' => __('Saving…', 'multi-store-sync-for-woocommerce'),
+                    'saved' => __('Saved ✓', 'multi-store-sync-for-woocommerce'),
+                    'save_failed' => __('Failed to save', 'multi-store-sync-for-woocommerce'),
+                    'no_values' => __('This attribute has no terms to map.', 'multi-store-sync-for-woocommerce'),
                 ],
             ]);
         }
@@ -1071,7 +1071,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         $consumer_secret = sanitize_text_field($_POST['consumer_secret']);
 
         if (empty($store_url) || !WC_Multi_Store_Settings::is_safe_remote_url($store_url)) {
-            wp_send_json_error(__('Store URL is not allowed.', 'wc-multi-store-sync'));
+            wp_send_json_error(__('Store URL is not allowed.', 'multi-store-sync-for-woocommerce'));
         }
 
         $api = WC_Multi_Store_API_Client::for_store($store_url, [
@@ -1084,7 +1084,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         if (is_wp_error($result)) {
             wp_send_json_error($result->get_error_message());
         } else {
-            wp_send_json_success(__('Connection successful!', 'wc-multi-store-sync'));
+            wp_send_json_success(__('Connection successful!', 'multi-store-sync-for-woocommerce'));
         }
     }
 
@@ -1095,13 +1095,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         check_ajax_referer('wc_mss_force_sync_all', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         // Check Action Scheduler is available
         if (!function_exists('as_schedule_single_action')) {
-            wp_send_json_error(['message' => __('Action Scheduler not available.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Action Scheduler not available.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -1114,7 +1114,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 'Force sync failed: No active stores. Total stores: %d',
                 count($all_stores)
             ), 'warning');
-            wp_send_json_error(['message' => __('No active stores configured. Please ensure at least one store has Status set to "Active".', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('No active stores configured. Please ensure at least one store has Status set to "Active".', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -1123,7 +1123,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         $total_products = (int) ($product_count->publish ?? 0);
 
         if ($total_products === 0) {
-            wp_send_json_error(['message' => __('No products found to sync.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('No products found to sync.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -1146,7 +1146,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         wp_send_json_success([
             'message' => sprintf(
-                __('Force sync scheduled! %d products will be queued in batches. Check the Logs tab for progress.', 'wc-multi-store-sync'),
+                __('Force sync scheduled! %d products will be queued in batches. Check the Logs tab for progress.', 'multi-store-sync-for-woocommerce'),
                 $total_products
             )
         ]);
@@ -1224,14 +1224,14 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $delete_type = sanitize_text_field($_POST['delete_type'] ?? '');
 
         if (empty($delete_type)) {
-            wp_send_json_error(['message' => __('Invalid deletion type', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid deletion type', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -1270,13 +1270,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 break;
 
             default:
-                wp_send_json_error(['message' => __('Unknown deletion type', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Unknown deletion type', 'multi-store-sync-for-woocommerce')]);
                 return;
         }
 
         if ($deleted === -1) {
             wp_send_json_success([
-                'message' => __('All history records deleted successfully', 'wc-multi-store-sync'),
+                'message' => __('All history records deleted successfully', 'multi-store-sync-for-woocommerce'),
                 'deleted' => 0,
                 'remaining' => 0,
             ]);
@@ -1284,14 +1284,14 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             $remaining = WC_Multi_Store_Sync_History::get_count();
             wp_send_json_success([
                 'message' => sprintf(
-                    __('%d history records deleted successfully', 'wc-multi-store-sync'),
+                    __('%d history records deleted successfully', 'multi-store-sync-for-woocommerce'),
                     $deleted
                 ),
                 'deleted' => $deleted,
                 'remaining' => $remaining,
             ]);
         } else {
-            wp_send_json_error(['message' => __('No records found to delete', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('No records found to delete', 'multi-store-sync-for-woocommerce')]);
         }
     }
 

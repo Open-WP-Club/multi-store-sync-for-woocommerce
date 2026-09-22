@@ -68,7 +68,7 @@ class WC_Multi_Store_Webhook_Receiver {
             WC_Multi_Store_Webhook_Logger::log_rate_limited($client_ip, $current_count);
             return new WP_Error(
                 'rate_limit_exceeded',
-                __('Too many requests. Please try again later.', 'wc-multi-store-sync'),
+                __('Too many requests. Please try again later.', 'multi-store-sync-for-woocommerce'),
                 ['status' => 429]
             );
         }
@@ -119,7 +119,7 @@ class WC_Multi_Store_Webhook_Receiver {
             );
             return new WP_Error(
                 'webhook_not_configured',
-                __('Webhook receiver is not configured. Please set up webhook secret in settings.', 'wc-multi-store-sync'),
+                __('Webhook receiver is not configured. Please set up webhook secret in settings.', 'multi-store-sync-for-woocommerce'),
                 ['status' => 503]
             );
         }
@@ -144,7 +144,7 @@ class WC_Multi_Store_Webhook_Receiver {
                 );
                 return new WP_Error(
                     'invalid_signature',
-                    __('Invalid webhook signature.', 'wc-multi-store-sync'),
+                    __('Invalid webhook signature.', 'multi-store-sync-for-woocommerce'),
                     ['status' => 401]
                 );
             }
@@ -158,7 +158,7 @@ class WC_Multi_Store_Webhook_Receiver {
                 );
                 return new WP_Error(
                     'invalid_secret',
-                    __('Invalid webhook secret.', 'wc-multi-store-sync'),
+                    __('Invalid webhook secret.', 'multi-store-sync-for-woocommerce'),
                     ['status' => 401]
                 );
             }
@@ -170,7 +170,7 @@ class WC_Multi_Store_Webhook_Receiver {
             );
             return new WP_Error(
                 'missing_auth',
-                __('Missing webhook authentication.', 'wc-multi-store-sync'),
+                __('Missing webhook authentication.', 'multi-store-sync-for-woocommerce'),
                 ['status' => 401]
             );
         }
@@ -223,7 +223,7 @@ class WC_Multi_Store_Webhook_Receiver {
             );
             return new WP_Error(
                 'empty_data',
-                __('Empty order data received.', 'wc-multi-store-sync'),
+                __('Empty order data received.', 'multi-store-sync-for-woocommerce'),
                 ['status' => 400]
             );
         }
@@ -237,7 +237,7 @@ class WC_Multi_Store_Webhook_Receiver {
             );
             return new WP_Error(
                 'missing_store_url',
-                __('Missing store_url parameter.', 'wc-multi-store-sync'),
+                __('Missing store_url parameter.', 'multi-store-sync-for-woocommerce'),
                 ['status' => 400]
             );
         }
@@ -255,7 +255,7 @@ class WC_Multi_Store_Webhook_Receiver {
             );
             return new WP_Error(
                 'unknown_store',
-                __('Store is not registered in the system.', 'wc-multi-store-sync'),
+                __('Store is not registered in the system.', 'multi-store-sync-for-woocommerce'),
                 ['status' => 403]
             );
         }

@@ -23,7 +23,7 @@ trait WC_Multi_Store_Ajax_Auth_Guard {
         check_ajax_referer($nonce_action, 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => $error_message ?? __('Permission denied', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => $error_message ?? __('Permission denied', 'multi-store-sync-for-woocommerce')]);
             return false;
         }
 

@@ -79,7 +79,7 @@ trait WC_Multi_Store_Toggleable_Feature {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -89,9 +89,9 @@ trait WC_Multi_Store_Toggleable_Feature {
         wp_send_json_success([
             'message' => $enabled
                 /* translators: %s: feature name, e.g. "Shipping class sync" */
-                ? sprintf(__('%s enabled', 'wc-multi-store-sync'), static::feature_label())
+                ? sprintf(__('%s enabled', 'multi-store-sync-for-woocommerce'), static::feature_label())
                 /* translators: %s: feature name, e.g. "Shipping class sync" */
-                : sprintf(__('%s disabled', 'wc-multi-store-sync'), static::feature_label()),
+                : sprintf(__('%s disabled', 'multi-store-sync-for-woocommerce'), static::feature_label()),
             'enabled' => $enabled,
         ]);
     }

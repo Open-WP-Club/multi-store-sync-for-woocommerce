@@ -476,7 +476,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
                 WC_Multi_Store_Logger::write('Verification already running, aborting');
                 return [
                     'success' => false,
-                    'message' => __('Verification is already running.', 'wc-multi-store-sync'),
+                    'message' => __('Verification is already running.', 'multi-store-sync-for-woocommerce'),
                 ];
             }
         }
@@ -486,7 +486,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             WC_Multi_Store_Logger::write('Action Scheduler not available', 'error');
             return [
                 'success' => false,
-                'message' => __('Action Scheduler not available.', 'wc-multi-store-sync'),
+                'message' => __('Action Scheduler not available.', 'multi-store-sync-for-woocommerce'),
             ];
         }
 
@@ -499,7 +499,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             WC_Multi_Store_Logger::write('No active stores found for verification', 'warning');
             return [
                 'success' => false,
-                'message' => __('No active stores found.', 'wc-multi-store-sync'),
+                'message' => __('No active stores found.', 'multi-store-sync-for-woocommerce'),
             ];
         }
 
@@ -512,7 +512,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             WC_Multi_Store_Logger::write('No products found for verification', 'warning');
             return [
                 'success' => false,
-                'message' => __('No products found to verify.', 'wc-multi-store-sync'),
+                'message' => __('No products found to verify.', 'multi-store-sync-for-woocommerce'),
             ];
         }
 
@@ -569,7 +569,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         return [
             'success' => true,
             'message' => sprintf(
-                __('Verification started: %d products will be checked in %d batches.', 'wc-multi-store-sync'),
+                __('Verification started: %1$d products will be checked in %2$d batches.', 'multi-store-sync-for-woocommerce'),
                 count($products),
                 $progress_data['total_batches']
             ),

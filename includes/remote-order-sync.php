@@ -331,7 +331,7 @@ class WC_Multi_Store_Remote_Order_Sync {
         check_admin_referer('wc_mss_sync_remote_orders');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_die(__('You do not have permission to perform this action', 'wc-multi-store-sync'));
+            wp_die(__('You do not have permission to perform this action', 'multi-store-sync-for-woocommerce'));
         }
 
         // Get optional filters from request

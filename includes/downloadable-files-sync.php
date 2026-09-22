@@ -27,7 +27,7 @@ class WC_Multi_Store_Downloadable_Files_Sync {
      * @return string
      */
     public static function feature_label(): string {
-        return __('Downloadable files sync', 'wc-multi-store-sync');
+        return __('Downloadable files sync', 'multi-store-sync-for-woocommerce');
     }
 
     /**

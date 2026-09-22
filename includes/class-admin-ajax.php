@@ -145,18 +145,18 @@ class WC_Multi_Store_Admin_Ajax {
     // -------------------------------------------------------------------------
 
     public function ajax_queue_orphans_for_deletion(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
         $this->run_ajax_handler(
             'queue_orphans_for_deletion',
-            __('An error occurred while processing orphan deletion', 'wc-multi-store-sync'),
+            __('An error occurred while processing orphan deletion', 'multi-store-sync-for-woocommerce'),
             function () {
             $orphans = WC_Multi_Store_Weekly_Sync_Verifier::get_orphan_products_from_report();
 
             if (empty($orphans)) {
-                wp_send_json_error(['message' => __('No orphan products found in the latest report', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('No orphan products found in the latest report', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
@@ -186,7 +186,7 @@ class WC_Multi_Store_Admin_Ajax {
 
                 wp_send_json_success([
                     'message' => sprintf(
-                        __('%d orphan product(s) queued for deletion', 'wc-multi-store-sync'),
+                        __('%d orphan product(s) queued for deletion', 'multi-store-sync-for-woocommerce'),
                         $queued
                     ),
                     'queued' => $queued,
@@ -194,7 +194,7 @@ class WC_Multi_Store_Admin_Ajax {
                 ]);
             } else {
                 wp_send_json_error([
-                    'message' => __('Failed to queue orphan products for deletion', 'wc-multi-store-sync'),
+                    'message' => __('Failed to queue orphan products for deletion', 'multi-store-sync-for-woocommerce'),
                     'failed'  => $failed,
                 ]);
             }
@@ -203,18 +203,18 @@ class WC_Multi_Store_Admin_Ajax {
     }
 
     public function ajax_delete_history(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
         $this->run_ajax_handler(
             'delete_history',
-            __('An error occurred while deleting history', 'wc-multi-store-sync'),
+            __('An error occurred while deleting history', 'multi-store-sync-for-woocommerce'),
             function () {
             $delete_type = sanitize_text_field($_POST['delete_type'] ?? '');
 
             if (empty($delete_type)) {
-                wp_send_json_error(['message' => __('Invalid deletion type', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Invalid deletion type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
@@ -231,23 +231,23 @@ class WC_Multi_Store_Admin_Ajax {
             };
 
             if ($deleted === null) {
-                wp_send_json_error(['message' => __('Unknown deletion type', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Unknown deletion type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
             if ($deleted === -1) {
                 wp_send_json_success([
-                    'message'   => __('All history records deleted', 'wc-multi-store-sync'),
+                    'message'   => __('All history records deleted', 'multi-store-sync-for-woocommerce'),
                     'remaining' => 0,
                 ]);
             } elseif ($deleted > 0) {
                 wp_send_json_success([
-                    'message'   => sprintf(__('%d records deleted', 'wc-multi-store-sync'), $deleted),
+                    'message'   => sprintf(__('%d records deleted', 'multi-store-sync-for-woocommerce'), $deleted),
                     'deleted'   => $deleted,
                     'remaining' => WC_Multi_Store_Sync_History::get_count(),
                 ]);
             } else {
-                wp_send_json_error(['message' => __('No records deleted', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('No records deleted', 'multi-store-sync-for-woocommerce')]);
             }
             }
         );
@@ -264,7 +264,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'start_verification',
-            __('An error occurred while starting verification', 'wc-multi-store-sync'),
+            __('An error occurred while starting verification', 'multi-store-sync-for-woocommerce'),
             function () {
                 $result = WC_Multi_Store_Weekly_Sync_Verifier::schedule_async_verification();
 
@@ -284,7 +284,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'get_verification_progress',
-            __('An error occurred while getting verification progress', 'wc-multi-store-sync'),
+            __('An error occurred while getting verification progress', 'multi-store-sync-for-woocommerce'),
             function () {
             $progress = WC_Multi_Store_Weekly_Sync_Verifier::get_verification_progress();
 
@@ -329,14 +329,14 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'cancel_verification',
-            __('An error occurred while cancelling verification', 'wc-multi-store-sync'),
+            __('An error occurred while cancelling verification', 'multi-store-sync-for-woocommerce'),
             function () {
                 $result = WC_Multi_Store_Weekly_Sync_Verifier::cancel_async_verification();
 
                 if ($result) {
-                    wp_send_json_success(['message' => __('Verification cancelled', 'wc-multi-store-sync')]);
+                    wp_send_json_success(['message' => __('Verification cancelled', 'multi-store-sync-for-woocommerce')]);
                 } else {
-                    wp_send_json_error(['message' => __('No running verification to cancel', 'wc-multi-store-sync')]);
+                    wp_send_json_error(['message' => __('No running verification to cancel', 'multi-store-sync-for-woocommerce')]);
                 }
             }
         );
@@ -353,7 +353,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'get_webhook_logs',
-            __('An error occurred while fetching webhook logs', 'wc-multi-store-sync'),
+            __('An error occurred while fetching webhook logs', 'multi-store-sync-for-woocommerce'),
             function () {
             $args = [
                 'per_page'    => isset($_POST['per_page'])    ? absint($_POST['per_page'])                        : 50,
@@ -385,19 +385,19 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'get_webhook_log_detail',
-            __('An error occurred while fetching log detail', 'wc-multi-store-sync'),
+            __('An error occurred while fetching log detail', 'multi-store-sync-for-woocommerce'),
             function () {
             $log_id = isset($_POST['log_id']) ? absint($_POST['log_id']) : 0;
 
             if (!$log_id) {
-                wp_send_json_error(['message' => __('Invalid log ID', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Invalid log ID', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
             $log = WC_Multi_Store_Webhook_Logger::get_log($log_id);
 
             if (!$log) {
-                wp_send_json_error(['message' => __('Log not found', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Log not found', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
@@ -416,7 +416,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'export_webhook_logs',
-            __('An error occurred while exporting logs', 'wc-multi-store-sync'),
+            __('An error occurred while exporting logs', 'multi-store-sync-for-woocommerce'),
             function () {
             $args = [
                 'log_type'  => isset($_POST['log_type'])  ? sanitize_text_field($_POST['log_type'])  : null,
@@ -443,7 +443,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'get_webhook_stats',
-            __('An error occurred while fetching stats', 'wc-multi-store-sync'),
+            __('An error occurred while fetching stats', 'multi-store-sync-for-woocommerce'),
             function () {
                 $days  = isset($_POST['days']) ? absint($_POST['days']) : 30;
                 $stats = WC_Multi_Store_Webhook_Logger::get_stats($days);
@@ -459,12 +459,12 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'delete_webhook_logs',
-            __('An error occurred while deleting logs', 'wc-multi-store-sync'),
+            __('An error occurred while deleting logs', 'multi-store-sync-for-woocommerce'),
             function () {
             $delete_type = isset($_POST['delete_type']) ? sanitize_text_field($_POST['delete_type']) : '';
 
             if (empty($delete_type)) {
-                wp_send_json_error(['message' => __('Invalid deletion type', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Invalid deletion type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
@@ -472,7 +472,7 @@ class WC_Multi_Store_Admin_Ajax {
             $log_type = isset($_POST['log_type']) ? sanitize_text_field($_POST['log_type'])         : '';
 
             if ($delete_type === 'by_type' && empty($log_type)) {
-                wp_send_json_error(['message' => __('Invalid log type', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Invalid log type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
@@ -486,16 +486,16 @@ class WC_Multi_Store_Admin_Ajax {
             };
 
             if ($deleted === null) {
-                wp_send_json_error(['message' => __('Unknown delete type', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Unknown delete type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
             $message = match ($delete_type) {
-                'all'        => __('All logs deleted', 'wc-multi-store-sync'),
-                'errors'     => sprintf(__('%d error records deleted', 'wc-multi-store-sync'), $deleted),
-                'success'    => sprintf(__('%d success records deleted', 'wc-multi-store-sync'), $deleted),
-                'older_than' => sprintf(__('%d records older than %d days deleted', 'wc-multi-store-sync'), $deleted, $days),
-                'by_type'    => sprintf(__('%d records of type "%s" deleted', 'wc-multi-store-sync'), $deleted, $log_type),
+                'all'        => __('All logs deleted', 'multi-store-sync-for-woocommerce'),
+                'errors'     => sprintf(__('%d error records deleted', 'multi-store-sync-for-woocommerce'), $deleted),
+                'success'    => sprintf(__('%d success records deleted', 'multi-store-sync-for-woocommerce'), $deleted),
+                'older_than' => sprintf(__('%1$d records older than %2$d days deleted', 'multi-store-sync-for-woocommerce'), $deleted, $days),
+                'by_type'    => sprintf(__('%1$d records of type "%2$s" deleted', 'multi-store-sync-for-woocommerce'), $deleted, $log_type),
             };
 
             wp_send_json_success([
@@ -518,7 +518,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'stop_scheduled_sync',
-            __('An error occurred while stopping scheduled sync', 'wc-multi-store-sync'),
+            __('An error occurred while stopping scheduled sync', 'multi-store-sync-for-woocommerce'),
             function () {
             $scheduled_settings                          = get_option('wc_multi_store_sync_scheduled', []);
             $scheduled_settings['scheduled_sync_enabled'] = false;
@@ -535,7 +535,7 @@ class WC_Multi_Store_Admin_Ajax {
             WC_Multi_Store_Logger::write('Scheduled sync stopped by user');
 
             wp_send_json_success([
-                'message' => __('Scheduled sync has been stopped. Re-enable it in settings when ready.', 'wc-multi-store-sync'),
+                'message' => __('Scheduled sync has been stopped. Re-enable it in settings when ready.', 'multi-store-sync-for-woocommerce'),
             ]);
             }
         );
@@ -548,7 +548,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'stop_all_sync',
-            __('An error occurred while stopping sync', 'wc-multi-store-sync'),
+            __('An error occurred while stopping sync', 'multi-store-sync-for-woocommerce'),
             function () {
             $results = [];
 
@@ -578,7 +578,7 @@ class WC_Multi_Store_Admin_Ajax {
             WC_Multi_Store_Logger::write('Queue cleared and pending sync actions cancelled by user');
 
             wp_send_json_success([
-                'message' => __('Queue cleared and pending sync jobs cancelled. The plugin remains active — new sync events will continue to work normally.', 'wc-multi-store-sync'),
+                'message' => __('Queue cleared and pending sync jobs cancelled. The plugin remains active — new sync events will continue to work normally.', 'multi-store-sync-for-woocommerce'),
                 'details' => $results,
             ]);
             }
@@ -592,7 +592,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'stop_weekly_verification',
-            __('An error occurred while stopping weekly verification', 'wc-multi-store-sync'),
+            __('An error occurred while stopping weekly verification', 'multi-store-sync-for-woocommerce'),
             function () {
             $weekly_settings            = get_option('wc_multi_store_sync_weekly_verification', []);
             $weekly_settings['enabled'] = false;
@@ -606,7 +606,7 @@ class WC_Multi_Store_Admin_Ajax {
             WC_Multi_Store_Logger::write('Weekly verification stopped by user');
 
             wp_send_json_success([
-                'message' => __('Weekly verification has been stopped and disabled. Re-enable it in settings when ready.', 'wc-multi-store-sync'),
+                'message' => __('Weekly verification has been stopped and disabled. Re-enable it in settings when ready.', 'multi-store-sync-for-woocommerce'),
             ]);
             }
         );
@@ -630,7 +630,7 @@ class WC_Multi_Store_Admin_Ajax {
         )));
 
         if (empty($skus)) {
-            wp_send_json_error(['message' => __('At least one SKU is required', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('At least one SKU is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -670,7 +670,7 @@ class WC_Multi_Store_Admin_Ajax {
                     'deleted'      => true,
                     'queued_count' => $queued_count,
                     'message'      => sprintf(
-                        __('SKU %s not found locally — queued for deletion from %d store(s)', 'wc-multi-store-sync'),
+                        __('SKU %1$s not found locally — queued for deletion from %2$d store(s)', 'multi-store-sync-for-woocommerce'),
                         esc_html($sku),
                         $queued_count
                     ),
@@ -683,7 +683,7 @@ class WC_Multi_Store_Admin_Ajax {
                 $results[] = [
                     'sku'     => $sku,
                     'success' => false,
-                    'message' => sprintf(__('Could not load product for SKU: %s', 'wc-multi-store-sync'), esc_html($sku)),
+                    'message' => sprintf(__('Could not load product for SKU: %s', 'multi-store-sync-for-woocommerce'), esc_html($sku)),
                 ];
                 continue;
             }
@@ -699,7 +699,7 @@ class WC_Multi_Store_Admin_Ajax {
                 $results[] = [
                     'sku'     => $sku,
                     'success' => false,
-                    'message' => sprintf(__('SKU %s: no active stores or product is excluded from all stores', 'wc-multi-store-sync'), esc_html($sku)),
+                    'message' => sprintf(__('SKU %s: no active stores or product is excluded from all stores', 'multi-store-sync-for-woocommerce'), esc_html($sku)),
                 ];
                 continue;
             }
@@ -719,7 +719,7 @@ class WC_Multi_Store_Admin_Ajax {
                 'sku'          => $sku,
                 'success'      => true,
                 'message'      => sprintf(
-                    __('"%s" (SKU: %s) queued to %d store(s)', 'wc-multi-store-sync'),
+                    __('"%1$s" (SKU: %2$s) queued to %3$d store(s)', 'multi-store-sync-for-woocommerce'),
                     esc_html($product_name),
                     esc_html($sku),
                     $added
@@ -736,7 +736,7 @@ class WC_Multi_Store_Admin_Ajax {
                     '%d SKU queued for full sync.',
                     '%d SKUs queued for full sync.',
                     count(array_filter($results, fn($r) => $r['success'])),
-                    'wc-multi-store-sync'
+                    'multi-store-sync-for-woocommerce'
                 ),
                 count(array_filter($results, fn($r) => $r['success']))
             ),
@@ -752,18 +752,18 @@ class WC_Multi_Store_Admin_Ajax {
 
         $this->run_ajax_handler(
             'force_sync_by_category',
-            __('An error occurred while queuing the category for sync', 'wc-multi-store-sync'),
+            __('An error occurred while queuing the category for sync', 'multi-store-sync-for-woocommerce'),
             function () {
             $category_id = isset($_POST['category_id']) ? absint($_POST['category_id']) : 0;
 
             if (!$category_id) {
-                wp_send_json_error(['message' => __('A category is required', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('A category is required', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
             $term = get_term($category_id, 'product_cat');
             if (!$term || is_wp_error($term)) {
-                wp_send_json_error(['message' => __('Invalid category', 'wc-multi-store-sync')]);
+                wp_send_json_error(['message' => __('Invalid category', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
@@ -775,7 +775,7 @@ class WC_Multi_Store_Admin_Ajax {
             if (empty($product_ids)) {
                 wp_send_json_error([
                     'message' => sprintf(
-                        __('No published products found in category "%s"', 'wc-multi-store-sync'),
+                        __('No published products found in category "%s"', 'multi-store-sync-for-woocommerce'),
                         esc_html($term->name)
                     ),
                 ]);
@@ -814,7 +814,7 @@ class WC_Multi_Store_Admin_Ajax {
                         'Category "%1$s": %2$d product queued for full sync across all active stores.',
                         'Category "%1$s": %2$d products queued for full sync across all active stores.',
                         count($product_ids),
-                        'wc-multi-store-sync'
+                        'multi-store-sync-for-woocommerce'
                     ),
                     esc_html($term->name),
                     count($product_ids)
@@ -835,9 +835,9 @@ class WC_Multi_Store_Admin_Ajax {
         $logger = WC_Multi_Store_Logger::instance();
         if ($logger->clear_log()) {
             WC_Multi_Store_Logger::write('Sync log cleared by user');
-            wp_send_json_success(['message' => __('Log cleared successfully', 'wc-multi-store-sync')]);
+            wp_send_json_success(['message' => __('Log cleared successfully', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Failed to clear log', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Failed to clear log', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -856,7 +856,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         wp_send_json_success([
             'message' => sprintf(
-                __('%d warning/error entries removed', 'wc-multi-store-sync'),
+                __('%d warning/error entries removed', 'multi-store-sync-for-woocommerce'),
                 $result['removed']
             ),
             'removed' => $result['removed'],
@@ -874,14 +874,14 @@ class WC_Multi_Store_Admin_Ajax {
      * JS calls this once per store and accumulates results with a progress bar.
      */
     public function ajax_scan_categories(): void {
-        if (!self::verify_admin_request('wc_mss_scan_categories', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_scan_categories', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
         $store_url = isset($_POST['store_url']) ? sanitize_text_field($_POST['store_url']) : '';
 
         if (!$store_url) {
-            wp_send_json_error(['message' => __('store_url is required for per-store scanning.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('store_url is required for per-store scanning.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -899,7 +899,7 @@ class WC_Multi_Store_Admin_Ajax {
                 }
             }
             if (!$config) {
-                wp_send_json_error(['message' => sprintf(__('Store not found: %s', 'wc-multi-store-sync'), $store_url)]);
+                wp_send_json_error(['message' => sprintf(__('Store not found: %s', 'multi-store-sync-for-woocommerce'), $store_url)]);
                 return;
             }
 
@@ -925,7 +925,7 @@ class WC_Multi_Store_Admin_Ajax {
      * category/tag/attribute mapping UIs' "map to" dropdowns.
      */
     public function ajax_get_remote_terms(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -933,13 +933,13 @@ class WC_Multi_Store_Admin_Ajax {
         $taxonomy  = isset($_POST['taxonomy']) ? sanitize_text_field($_POST['taxonomy']) : 'category';
 
         if (!$store_url) {
-            wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $config = WC_Multi_Store_Settings::get_store($store_url);
         if (!$config) {
-            wp_send_json_error(['message' => sprintf(__('Store not found: %s', 'wc-multi-store-sync'), $store_url)]);
+            wp_send_json_error(['message' => sprintf(__('Store not found: %s', 'multi-store-sync-for-woocommerce'), $store_url)]);
             return;
         }
 
@@ -1083,7 +1083,7 @@ class WC_Multi_Store_Admin_Ajax {
         $include_children = !empty($_POST['include_children']);
 
         if (!$category_id) {
-            wp_send_json_error(['message' => __('Invalid category', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid category', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -1104,7 +1104,7 @@ class WC_Multi_Store_Admin_Ajax {
         if ((int) $result['products'] === 0) {
             wp_send_json_error([
                 'message' => sprintf(
-                    __('No published products found in category "%s"', 'wc-multi-store-sync'),
+                    __('No published products found in category "%s"', 'multi-store-sync-for-woocommerce'),
                     esc_html($result['category_name'])
                 ),
             ]);
@@ -1113,7 +1113,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         wp_send_json_success([
             'message' => sprintf(
-                __('Queued %d product(s) from "%s" (%d queue items created).', 'wc-multi-store-sync'),
+                __('Queued %1$d product(s) from "%2$s" (%3$d queue items created).', 'multi-store-sync-for-woocommerce'),
                 $result['products'],
                 $result['category_name'],
                 $result['queued']
@@ -1137,7 +1137,7 @@ class WC_Multi_Store_Admin_Ajax {
             '<a href="#" class="wc-mss-cat-row-sync" data-category-id="%d" data-category-name="%s">%s</a>',
             esc_attr($term->term_id),
             esc_attr($term->name),
-            esc_html__('Sync to stores', 'wc-multi-store-sync')
+            esc_html__('Sync to stores', 'multi-store-sync-for-woocommerce')
         );
 
         return $actions;
@@ -1153,14 +1153,14 @@ class WC_Multi_Store_Admin_Ajax {
         $item_id = isset($_POST['item_id']) ? absint($_POST['item_id']) : 0;
 
         if (!$item_id) {
-            wp_send_json_error(['message' => __('Invalid item ID', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid item ID', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         if (WC_Multi_Store_Queue_Table::retry_item($item_id)) {
-            wp_send_json_success(['message' => __('Item queued for retry.', 'wc-multi-store-sync')]);
+            wp_send_json_success(['message' => __('Item queued for retry.', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Item not found or is not in failed status.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Item not found or is not in failed status.', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -1179,7 +1179,7 @@ class WC_Multi_Store_Admin_Ajax {
         $product_id = isset($_POST['product_id']) ? absint($_POST['product_id']) : 0;
 
         if (!$product_id) {
-            wp_send_json_error(['message' => __('Invalid product ID', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid product ID', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -1193,14 +1193,14 @@ class WC_Multi_Store_Admin_Ajax {
         if ($added > 0) {
             wp_send_json_success([
                 'message' => sprintf(
-                    __('Product queued for full sync to %d store(s)', 'wc-multi-store-sync'),
+                    __('Product queued for full sync to %d store(s)', 'multi-store-sync-for-woocommerce'),
                     $added
                 ),
                 'queued' => $added,
             ]);
         } else {
             wp_send_json_error([
-                'message' => __('Product could not be queued — no active stores or product is excluded from all stores', 'wc-multi-store-sync'),
+                'message' => __('Product could not be queued — no active stores or product is excluded from all stores', 'multi-store-sync-for-woocommerce'),
             ]);
         }
     }
@@ -1224,11 +1224,11 @@ class WC_Multi_Store_Admin_Ajax {
                 var catId  = $link.data('category-id');
                 var catName = $link.data('category-name');
 
-                if (!confirm('<?php echo esc_js(__('Sync all products in "%s" (and children) to all stores?', 'wc-multi-store-sync')); ?>'.replace('%s', catName))) {
+                if (!confirm('<?php echo esc_js(__('Sync all products in "%s" (and children) to all stores?', 'multi-store-sync-for-woocommerce')); ?>'.replace('%s', catName))) {
                     return;
                 }
 
-                $link.text('<?php echo esc_js(__('Queuing…', 'wc-multi-store-sync')); ?>');
+                $link.text('<?php echo esc_js(__('Queuing…', 'multi-store-sync-for-woocommerce')); ?>');
 
                 $.post(ajaxurl, {
                     action:           'wc_mss_sync_by_category',
@@ -1238,15 +1238,15 @@ class WC_Multi_Store_Admin_Ajax {
                     include_children: 1,
                 }, function (resp) {
                     if (resp.success) {
-                        $link.text('<?php echo esc_js(__('Queued ✓', 'wc-multi-store-sync')); ?>');
+                        $link.text('<?php echo esc_js(__('Queued ✓', 'multi-store-sync-for-woocommerce')); ?>');
                         alert(resp.data.message);
                     } else {
-                        $link.text('<?php echo esc_js(__('Sync to stores', 'wc-multi-store-sync')); ?>');
-                        alert(resp.data.message || '<?php echo esc_js(__('Error', 'wc-multi-store-sync')); ?>');
+                        $link.text('<?php echo esc_js(__('Sync to stores', 'multi-store-sync-for-woocommerce')); ?>');
+                        alert(resp.data.message || '<?php echo esc_js(__('Error', 'multi-store-sync-for-woocommerce')); ?>');
                     }
                 }).fail(function () {
-                    $link.text('<?php echo esc_js(__('Sync to stores', 'wc-multi-store-sync')); ?>');
-                    alert('<?php echo esc_js(__('Request failed', 'wc-multi-store-sync')); ?>');
+                    $link.text('<?php echo esc_js(__('Sync to stores', 'multi-store-sync-for-woocommerce')); ?>');
+                    alert('<?php echo esc_js(__('Request failed', 'multi-store-sync-for-woocommerce')); ?>');
                 });
             });
         });

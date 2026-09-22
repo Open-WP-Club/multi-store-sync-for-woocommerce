@@ -35,7 +35,7 @@ class WC_Multi_Store_Attribute_Remapper {
      * @return string
      */
     public static function feature_label(): string {
-        return __('Attribute remapping', 'wc-multi-store-sync');
+        return __('Attribute remapping', 'multi-store-sync-for-woocommerce');
     }
 
     /**
@@ -353,7 +353,7 @@ class WC_Multi_Store_Attribute_Remapper {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -361,7 +361,7 @@ class WC_Multi_Store_Attribute_Remapper {
         $mapping_type = sanitize_text_field($_POST['mapping_type'] ?? 'names');
 
         if (empty($store_url)) {
-            wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -377,7 +377,7 @@ class WC_Multi_Store_Attribute_Remapper {
 
             wp_send_json_success([
                 'message' => sprintf(
-                    __('%d attribute name mapping(s) saved', 'wc-multi-store-sync'),
+                    __('%d attribute name mapping(s) saved', 'multi-store-sync-for-woocommerce'),
                     count($mappings)
                 ),
             ]);
@@ -394,13 +394,13 @@ class WC_Multi_Store_Attribute_Remapper {
 
             wp_send_json_success([
                 'message' => sprintf(
-                    __('%d value mapping(s) saved for attribute "%s"', 'wc-multi-store-sync'),
+                    __('%1$d value mapping(s) saved for attribute "%2$s"', 'multi-store-sync-for-woocommerce'),
                     count($mappings),
                     $attribute_name
                 ),
             ]);
         } else {
-            wp_send_json_error(['message' => __('Invalid mapping type', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid mapping type', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -411,14 +411,14 @@ class WC_Multi_Store_Attribute_Remapper {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $store_url = sanitize_text_field($_POST['store_url'] ?? '');
 
         if (empty($store_url)) {
-            wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 

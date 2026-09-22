@@ -236,8 +236,8 @@ class WC_Multi_Store_Sync_Profiles {
     public static function get_presets(): array {
         return [
             'full_sync' => [
-                'name' => __('Full Product Sync', 'wc-multi-store-sync'),
-                'description' => __('Complete product data synchronization with all fields', 'wc-multi-store-sync'),
+                'name' => __('Full Product Sync', 'multi-store-sync-for-woocommerce'),
+                'description' => __('Complete product data synchronization with all fields', 'multi-store-sync-for-woocommerce'),
                 'sync_settings' => [
                     'enabled' => true,
                     'sync_type_default' => 'full_product',
@@ -250,8 +250,8 @@ class WC_Multi_Store_Sync_Profiles {
                 ],
             ],
             'price_stock_only' => [
-                'name' => __('Price & Stock Only', 'wc-multi-store-sync'),
-                'description' => __('Only sync prices and stock levels - fast and lightweight', 'wc-multi-store-sync'),
+                'name' => __('Price & Stock Only', 'multi-store-sync-for-woocommerce'),
+                'description' => __('Only sync prices and stock levels - fast and lightweight', 'multi-store-sync-for-woocommerce'),
                 'sync_settings' => [
                     'enabled' => true,
                     'sync_type_default' => 'price_quantity',
@@ -261,8 +261,8 @@ class WC_Multi_Store_Sync_Profiles {
                 ],
             ],
             'stock_only' => [
-                'name' => __('Stock Only', 'wc-multi-store-sync'),
-                'description' => __('Minimal sync - only stock quantities', 'wc-multi-store-sync'),
+                'name' => __('Stock Only', 'multi-store-sync-for-woocommerce'),
+                'description' => __('Minimal sync - only stock quantities', 'multi-store-sync-for-woocommerce'),
                 'sync_settings' => [
                     'enabled' => true,
                     'sync_type_default' => 'quantity',
@@ -271,8 +271,8 @@ class WC_Multi_Store_Sync_Profiles {
                 ],
             ],
             'conservative' => [
-                'name' => __('Conservative (Manual Only)', 'wc-multi-store-sync'),
-                'description' => __('No automatic sync - only manual triggers via admin panel', 'wc-multi-store-sync'),
+                'name' => __('Conservative (Manual Only)', 'multi-store-sync-for-woocommerce'),
+                'description' => __('No automatic sync - only manual triggers via admin panel', 'multi-store-sync-for-woocommerce'),
                 'sync_settings' => [
                     'enabled' => true,
                     'sync_type_default' => 'full_product',
@@ -321,7 +321,7 @@ class WC_Multi_Store_Sync_Profiles {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -330,14 +330,14 @@ class WC_Multi_Store_Sync_Profiles {
         $description = sanitize_textarea_field($_POST['description'] ?? '');
 
         if (empty($name)) {
-            wp_send_json_error(['message' => __('Profile name is required', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Profile name is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $id = self::create_from_current_settings($name, $description);
 
         wp_send_json_success([
-            'message' => sprintf(__('Profile "%s" saved', 'wc-multi-store-sync'), $name),
+            'message' => sprintf(__('Profile "%s" saved', 'multi-store-sync-for-woocommerce'), $name),
             'profile_id' => $id,
         ]);
     }
@@ -349,7 +349,7 @@ class WC_Multi_Store_Sync_Profiles {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -363,9 +363,9 @@ class WC_Multi_Store_Sync_Profiles {
         }
 
         if ($success) {
-            wp_send_json_success(['message' => __('Profile applied successfully', 'wc-multi-store-sync')]);
+            wp_send_json_success(['message' => __('Profile applied successfully', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Profile not found', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Profile not found', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -376,16 +376,16 @@ class WC_Multi_Store_Sync_Profiles {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $profile_id = sanitize_text_field($_POST['profile_id'] ?? '');
 
         if (self::delete($profile_id)) {
-            wp_send_json_success(['message' => __('Profile deleted', 'wc-multi-store-sync')]);
+            wp_send_json_success(['message' => __('Profile deleted', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Profile not found', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Profile not found', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -396,7 +396,7 @@ class WC_Multi_Store_Sync_Profiles {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 

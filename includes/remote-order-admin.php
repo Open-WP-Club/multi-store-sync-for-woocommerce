@@ -37,8 +37,8 @@ class WC_Multi_Store_Remote_Order_Admin {
 
         add_submenu_page(
             'woocommerce',
-            __('Remote Orders', 'wc-multi-store-sync'),
-            __('Remote Orders', 'wc-multi-store-sync'),
+            __('Remote Orders', 'multi-store-sync-for-woocommerce'),
+            __('Remote Orders', 'multi-store-sync-for-woocommerce'),
             'manage_woocommerce',
             'wc-multi-store-remote-orders',
             $this->render_orders_page(...)
@@ -87,7 +87,7 @@ class WC_Multi_Store_Remote_Order_Admin {
             check_admin_referer('bulk-remote_orders');
 
             if (!current_user_can('manage_woocommerce')) {
-                wp_die(__('You do not have permission to perform this action', 'wc-multi-store-sync'));
+                wp_die(__('You do not have permission to perform this action', 'multi-store-sync-for-woocommerce'));
             }
 
             $deleted = 0;
@@ -110,11 +110,11 @@ class WC_Multi_Store_Remote_Order_Admin {
             $nonce = $_GET['_wpnonce'] ?? '';
 
             if (!wp_verify_nonce($nonce, 'delete_remote_order_' . $order_id)) {
-                wp_die(__('Security check failed', 'wc-multi-store-sync'));
+                wp_die(__('Security check failed', 'multi-store-sync-for-woocommerce'));
             }
 
             if (!current_user_can('manage_woocommerce')) {
-                wp_die(__('You do not have permission to perform this action', 'wc-multi-store-sync'));
+                wp_die(__('You do not have permission to perform this action', 'multi-store-sync-for-woocommerce'));
             }
 
             if (WC_Multi_Store_Remote_Order_Table::delete($order_id)) {
@@ -154,7 +154,7 @@ class WC_Multi_Store_Remote_Order_Admin {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
-                    _n('%d order deleted.', '%d orders deleted.', $deleted, 'wc-multi-store-sync'),
+                    _n('%d order deleted.', '%d orders deleted.', $deleted, 'multi-store-sync-for-woocommerce'),
                     $deleted
                 )
             );
@@ -162,7 +162,7 @@ class WC_Multi_Store_Remote_Order_Admin {
 
         ?>
         <div class="wrap woocommerce">
-            <h1 class="wp-heading-inline"><?php _e('Remote Orders', 'wc-multi-store-sync'); ?></h1>
+            <h1 class="wp-heading-inline"><?php _e('Remote Orders', 'multi-store-sync-for-woocommerce'); ?></h1>
 
             <?php
             // Get statistics
@@ -171,19 +171,19 @@ class WC_Multi_Store_Remote_Order_Admin {
 
             <div class="wc-mss-stats-boxes">
                 <div class="wc-mss-stat-box">
-                    <span class="wc-mss-stat-label"><?php _e('Total Orders', 'wc-multi-store-sync'); ?></span>
+                    <span class="wc-mss-stat-label"><?php _e('Total Orders', 'multi-store-sync-for-woocommerce'); ?></span>
                     <span class="wc-mss-stat-value"><?php echo esc_html(number_format($stats['total_orders'] ?? 0)); ?></span>
                 </div>
                 <div class="wc-mss-stat-box">
-                    <span class="wc-mss-stat-label"><?php _e('Total Revenue', 'wc-multi-store-sync'); ?></span>
+                    <span class="wc-mss-stat-label"><?php _e('Total Revenue', 'multi-store-sync-for-woocommerce'); ?></span>
                     <span class="wc-mss-stat-value">$<?php echo esc_html(number_format($stats['total_revenue'] ?? 0, 2)); ?></span>
                 </div>
                 <div class="wc-mss-stat-box">
-                    <span class="wc-mss-stat-label"><?php _e('Avg Order Value', 'wc-multi-store-sync'); ?></span>
+                    <span class="wc-mss-stat-label"><?php _e('Avg Order Value', 'multi-store-sync-for-woocommerce'); ?></span>
                     <span class="wc-mss-stat-value">$<?php echo esc_html(number_format($stats['average_order_value'] ?? 0, 2)); ?></span>
                 </div>
                 <div class="wc-mss-stat-box">
-                    <span class="wc-mss-stat-label"><?php _e('Unique Customers', 'wc-multi-store-sync'); ?></span>
+                    <span class="wc-mss-stat-label"><?php _e('Unique Customers', 'multi-store-sync-for-woocommerce'); ?></span>
                     <span class="wc-mss-stat-value"><?php echo esc_html(number_format($stats['unique_customers'] ?? 0)); ?></span>
                 </div>
             </div>
@@ -206,7 +206,7 @@ class WC_Multi_Store_Remote_Order_Admin {
         $order = WC_Multi_Store_Remote_Order_Table::get($order_id);
 
         if (!$order) {
-            wp_die(__('Order not found', 'wc-multi-store-sync'));
+            wp_die(__('Order not found', 'multi-store-sync-for-woocommerce'));
         }
 
         $back_url = add_query_arg(['page' => 'wc-multi-store-remote-orders'], admin_url('admin.php'));
@@ -220,11 +220,11 @@ class WC_Multi_Store_Remote_Order_Admin {
         ?>
         <div class="wrap woocommerce">
             <h1 class="wp-heading-inline">
-                <?php printf(__('Remote Order #%s', 'wc-multi-store-sync'), esc_html($order->order_number)); ?>
+                <?php printf(__('Remote Order #%s', 'multi-store-sync-for-woocommerce'), esc_html($order->order_number)); ?>
             </h1>
 
             <a href="<?php echo esc_url($back_url); ?>" class="page-title-action">
-                ← <?php _e('Back to orders', 'wc-multi-store-sync'); ?>
+                ← <?php _e('Back to orders', 'multi-store-sync-for-woocommerce'); ?>
             </a>
 
             <hr class="wp-header-end">
@@ -235,7 +235,7 @@ class WC_Multi_Store_Remote_Order_Admin {
                     <div id="post-body-content">
                         <div class="postbox">
                             <div class="postbox-header">
-                                <h2><?php _e('Order Details', 'wc-multi-store-sync'); ?></h2>
+                                <h2><?php _e('Order Details', 'multi-store-sync-for-woocommerce'); ?></h2>
                             </div>
                             <div class="inside">
                                 <?php $this->render_order_items($order); ?>
@@ -267,10 +267,10 @@ class WC_Multi_Store_Remote_Order_Admin {
             <table class="woocommerce_order_items">
                 <thead>
                     <tr>
-                        <th class="item" colspan="2"><?php _e('Item', 'wc-multi-store-sync'); ?></th>
-                        <th class="item_cost"><?php _e('Cost', 'wc-multi-store-sync'); ?></th>
-                        <th class="quantity"><?php _e('Qty', 'wc-multi-store-sync'); ?></th>
-                        <th class="line_cost"><?php _e('Total', 'wc-multi-store-sync'); ?></th>
+                        <th class="item" colspan="2"><?php _e('Item', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th class="item_cost"><?php _e('Cost', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th class="quantity"><?php _e('Qty', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th class="line_cost"><?php _e('Total', 'multi-store-sync-for-woocommerce'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -287,7 +287,7 @@ class WC_Multi_Store_Remote_Order_Admin {
                                     <strong><?php echo esc_html($item->product_name); ?></strong>
                                     <?php if ($item->product_sku): ?>
                                         <div class="wc-order-item-sku">
-                                            <small><?php printf(__('SKU: %s', 'wc-multi-store-sync'), esc_html($item->product_sku)); ?></small>
+                                            <small><?php printf(__('SKU: %s', 'multi-store-sync-for-woocommerce'), esc_html($item->product_sku)); ?></small>
                                         </div>
                                     <?php endif; ?>
                                     <?php if (!empty($item->meta_data) && is_array($item->meta_data)): ?>
@@ -323,29 +323,29 @@ class WC_Multi_Store_Remote_Order_Admin {
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="4" class="label"><?php _e('Subtotal:', 'wc-multi-store-sync'); ?></td>
+                        <td colspan="4" class="label"><?php _e('Subtotal:', 'multi-store-sync-for-woocommerce'); ?></td>
                         <td class="total"><?php echo $this->format_price($order->subtotal, $order->currency); ?></td>
                     </tr>
                     <?php if ($order->shipping_total > 0): ?>
                         <tr>
-                            <td colspan="4" class="label"><?php _e('Shipping:', 'wc-multi-store-sync'); ?></td>
+                            <td colspan="4" class="label"><?php _e('Shipping:', 'multi-store-sync-for-woocommerce'); ?></td>
                             <td class="total"><?php echo $this->format_price($order->shipping_total, $order->currency); ?></td>
                         </tr>
                     <?php endif; ?>
                     <?php if ($order->discount_total > 0): ?>
                         <tr>
-                            <td colspan="4" class="label"><?php _e('Discount:', 'wc-multi-store-sync'); ?></td>
+                            <td colspan="4" class="label"><?php _e('Discount:', 'multi-store-sync-for-woocommerce'); ?></td>
                             <td class="total">-<?php echo $this->format_price($order->discount_total, $order->currency); ?></td>
                         </tr>
                     <?php endif; ?>
                     <?php if ($order->tax_total > 0): ?>
                         <tr>
-                            <td colspan="4" class="label"><?php _e('Tax:', 'wc-multi-store-sync'); ?></td>
+                            <td colspan="4" class="label"><?php _e('Tax:', 'multi-store-sync-for-woocommerce'); ?></td>
                             <td class="total"><?php echo $this->format_price($order->tax_total, $order->currency); ?></td>
                         </tr>
                     <?php endif; ?>
                     <tr>
-                        <td colspan="4" class="label"><strong><?php _e('Order Total:', 'wc-multi-store-sync'); ?></strong></td>
+                        <td colspan="4" class="label"><strong><?php _e('Order Total:', 'multi-store-sync-for-woocommerce'); ?></strong></td>
                         <td class="total"><strong><?php echo $this->format_price($order->total, $order->currency); ?></strong></td>
                     </tr>
                 </tfoot>
@@ -363,58 +363,58 @@ class WC_Multi_Store_Remote_Order_Admin {
         ?>
         <div class="postbox">
             <div class="postbox-header">
-                <h2><?php _e('Order Info', 'wc-multi-store-sync'); ?></h2>
+                <h2><?php _e('Order Info', 'multi-store-sync-for-woocommerce'); ?></h2>
             </div>
             <div class="inside">
                 <ul class="order_data">
                     <li>
-                        <strong><?php _e('Remote Order ID:', 'wc-multi-store-sync'); ?></strong>
+                        <strong><?php _e('Remote Order ID:', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <?php echo esc_html($order->remote_order_id); ?>
                     </li>
                     <li>
-                        <strong><?php _e('Order Number:', 'wc-multi-store-sync'); ?></strong>
+                        <strong><?php _e('Order Number:', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <?php echo esc_html($order->order_number); ?>
                     </li>
                     <li>
-                        <strong><?php _e('Store:', 'wc-multi-store-sync'); ?></strong>
+                        <strong><?php _e('Store:', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <a href="<?php echo esc_url($order->remote_store_url); ?>" target="_blank">
                             <?php echo esc_html(parse_url($order->remote_store_url, PHP_URL_HOST)); ?>
                         </a>
                     </li>
                     <li>
-                        <strong><?php _e('Status:', 'wc-multi-store-sync'); ?></strong>
+                        <strong><?php _e('Status:', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <?php echo esc_html(ucfirst(str_replace('wc-', '', $order->status))); ?>
                     </li>
                     <li>
-                        <strong><?php _e('Date Created:', 'wc-multi-store-sync'); ?></strong>
+                        <strong><?php _e('Date Created:', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <?php echo esc_html(date_i18n('F j, Y g:i a', strtotime($order->date_created))); ?>
                     </li>
                     <?php if ($order->date_paid): ?>
                         <li>
-                            <strong><?php _e('Date Paid:', 'wc-multi-store-sync'); ?></strong>
+                            <strong><?php _e('Date Paid:', 'multi-store-sync-for-woocommerce'); ?></strong>
                             <?php echo esc_html(date_i18n('F j, Y g:i a', strtotime($order->date_paid))); ?>
                         </li>
                     <?php endif; ?>
                     <?php if ($order->date_completed): ?>
                         <li>
-                            <strong><?php _e('Date Completed:', 'wc-multi-store-sync'); ?></strong>
+                            <strong><?php _e('Date Completed:', 'multi-store-sync-for-woocommerce'); ?></strong>
                             <?php echo esc_html(date_i18n('F j, Y g:i a', strtotime($order->date_completed))); ?>
                         </li>
                     <?php endif; ?>
                     <?php if ($order->payment_method): ?>
                         <li>
-                            <strong><?php _e('Payment Method:', 'wc-multi-store-sync'); ?></strong>
+                            <strong><?php _e('Payment Method:', 'multi-store-sync-for-woocommerce'); ?></strong>
                             <?php echo esc_html($order->payment_method_title ? $order->payment_method_title : $order->payment_method); ?>
                         </li>
                     <?php endif; ?>
                     <?php if ($order->transaction_id): ?>
                         <li>
-                            <strong><?php _e('Transaction ID:', 'wc-multi-store-sync'); ?></strong>
+                            <strong><?php _e('Transaction ID:', 'multi-store-sync-for-woocommerce'); ?></strong>
                             <?php echo esc_html($order->transaction_id); ?>
                         </li>
                     <?php endif; ?>
                     <li>
-                        <strong><?php _e('Synced At:', 'wc-multi-store-sync'); ?></strong>
+                        <strong><?php _e('Synced At:', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <?php echo esc_html(date_i18n('F j, Y g:i a', strtotime($order->synced_at))); ?>
                     </li>
                 </ul>
@@ -436,19 +436,19 @@ class WC_Multi_Store_Remote_Order_Admin {
         ?>
         <div class="postbox">
             <div class="postbox-header">
-                <h2><?php _e('Customer', 'wc-multi-store-sync'); ?></h2>
+                <h2><?php _e('Customer', 'multi-store-sync-for-woocommerce'); ?></h2>
             </div>
             <div class="inside">
                 <ul class="order_data">
                     <?php if ($order->customer_name): ?>
                         <li>
-                            <strong><?php _e('Name:', 'wc-multi-store-sync'); ?></strong>
+                            <strong><?php _e('Name:', 'multi-store-sync-for-woocommerce'); ?></strong>
                             <?php echo esc_html($order->customer_name); ?>
                         </li>
                     <?php endif; ?>
                     <?php if ($order->customer_email): ?>
                         <li>
-                            <strong><?php _e('Email:', 'wc-multi-store-sync'); ?></strong>
+                            <strong><?php _e('Email:', 'multi-store-sync-for-woocommerce'); ?></strong>
                             <a href="mailto:<?php echo esc_attr($order->customer_email); ?>">
                                 <?php echo esc_html($order->customer_email); ?>
                             </a>
@@ -474,7 +474,7 @@ class WC_Multi_Store_Remote_Order_Admin {
         ?>
         <div class="postbox">
             <div class="postbox-header">
-                <h2><?php _e('Billing Address', 'wc-multi-store-sync'); ?></h2>
+                <h2><?php _e('Billing Address', 'multi-store-sync-for-woocommerce'); ?></h2>
             </div>
             <div class="inside">
                 <div class="address">
@@ -499,7 +499,7 @@ class WC_Multi_Store_Remote_Order_Admin {
         ?>
         <div class="postbox">
             <div class="postbox-header">
-                <h2><?php _e('Shipping Address', 'wc-multi-store-sync'); ?></h2>
+                <h2><?php _e('Shipping Address', 'multi-store-sync-for-woocommerce'); ?></h2>
             </div>
             <div class="inside">
                 <div class="address">
@@ -550,11 +550,11 @@ class WC_Multi_Store_Remote_Order_Admin {
         }
 
         if (!empty($address['phone'])) {
-            $parts[] = __('Phone:', 'wc-multi-store-sync') . ' ' . $address['phone'];
+            $parts[] = __('Phone:', 'multi-store-sync-for-woocommerce') . ' ' . $address['phone'];
         }
 
         if (!empty($address['email'])) {
-            $parts[] = __('Email:', 'wc-multi-store-sync') . ' ' . $address['email'];
+            $parts[] = __('Email:', 'multi-store-sync-for-woocommerce') . ' ' . $address['email'];
         }
 
         return implode('<br>', array_map('esc_html', $parts));

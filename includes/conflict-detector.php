@@ -498,7 +498,7 @@ class WC_Multi_Store_Conflict_Detector {
      * AJAX handler: Get conflicts
      */
     public static function ajax_get_conflicts(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -524,7 +524,7 @@ class WC_Multi_Store_Conflict_Detector {
 
         foreach ($conflicts as &$conflict) {
             $product = $products_by_id[$conflict['local_product_id']] ?? null;
-            $conflict['product_name'] = $product ? $product->get_name() : __('(Product not found)', 'wc-multi-store-sync');
+            $conflict['product_name'] = $product ? $product->get_name() : __('(Product not found)', 'multi-store-sync-for-woocommerce');
             $conflict['product_sku']  = $product ? $product->get_sku() : '';
             $conflict['edit_url']     = $product ? get_edit_post_link($conflict['local_product_id']) : '';
         }
@@ -540,7 +540,7 @@ class WC_Multi_Store_Conflict_Detector {
      * AJAX handler: Resolve a conflict
      */
     public static function ajax_resolve_conflict(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -548,14 +548,14 @@ class WC_Multi_Store_Conflict_Detector {
         $resolution = sanitize_text_field($_POST['resolution'] ?? 'overwrite');
 
         if (!in_array($resolution, ['overwrite', 'keep_remote', 'merge'], true)) {
-            wp_send_json_error(['message' => __('Invalid resolution type', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid resolution type', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         if ($id > 0 && self::resolve_conflict($id, $resolution)) {
-            wp_send_json_success(['message' => __('Conflict resolved', 'wc-multi-store-sync')]);
+            wp_send_json_success(['message' => __('Conflict resolved', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Conflict not found', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Conflict not found', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -563,7 +563,7 @@ class WC_Multi_Store_Conflict_Detector {
      * AJAX handler: Resolve all conflicts
      */
     public static function ajax_resolve_all(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -573,7 +573,7 @@ class WC_Multi_Store_Conflict_Detector {
         $resolved = self::resolve_all($store_url, $resolution);
 
         wp_send_json_success([
-            'message'  => sprintf(__('%d conflict(s) resolved', 'wc-multi-store-sync'), $resolved),
+            'message'  => sprintf(__('%d conflict(s) resolved', 'multi-store-sync-for-woocommerce'), $resolved),
             'resolved' => $resolved,
         ]);
     }
@@ -582,7 +582,7 @@ class WC_Multi_Store_Conflict_Detector {
      * AJAX handler: Toggle conflict detection on/off
      */
     public static function ajax_toggle(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -591,8 +591,8 @@ class WC_Multi_Store_Conflict_Detector {
 
         wp_send_json_success([
             'message' => $enabled
-                ? __('Conflict detection enabled', 'wc-multi-store-sync')
-                : __('Conflict detection disabled', 'wc-multi-store-sync'),
+                ? __('Conflict detection enabled', 'multi-store-sync-for-woocommerce')
+                : __('Conflict detection disabled', 'multi-store-sync-for-woocommerce'),
             'enabled' => $enabled,
         ]);
     }

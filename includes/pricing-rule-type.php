@@ -22,12 +22,12 @@ enum WC_Multi_Store_Pricing_Rule_Type: string {
      */
     public function label(): string {
         return match ($this) {
-            self::NONE => __('No Price Adjustment', 'wc-multi-store-sync'),
-            self::FIXED => __('Fixed Amount (+$10, -$5)', 'wc-multi-store-sync'),
-            self::PERCENTAGE => __('Percentage (+15%, -10%)', 'wc-multi-store-sync'),
-            self::MULTIPLIER => __('Multiplier (1.15x, 0.90x)', 'wc-multi-store-sync'),
-            self::CURRENCY => __('Currency Conversion', 'wc-multi-store-sync'),
-            self::CUSTOM => __('Custom (via filter)', 'wc-multi-store-sync'),
+            self::NONE => __('No Price Adjustment', 'multi-store-sync-for-woocommerce'),
+            self::FIXED => __('Fixed Amount (+$10, -$5)', 'multi-store-sync-for-woocommerce'),
+            self::PERCENTAGE => __('Percentage (+15%, -10%)', 'multi-store-sync-for-woocommerce'),
+            self::MULTIPLIER => __('Multiplier (1.15x, 0.90x)', 'multi-store-sync-for-woocommerce'),
+            self::CURRENCY => __('Currency Conversion', 'multi-store-sync-for-woocommerce'),
+            self::CUSTOM => __('Custom (via filter)', 'multi-store-sync-for-woocommerce'),
         };
     }
 }

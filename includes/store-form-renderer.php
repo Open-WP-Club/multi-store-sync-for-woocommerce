@@ -35,7 +35,7 @@ class WC_Multi_Store_Store_Form_Renderer {
         <tr>
             <th scope="row">
                 <label for="<?php echo esc_attr($prefix); ?>store_url">
-                    <?php _e('Store URL', 'wc-multi-store-sync'); ?>
+                    <?php _e('Store URL', 'multi-store-sync-for-woocommerce'); ?>
                     <?php if (!$is_edit): ?><span class="required">*</span><?php endif; ?>
                 </label>
             </th>
@@ -44,14 +44,14 @@ class WC_Multi_Store_Store_Form_Renderer {
                        value="<?php echo esc_attr($store_url); ?>"
                        <?php if (!$is_edit): ?>placeholder="https://example.com"<?php endif; ?>>
                 <?php if (!$is_edit): ?>
-                <p class="description"><?php _e('Enter the full URL of your WooCommerce store', 'wc-multi-store-sync'); ?></p>
+                <p class="description"><?php _e('Enter the full URL of your WooCommerce store', 'multi-store-sync-for-woocommerce'); ?></p>
                 <?php endif; ?>
             </td>
         </tr>
         <tr>
             <th scope="row">
                 <label for="<?php echo esc_attr($prefix); ?>consumer_key">
-                    <?php _e('Consumer Key', 'wc-multi-store-sync'); ?>
+                    <?php _e('Consumer Key', 'multi-store-sync-for-woocommerce'); ?>
                     <?php if (!$is_edit): ?><span class="required">*</span><?php endif; ?>
                 </label>
             </th>
@@ -59,19 +59,19 @@ class WC_Multi_Store_Store_Form_Renderer {
                 <input type="password" name="consumer_key" id="<?php echo esc_attr($prefix); ?>consumer_key" class="regular-text"
                        autocomplete="off"
                        <?php echo !$is_edit ? 'required' : ''; ?>
-                       <?php if ($is_edit): ?>placeholder="<?php echo !empty($store['consumer_key'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'wc-multi-store-sync') : ''; ?>"<?php endif; ?>>
+                       <?php if ($is_edit): ?>placeholder="<?php echo !empty($store['consumer_key'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'multi-store-sync-for-woocommerce') : ''; ?>"<?php endif; ?>>
                 <button type="button" class="button button-small wc-mss-toggle-password">
-                    <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
+                    <?php _e('Show/Hide', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <?php if ($is_edit): ?>
-                <p class="description"><?php _e('Leave blank to keep the saved key, or enter a new one to replace it.', 'wc-multi-store-sync'); ?></p>
+                <p class="description"><?php _e('Leave blank to keep the saved key, or enter a new one to replace it.', 'multi-store-sync-for-woocommerce'); ?></p>
                 <?php endif; ?>
             </td>
         </tr>
         <tr>
             <th scope="row">
                 <label for="<?php echo esc_attr($prefix); ?>consumer_secret">
-                    <?php _e('Consumer Secret', 'wc-multi-store-sync'); ?>
+                    <?php _e('Consumer Secret', 'multi-store-sync-for-woocommerce'); ?>
                     <?php if (!$is_edit): ?><span class="required">*</span><?php endif; ?>
                 </label>
             </th>
@@ -79,23 +79,23 @@ class WC_Multi_Store_Store_Form_Renderer {
                 <input type="password" name="consumer_secret" id="<?php echo esc_attr($prefix); ?>consumer_secret" class="regular-text"
                        autocomplete="off"
                        <?php echo !$is_edit ? 'required' : ''; ?>
-                       <?php if ($is_edit): ?>placeholder="<?php echo !empty($store['consumer_secret'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'wc-multi-store-sync') : ''; ?>"<?php endif; ?>>
+                       <?php if ($is_edit): ?>placeholder="<?php echo !empty($store['consumer_secret'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'multi-store-sync-for-woocommerce') : ''; ?>"<?php endif; ?>>
                 <button type="button" class="button button-small wc-mss-toggle-password">
-                    <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
+                    <?php _e('Show/Hide', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <?php if ($is_edit): ?>
-                <p class="description"><?php _e('Leave blank to keep the saved secret, or enter a new one to replace it.', 'wc-multi-store-sync'); ?></p>
+                <p class="description"><?php _e('Leave blank to keep the saved secret, or enter a new one to replace it.', 'multi-store-sync-for-woocommerce'); ?></p>
                 <?php endif; ?>
             </td>
         </tr>
         <tr>
             <th scope="row">
-                <label for="<?php echo esc_attr($prefix); ?>status"><?php _e('Status', 'wc-multi-store-sync'); ?></label>
+                <label for="<?php echo esc_attr($prefix); ?>status"><?php _e('Status', 'multi-store-sync-for-woocommerce'); ?></label>
             </th>
             <td>
                 <select name="status" id="<?php echo esc_attr($prefix); ?>status">
-                    <option value="active" <?php echo $is_edit ? selected($store['status'] ?? '', 'active', false) : ''; ?>><?php _e('Active', 'wc-multi-store-sync'); ?></option>
-                    <option value="inactive" <?php echo $is_edit ? selected($store['status'] ?? '', 'inactive', false) : ''; ?>><?php _e('Inactive', 'wc-multi-store-sync'); ?></option>
+                    <option value="active" <?php echo $is_edit ? selected($store['status'] ?? '', 'active', false) : ''; ?>><?php _e('Active', 'multi-store-sync-for-woocommerce'); ?></option>
+                    <option value="inactive" <?php echo $is_edit ? selected($store['status'] ?? '', 'inactive', false) : ''; ?>><?php _e('Inactive', 'multi-store-sync-for-woocommerce'); ?></option>
                 </select>
             </td>
         </tr>
@@ -115,31 +115,31 @@ class WC_Multi_Store_Store_Form_Renderer {
         ?>
         <tr>
             <th scope="row" colspan="2">
-                <h3 style="margin:0;"><?php _e('Image Upload Credentials (Application Password)', 'wc-multi-store-sync'); ?></h3>
-                <p class="description" style="font-weight:normal;"><?php _e('Required for image sync when Image Proxy is enabled. WooCommerce API keys cannot upload media — use a WordPress Application Password instead. In the remote store: Users → Edit Admin → Application Passwords → create new.', 'wc-multi-store-sync'); ?></p>
+                <h3 style="margin:0;"><?php _e('Image Upload Credentials (Application Password)', 'multi-store-sync-for-woocommerce'); ?></h3>
+                <p class="description" style="font-weight:normal;"><?php _e('Required for image sync when Image Proxy is enabled. WooCommerce API keys cannot upload media — use a WordPress Application Password instead. In the remote store: Users → Edit Admin → Application Passwords → create new.', 'multi-store-sync-for-woocommerce'); ?></p>
             </th>
         </tr>
         <tr>
             <th scope="row">
-                <label for="<?php echo esc_attr($prefix); ?>wp_username"><?php _e('WordPress Username', 'wc-multi-store-sync'); ?></label>
+                <label for="<?php echo esc_attr($prefix); ?>wp_username"><?php _e('WordPress Username', 'multi-store-sync-for-woocommerce'); ?></label>
             </th>
             <td>
                 <input type="text" name="wp_username" id="<?php echo esc_attr($prefix); ?>wp_username" class="regular-text"
                        autocomplete="off"
                        <?php if ($is_edit): ?>value="<?php echo esc_attr($store['wp_username'] ?? ''); ?>"<?php endif; ?>>
-                <p class="description"><?php _e('Admin username on the remote store', 'wc-multi-store-sync'); ?></p>
+                <p class="description"><?php _e('Admin username on the remote store', 'multi-store-sync-for-woocommerce'); ?></p>
             </td>
         </tr>
         <tr>
             <th scope="row">
-                <label for="<?php echo esc_attr($prefix); ?>wp_app_password"><?php _e('Application Password', 'wc-multi-store-sync'); ?></label>
+                <label for="<?php echo esc_attr($prefix); ?>wp_app_password"><?php _e('Application Password', 'multi-store-sync-for-woocommerce'); ?></label>
             </th>
             <td>
                 <input type="password" name="wp_app_password" id="<?php echo esc_attr($prefix); ?>wp_app_password" class="regular-text"
                        autocomplete="off"
-                       <?php if ($is_edit): ?>placeholder="<?php echo !empty($store['wp_app_password'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'wc-multi-store-sync') : ''; ?>"<?php endif; ?>>
+                       <?php if ($is_edit): ?>placeholder="<?php echo !empty($store['wp_app_password'] ?? '') ? esc_attr__('Already set — leave blank to keep', 'multi-store-sync-for-woocommerce') : ''; ?>"<?php endif; ?>>
                 <button type="button" class="button button-small wc-mss-toggle-password">
-                    <?php _e('Show/Hide', 'wc-multi-store-sync'); ?>
+                    <?php _e('Show/Hide', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <?php if ($is_edit): ?>
                 <button type="button" class="button button-small" id="wc-mss-test-app-password-edit"
@@ -148,7 +148,7 @@ class WC_Multi_Store_Store_Form_Renderer {
                         data-password-field="edit_wp_app_password"
                         data-saved-username="<?php echo esc_attr($store['wp_username'] ?? ''); ?>"
                         data-has-saved-password="<?php echo !empty($store['wp_app_password'] ?? '') ? '1' : '0'; ?>">
-                    <?php _e('Test App Password', 'wc-multi-store-sync'); ?>
+                    <?php _e('Test App Password', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <span id="wc-mss-test-app-password-edit-result" style="margin-left: 8px;"></span>
                 <?php else: ?>
@@ -156,11 +156,11 @@ class WC_Multi_Store_Store_Form_Renderer {
                         data-store-url-field="store_url"
                         data-username-field="wp_username"
                         data-password-field="wp_app_password">
-                    <?php _e('Test App Password', 'wc-multi-store-sync'); ?>
+                    <?php _e('Test App Password', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <span id="wc-mss-test-app-password-result" style="margin-left: 8px;"></span>
                 <?php endif; ?>
-                <p class="description"><?php _e('The generated Application Password (spaces are OK)', 'wc-multi-store-sync'); ?></p>
+                <p class="description"><?php _e('The generated Application Password (spaces are OK)', 'multi-store-sync-for-woocommerce'); ?></p>
             </td>
         </tr>
         <?php
@@ -179,17 +179,17 @@ class WC_Multi_Store_Store_Form_Renderer {
         $purge_method = $is_edit ? ($store['cache_purge_method'] ?? 'GET') : 'GET';
         ?>
         <div class="wc-mss-exclusions-section" style="margin-bottom:16px;">
-            <h4><?php _e('Cache Purge', 'wc-multi-store-sync'); ?></h4>
+            <h4><?php _e('Cache Purge', 'multi-store-sync-for-woocommerce'); ?></h4>
             <p class="description">
-                <?php _e('After each successful sync, the plugin sends a request to this URL to clear the page cache on the remote store. Leave blank to disable.', 'wc-multi-store-sync'); ?>
+                <?php _e('After each successful sync, the plugin sends a request to this URL to clear the page cache on the remote store. Leave blank to disable.', 'multi-store-sync-for-woocommerce'); ?>
                 <br>
-                <?php _e('Placeholders: <code>{product_id}</code>, <code>{sku}</code>, <code>{remote_id}</code>', 'wc-multi-store-sync'); ?>
+                <?php _e('Placeholders: <code>{product_id}</code>, <code>{sku}</code>, <code>{remote_id}</code>', 'multi-store-sync-for-woocommerce'); ?>
                 <br>
-                <?php _e('Examples: WP Rocket — <code>https://remote.com/?action=rocket_clear_cache&nonce=KEY&post_id={remote_id}</code> &nbsp;|&nbsp; LiteSpeed — <code>https://remote.com/wp-json/litespeed/v1/purge</code> (POST)', 'wc-multi-store-sync'); ?>
+                <?php _e('Examples: WP Rocket — <code>https://remote.com/?action=rocket_clear_cache&nonce=KEY&post_id={remote_id}</code> &nbsp;|&nbsp; LiteSpeed — <code>https://remote.com/wp-json/litespeed/v1/purge</code> (POST)', 'multi-store-sync-for-woocommerce'); ?>
             </p>
             <table class="form-table" style="margin-top:8px;">
                 <tr>
-                    <th scope="row" style="width:140px;"><label for="<?php echo esc_attr($prefix); ?>cache_purge_url"><?php _e('Purge URL', 'wc-multi-store-sync'); ?></label></th>
+                    <th scope="row" style="width:140px;"><label for="<?php echo esc_attr($prefix); ?>cache_purge_url"><?php _e('Purge URL', 'multi-store-sync-for-woocommerce'); ?></label></th>
                     <td>
                         <input type="url" name="cache_purge_url" id="<?php echo esc_attr($prefix); ?>cache_purge_url" class="large-text"
                                value="<?php echo esc_attr($purge_url); ?>"
@@ -197,7 +197,7 @@ class WC_Multi_Store_Store_Form_Renderer {
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row"><label for="<?php echo esc_attr($prefix); ?>cache_purge_method"><?php _e('Method', 'wc-multi-store-sync'); ?></label></th>
+                    <th scope="row"><label for="<?php echo esc_attr($prefix); ?>cache_purge_method"><?php _e('Method', 'multi-store-sync-for-woocommerce'); ?></label></th>
                     <td>
                         <select name="cache_purge_method" id="<?php echo esc_attr($prefix); ?>cache_purge_method">
                             <option value="GET"  <?php echo selected($purge_method, 'GET', false); ?>>GET</option>
@@ -220,11 +220,11 @@ class WC_Multi_Store_Store_Form_Renderer {
     public static function render_sync_preview(string $prefix, int $synced_count, int $total_products): void {
         ?>
         <div class="wc-mss-sync-preview">
-            <strong><?php _e('Sync Preview:', 'wc-multi-store-sync'); ?></strong>
+            <strong><?php _e('Sync Preview:', 'multi-store-sync-for-woocommerce'); ?></strong>
             <span id="<?php echo esc_attr($prefix); ?>sync_preview">
                 <?php
                 printf(
-                    __('<strong style="color:#2271b1; font-size: 16px;">%d</strong> of %d products will be synced', 'wc-multi-store-sync'),
+                    __('<strong style="color:#2271b1; font-size: 16px;">%1$d</strong> of %2$d products will be synced', 'multi-store-sync-for-woocommerce'),
                     $synced_count,
                     $total_products
                 );
@@ -252,8 +252,8 @@ class WC_Multi_Store_Store_Form_Renderer {
         <p class="description"><?php echo esc_html($description); ?></p>
 
         <div class="wc-mss-select-actions">
-            <button type="button" class="button button-small" onclick="wcMssSelectAll('<?php echo esc_js($container_id); ?>')"><?php _e('Select All', 'wc-multi-store-sync'); ?></button>
-            <button type="button" class="button button-small" onclick="wcMssDeselectAll('<?php echo esc_js($container_id); ?>')"><?php _e('Deselect All', 'wc-multi-store-sync'); ?></button>
+            <button type="button" class="button button-small" onclick="wcMssSelectAll('<?php echo esc_js($container_id); ?>')"><?php _e('Select All', 'multi-store-sync-for-woocommerce'); ?></button>
+            <button type="button" class="button button-small" onclick="wcMssDeselectAll('<?php echo esc_js($container_id); ?>')"><?php _e('Deselect All', 'multi-store-sync-for-woocommerce'); ?></button>
             <span class="wc-mss-selected-count" data-target="<?php echo esc_attr($container_id); ?>">
                 <?php echo count($excluded); ?> selected
             </span>

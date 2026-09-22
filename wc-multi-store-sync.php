@@ -9,7 +9,7 @@
  * Author URI: https://gkanev.com
  * License: GPLv3 or later
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
- * Text Domain: wc-multi-store-sync
+ * Text Domain: multi-store-sync-for-woocommerce
  * Domain Path: /languages
  * Requires at least: 5.8
  * Tested up to: 7.1
@@ -168,7 +168,7 @@ class WC_Multi_Store_Sync {
     public function woocommerce_missing_notice() {
         ?>
         <div class="error">
-            <p><?php _e('WooCommerce Multi-Store Sync requires WooCommerce to be installed and active.', 'wc-multi-store-sync'); ?></p>
+            <p><?php _e('WooCommerce Multi-Store Sync requires WooCommerce to be installed and active.', 'multi-store-sync-for-woocommerce'); ?></p>
         </div>
         <?php
     }
@@ -602,7 +602,7 @@ class WC_Multi_Store_Sync {
      * Load plugin textdomain
      */
     public function load_textdomain() {
-        load_plugin_textdomain('wc-multi-store-sync', false, dirname(WC_MSS_PLUGIN_BASENAME) . '/languages');
+        load_plugin_textdomain('multi-store-sync-for-woocommerce', false, dirname(WC_MSS_PLUGIN_BASENAME) . '/languages');
     }
 
     /**
@@ -623,7 +623,7 @@ class WC_Multi_Store_Sync {
      * @return array
      */
     public function plugin_action_links($links) {
-        $settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=multi_store_sync') . '">' . __('Settings', 'wc-multi-store-sync') . '</a>';
+        $settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=multi_store_sync') . '">' . __('Settings', 'multi-store-sync-for-woocommerce') . '</a>';
         array_unshift($links, $settings_link);
         return $links;
     }

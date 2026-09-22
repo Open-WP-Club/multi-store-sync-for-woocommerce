@@ -421,7 +421,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -448,22 +448,22 @@ class WC_Multi_Store_Dead_Letter_Queue {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $id = (int) ($_POST['item_id'] ?? 0);
         if (!$id) {
-            wp_send_json_error(['message' => __('Invalid item ID.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid item ID.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $result = self::retry_item($id);
 
         if ($result) {
-            wp_send_json_success(['message' => __('Item re-queued for processing.', 'wc-multi-store-sync')]);
+            wp_send_json_success(['message' => __('Item re-queued for processing.', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Failed to retry item.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Failed to retry item.', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -474,14 +474,14 @@ class WC_Multi_Store_Dead_Letter_Queue {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $count = self::retry_all();
 
         wp_send_json_success([
-            'message' => sprintf(__('%d item(s) re-queued for processing.', 'wc-multi-store-sync'), $count),
+            'message' => sprintf(__('%d item(s) re-queued for processing.', 'multi-store-sync-for-woocommerce'), $count),
             'count' => $count,
         ]);
     }
@@ -493,22 +493,22 @@ class WC_Multi_Store_Dead_Letter_Queue {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $id = (int) ($_POST['item_id'] ?? 0);
         if (!$id) {
-            wp_send_json_error(['message' => __('Invalid item ID.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Invalid item ID.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $result = self::resolve_item($id);
 
         if ($result) {
-            wp_send_json_success(['message' => __('Item marked as resolved.', 'wc-multi-store-sync')]);
+            wp_send_json_success(['message' => __('Item marked as resolved.', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Failed to resolve item.', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Failed to resolve item.', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -519,14 +519,14 @@ class WC_Multi_Store_Dead_Letter_Queue {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $cleared = self::clear_all();
 
         wp_send_json_success([
-            'message' => sprintf(__('Cleared %d item(s) from dead letter queue.', 'wc-multi-store-sync'), $cleared),
+            'message' => sprintf(__('Cleared %d item(s) from dead letter queue.', 'multi-store-sync-for-woocommerce'), $cleared),
             'count' => $cleared,
         ]);
     }

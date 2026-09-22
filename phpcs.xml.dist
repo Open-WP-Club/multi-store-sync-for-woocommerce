@@ -9,11 +9,27 @@
     <arg name="cache" value=".phpcs.cache"/>
 
     <file>includes</file>
+    <file>admin</file>
     <file>wc-multi-store-sync.php</file>
 
     <!-- WPCS 3.x dropped the standalone "WordPress-Security" ruleset; the
          equivalent sniffs now live directly under these two categories. -->
     <rule ref="WordPress.Security"/>
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="multi-store-sync-for-woocommerce"/>
+            </property>
+        </properties>
+    </rule>
+    <rule ref="WordPress.Utils.I18nTextDomainFixer">
+        <properties>
+            <property name="old_text_domain" type="array">
+                <element value="wc-multi-store-sync"/>
+            </property>
+            <property name="new_text_domain" value="multi-store-sync-for-woocommerce"/>
+        </properties>
+    </rule>
     <rule ref="WordPress.DB">
         <!-- This plugin's sync-log/queue tables are custom, non-cached-by-WP-core
              tables by design (short-lived operational data) — WPCS's object-cache

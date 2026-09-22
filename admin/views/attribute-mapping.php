@@ -21,33 +21,38 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
 ?>
 
 <div class="wrap wc-mss-attribute-mapping-page">
-    <h1><?php _e('Attribute Mapping', 'wc-multi-store-sync'); ?></h1>
+    <h1><?php esc_html_e('Attribute Mapping', 'multi-store-sync-for-woocommerce'); ?></h1>
     <p class="description">
-        <?php _e('Map local attribute names and values to different names on a specific remote store — e.g. "Цвят" on your main store becomes "Color" on a store that sells in English. Leave a row unmapped to send the attribute as-is, or map it to "Skip" to leave it off that store entirely.', 'wc-multi-store-sync'); ?>
+        <?php esc_html_e('Map local attribute names and values to different names on a specific remote store — e.g. "Цвят" on your main store becomes "Color" on a store that sells in English. Leave a row unmapped to send the attribute as-is, or map it to "Skip" to leave it off that store entirely.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
     <?php if (!$mapping_enabled): ?>
         <div class="notice notice-warning inline">
             <p>
-                <?php printf(
-                    /* translators: %s: link to the Settings tab */
-                    __('Attribute Mapping is currently disabled, so mappings saved here will not be applied during sync. Enable it in %s.', 'wc-multi-store-sync'),
-                    '<a href="' . esc_url($settings_url) . '">' . __('Settings', 'wc-multi-store-sync') . '</a>'
-                ); ?>
+                <?php
+                echo wp_kses(
+                    sprintf(
+                        /* translators: %s: link to the Settings tab */
+                        __('Attribute Mapping is currently disabled, so mappings saved here will not be applied during sync. Enable it in %s.', 'multi-store-sync-for-woocommerce'),
+                        '<a href="' . esc_url($settings_url) . '">' . esc_html__('Settings', 'multi-store-sync-for-woocommerce') . '</a>'
+                    ),
+                    ['a' => ['href' => []]]
+                );
+                ?>
             </p>
         </div>
     <?php endif; ?>
 
     <?php if (empty($stores)): ?>
         <div class="notice notice-info inline">
-            <p><?php _e('No stores configured yet. Add a store first in the Stores tab.', 'wc-multi-store-sync'); ?></p>
+            <p><?php esc_html_e('No stores configured yet. Add a store first in the Stores tab.', 'multi-store-sync-for-woocommerce'); ?></p>
         </div>
     <?php else: ?>
 
         <div style="margin: 1rem 0;">
-            <label for="wc-mss-attr-map-store-select"><strong><?php _e('Store:', 'wc-multi-store-sync'); ?></strong></label>
+            <label for="wc-mss-attr-map-store-select"><strong><?php esc_html_e('Store:', 'multi-store-sync-for-woocommerce'); ?></strong></label>
             <select id="wc-mss-attr-map-store-select">
-                <option value=""><?php _e('— Select a store —', 'wc-multi-store-sync'); ?></option>
+                <option value=""><?php esc_html_e('— Select a store —', 'multi-store-sync-for-woocommerce'); ?></option>
                 <?php foreach ($stores as $url => $config): ?>
                     <option value="<?php echo esc_attr($url); ?>">
                         <?php echo esc_html($config['name'] ?? $url); ?>
@@ -56,41 +61,41 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
             </select>
         </div>
 
-        <div id="wc-mss-attr-map-loading" style="display:none;"><p><?php _e('Loading…', 'wc-multi-store-sync'); ?></p></div>
+        <div id="wc-mss-attr-map-loading" style="display:none;"><p><?php esc_html_e('Loading…', 'multi-store-sync-for-woocommerce'); ?></p></div>
 
         <div id="wc-mss-attr-map-tables" style="display:none;">
-            <h2><?php _e('Attribute Name Mapping', 'wc-multi-store-sync'); ?></h2>
+            <h2><?php esc_html_e('Attribute Name Mapping', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="wp-list-table widefat fixed striped" id="wc-mss-attr-map-name-table">
                 <thead>
                     <tr>
-                        <th><?php _e('Local Attribute', 'wc-multi-store-sync'); ?></th>
-                        <th><?php _e('Maps To', 'wc-multi-store-sync'); ?></th>
+                        <th><?php esc_html_e('Local Attribute', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Maps To', 'multi-store-sync-for-woocommerce'); ?></th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
             <p>
                 <button type="button" class="button button-primary" id="wc-mss-attr-map-save-names">
-                    <?php _e('Save Name Mappings', 'wc-multi-store-sync'); ?>
+                    <?php esc_html_e('Save Name Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <span class="wc-mss-attr-map-save-status" data-for="names"></span>
             </p>
 
-            <h2><?php _e('Attribute Value Mapping', 'wc-multi-store-sync'); ?></h2>
+            <h2><?php esc_html_e('Attribute Value Mapping', 'multi-store-sync-for-woocommerce'); ?></h2>
             <p class="description">
-                <?php _e('Expand an attribute below to map its individual values (e.g. "Червен" → "Red").', 'wc-multi-store-sync'); ?>
+                <?php esc_html_e('Expand an attribute below to map its individual values (e.g. "Червен" → "Red").', 'multi-store-sync-for-woocommerce'); ?>
             </p>
             <div id="wc-mss-attr-map-value-groups"></div>
             <p>
                 <button type="button" class="button button-primary" id="wc-mss-attr-map-save-values">
-                    <?php _e('Save Value Mappings', 'wc-multi-store-sync'); ?>
+                    <?php esc_html_e('Save Value Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <span class="wc-mss-attr-map-save-status" data-for="values"></span>
             </p>
         </div>
 
         <div id="wc-mss-attr-map-empty" style="display:none;">
-            <p class="description"><?php _e('This store has no local product attributes to map.', 'wc-multi-store-sync'); ?></p>
+            <p class="description"><?php esc_html_e('This store has no local product attributes to map.', 'multi-store-sync-for-woocommerce'); ?></p>
         </div>
 
     <?php endif; ?>

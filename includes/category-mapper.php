@@ -30,7 +30,7 @@ class WC_Multi_Store_Category_Mapper {
      * @return string
      */
     public static function feature_label(): string {
-        return __('Category mapping', 'wc-multi-store-sync');
+        return __('Category mapping', 'multi-store-sync-for-woocommerce');
     }
 
     /**
@@ -319,7 +319,7 @@ class WC_Multi_Store_Category_Mapper {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -328,7 +328,7 @@ class WC_Multi_Store_Category_Mapper {
         $mapping_type = sanitize_text_field($_POST['mapping_type'] ?? 'category');
 
         if (empty($store_url)) {
-            wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -347,7 +347,7 @@ class WC_Multi_Store_Category_Mapper {
 
         wp_send_json_success([
             'message' => sprintf(
-                __('%d %s mapping(s) saved for store', 'wc-multi-store-sync'),
+                __('%1$d %2$s mapping(s) saved for store', 'multi-store-sync-for-woocommerce'),
                 count($mappings),
                 $mapping_type
             ),
@@ -363,14 +363,14 @@ class WC_Multi_Store_Category_Mapper {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         $store_url = sanitize_text_field($_POST['store_url'] ?? '');
 
         if (empty($store_url)) {
-            wp_send_json_error(['message' => __('Store URL is required', 'wc-multi-store-sync')]);
+            wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 

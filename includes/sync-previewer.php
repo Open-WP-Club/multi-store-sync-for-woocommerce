@@ -48,7 +48,7 @@ class WC_Multi_Store_Sync_Previewer {
         if (!$product) {
             return [
                 'success' => false,
-                'message' => __('Product not found', 'wc-multi-store-sync'),
+                'message' => __('Product not found', 'multi-store-sync-for-woocommerce'),
             ];
         }
 
@@ -329,7 +329,7 @@ class WC_Multi_Store_Sync_Previewer {
                     'field' => 'stock_quantity',
                     'type' => 'warning',
                     'message' => sprintf(
-                        __('Remote stock (%d) is higher than local stock (%d). Syncing will reduce remote stock.', 'wc-multi-store-sync'),
+                        __('Remote stock (%1$d) is higher than local stock (%2$d). Syncing will reduce remote stock.', 'multi-store-sync-for-woocommerce'),
                         $remote_product['stock_quantity'],
                         $sync_data['stock_quantity']
                     ),
@@ -345,7 +345,7 @@ class WC_Multi_Store_Sync_Previewer {
                     'field' => 'regular_price',
                     'type' => 'warning',
                     'message' => sprintf(
-                        __('Price difference is significant: Remote: %s, Local: %s (%d%% change)', 'wc-multi-store-sync'),
+                        __('Price difference is significant: Remote: %1$s, Local: %2$s (%3$d%% change)', 'multi-store-sync-for-woocommerce'),
                         wc_price($remote_product['regular_price']),
                         wc_price($sync_data['regular_price']),
                         round($price_diff_percent)
@@ -369,17 +369,17 @@ class WC_Multi_Store_Sync_Previewer {
         }
 
         $html = '<div class="wc-mss-preview">';
-        $html .= '<h3>' . sprintf(__('Preview: %s', 'wc-multi-store-sync'), esc_html($preview['store_name'])) . '</h3>';
+        $html .= '<h3>' . sprintf(__('Preview: %s', 'multi-store-sync-for-woocommerce'), esc_html($preview['store_name'])) . '</h3>';
 
         // Action
-        $html .= '<p><strong>' . __('Action:', 'wc-multi-store-sync') . '</strong> ';
-        $html .= $preview['action'] === 'create' ? __('Create new product', 'wc-multi-store-sync') : __('Update existing product', 'wc-multi-store-sync');
+        $html .= '<p><strong>' . __('Action:', 'multi-store-sync-for-woocommerce') . '</strong> ';
+        $html .= $preview['action'] === 'create' ? __('Create new product', 'multi-store-sync-for-woocommerce') : __('Update existing product', 'multi-store-sync-for-woocommerce');
         $html .= '</p>';
 
         // Conflicts
         if (!empty($preview['conflicts'])) {
             $html .= '<div class="wc-mss-preview-conflicts">';
-            $html .= '<h4>' . __('⚠️ Warnings:', 'wc-multi-store-sync') . '</h4>';
+            $html .= '<h4>' . __('⚠️ Warnings:', 'multi-store-sync-for-woocommerce') . '</h4>';
             foreach ($preview['conflicts'] as $conflict) {
                 $html .= '<div class="wc-mss-conflict wc-mss-conflict-' . esc_attr($conflict['type']) . '">';
                 $html .= esc_html($conflict['message']);
@@ -391,9 +391,9 @@ class WC_Multi_Store_Sync_Previewer {
         // Changes
         if (!empty($preview['changes'])) {
             $html .= '<div class="wc-mss-preview-changes">';
-            $html .= '<h4>' . __('Changes:', 'wc-multi-store-sync') . '</h4>';
+            $html .= '<h4>' . __('Changes:', 'multi-store-sync-for-woocommerce') . '</h4>';
             $html .= '<table class="wc-mss-preview-table">';
-            $html .= '<thead><tr><th>' . __('Field', 'wc-multi-store-sync') . '</th><th>' . __('Before', 'wc-multi-store-sync') . '</th><th>' . __('After', 'wc-multi-store-sync') . '</th></tr></thead>';
+            $html .= '<thead><tr><th>' . __('Field', 'multi-store-sync-for-woocommerce') . '</th><th>' . __('Before', 'multi-store-sync-for-woocommerce') . '</th><th>' . __('After', 'multi-store-sync-for-woocommerce') . '</th></tr></thead>';
             $html .= '<tbody>';
 
             foreach ($preview['changes'] as $field => $change) {
@@ -407,7 +407,7 @@ class WC_Multi_Store_Sync_Previewer {
             $html .= '</tbody></table>';
             $html .= '</div>';
         } else {
-            $html .= '<p class="wc-mss-no-changes">' . __('No changes detected.', 'wc-multi-store-sync') . '</p>';
+            $html .= '<p class="wc-mss-no-changes">' . __('No changes detected.', 'multi-store-sync-for-woocommerce') . '</p>';
         }
 
         $html .= '</div>';
@@ -423,14 +423,14 @@ class WC_Multi_Store_Sync_Previewer {
      */
     private function format_field_name(string $field): string {
         $names = [
-            'name' => __('Name', 'wc-multi-store-sync'),
-            'regular_price' => __('Regular Price', 'wc-multi-store-sync'),
-            'sale_price' => __('Sale Price', 'wc-multi-store-sync'),
-            'stock_quantity' => __('Stock Quantity', 'wc-multi-store-sync'),
-            'stock_status' => __('Stock Status', 'wc-multi-store-sync'),
-            'sku' => __('SKU', 'wc-multi-store-sync'),
-            'description' => __('Description', 'wc-multi-store-sync'),
-            'short_description' => __('Short Description', 'wc-multi-store-sync'),
+            'name' => __('Name', 'multi-store-sync-for-woocommerce'),
+            'regular_price' => __('Regular Price', 'multi-store-sync-for-woocommerce'),
+            'sale_price' => __('Sale Price', 'multi-store-sync-for-woocommerce'),
+            'stock_quantity' => __('Stock Quantity', 'multi-store-sync-for-woocommerce'),
+            'stock_status' => __('Stock Status', 'multi-store-sync-for-woocommerce'),
+            'sku' => __('SKU', 'multi-store-sync-for-woocommerce'),
+            'description' => __('Description', 'multi-store-sync-for-woocommerce'),
+            'short_description' => __('Short Description', 'multi-store-sync-for-woocommerce'),
         ];
 
         return $names[$field] ?? ucwords(str_replace('_', ' ', $field));
@@ -445,7 +445,7 @@ class WC_Multi_Store_Sync_Previewer {
      */
     private function format_field_value(string $field, mixed $value): string {
         if ($value === null || $value === '') {
-            return __('(empty)', 'wc-multi-store-sync');
+            return __('(empty)', 'multi-store-sync-for-woocommerce');
         }
 
         if (in_array($field, ['regular_price', 'sale_price'])) {
@@ -453,7 +453,7 @@ class WC_Multi_Store_Sync_Previewer {
         }
 
         if (is_bool($value)) {
-            return $value ? __('Yes', 'wc-multi-store-sync') : __('No', 'wc-multi-store-sync');
+            return $value ? __('Yes', 'multi-store-sync-for-woocommerce') : __('No', 'multi-store-sync-for-woocommerce');
         }
 
         if (is_array($value)) {

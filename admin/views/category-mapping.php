@@ -20,33 +20,38 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
 ?>
 
 <div class="wrap wc-mss-category-mapping-page">
-    <h1><?php _e('Category & Tag Mapping', 'wc-multi-store-sync'); ?></h1>
+    <h1><?php esc_html_e('Category & Tag Mapping', 'multi-store-sync-for-woocommerce'); ?></h1>
     <p class="description">
-        <?php _e('Map local categories and tags to different names on a specific remote store — e.g. "Дрехи" on your main store becomes "Clothing" on a store that sells in English. Leave a row unmapped to send the category/tag as-is, or map it to "Skip" to leave it off that store entirely.', 'wc-multi-store-sync'); ?>
+        <?php esc_html_e('Map local categories and tags to different names on a specific remote store — e.g. "Дрехи" on your main store becomes "Clothing" on a store that sells in English. Leave a row unmapped to send the category/tag as-is, or map it to "Skip" to leave it off that store entirely.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
     <?php if (!$mapping_enabled): ?>
         <div class="notice notice-warning inline">
             <p>
-                <?php printf(
-                    /* translators: %s: link to the Settings tab */
-                    __('Category Mapping is currently disabled, so mappings saved here will not be applied during sync. Enable it in %s.', 'wc-multi-store-sync'),
-                    '<a href="' . esc_url($settings_url) . '">' . __('Settings', 'wc-multi-store-sync') . '</a>'
-                ); ?>
+                <?php
+                echo wp_kses(
+                    sprintf(
+                        /* translators: %s: link to the Settings tab */
+                        __('Category Mapping is currently disabled, so mappings saved here will not be applied during sync. Enable it in %s.', 'multi-store-sync-for-woocommerce'),
+                        '<a href="' . esc_url($settings_url) . '">' . esc_html__('Settings', 'multi-store-sync-for-woocommerce') . '</a>'
+                    ),
+                    ['a' => ['href' => []]]
+                );
+                ?>
             </p>
         </div>
     <?php endif; ?>
 
     <?php if (empty($stores)): ?>
         <div class="notice notice-info inline">
-            <p><?php _e('No stores configured yet. Add a store first in the Stores tab.', 'wc-multi-store-sync'); ?></p>
+            <p><?php esc_html_e('No stores configured yet. Add a store first in the Stores tab.', 'multi-store-sync-for-woocommerce'); ?></p>
         </div>
     <?php else: ?>
 
         <div style="margin: 1rem 0;">
-            <label for="wc-mss-map-store-select"><strong><?php _e('Store:', 'wc-multi-store-sync'); ?></strong></label>
+            <label for="wc-mss-map-store-select"><strong><?php esc_html_e('Store:', 'multi-store-sync-for-woocommerce'); ?></strong></label>
             <select id="wc-mss-map-store-select">
-                <option value=""><?php _e('— Select a store —', 'wc-multi-store-sync'); ?></option>
+                <option value=""><?php esc_html_e('— Select a store —', 'multi-store-sync-for-woocommerce'); ?></option>
                 <?php foreach ($stores as $url => $config): ?>
                     <option value="<?php echo esc_attr($url); ?>">
                         <?php echo esc_html($config['name'] ?? $url); ?>
@@ -55,46 +60,46 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
             </select>
         </div>
 
-        <div id="wc-mss-map-loading" style="display:none;"><p><?php _e('Loading…', 'wc-multi-store-sync'); ?></p></div>
+        <div id="wc-mss-map-loading" style="display:none;"><p><?php esc_html_e('Loading…', 'multi-store-sync-for-woocommerce'); ?></p></div>
 
         <div id="wc-mss-map-tables" style="display:none;">
-            <h2><?php _e('Category Mapping', 'wc-multi-store-sync'); ?></h2>
+            <h2><?php esc_html_e('Category Mapping', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="wp-list-table widefat fixed striped" id="wc-mss-map-category-table">
                 <thead>
                     <tr>
-                        <th><?php _e('Local Category', 'wc-multi-store-sync'); ?></th>
-                        <th><?php _e('Maps To', 'wc-multi-store-sync'); ?></th>
+                        <th><?php esc_html_e('Local Category', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Maps To', 'multi-store-sync-for-woocommerce'); ?></th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
             <p>
                 <button type="button" class="button button-primary" id="wc-mss-map-save-categories">
-                    <?php _e('Save Category Mappings', 'wc-multi-store-sync'); ?>
+                    <?php esc_html_e('Save Category Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <span class="wc-mss-map-save-status" data-for="categories"></span>
             </p>
 
-            <h2><?php _e('Tag Mapping', 'wc-multi-store-sync'); ?></h2>
+            <h2><?php esc_html_e('Tag Mapping', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="wp-list-table widefat fixed striped" id="wc-mss-map-tag-table">
                 <thead>
                     <tr>
-                        <th><?php _e('Local Tag', 'wc-multi-store-sync'); ?></th>
-                        <th><?php _e('Maps To', 'wc-multi-store-sync'); ?></th>
+                        <th><?php esc_html_e('Local Tag', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Maps To', 'multi-store-sync-for-woocommerce'); ?></th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
             <p>
                 <button type="button" class="button button-primary" id="wc-mss-map-save-tags">
-                    <?php _e('Save Tag Mappings', 'wc-multi-store-sync'); ?>
+                    <?php esc_html_e('Save Tag Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <span class="wc-mss-map-save-status" data-for="tags"></span>
             </p>
         </div>
 
         <div id="wc-mss-map-empty" style="display:none;">
-            <p class="description"><?php _e('This store has no local categories or tags to map.', 'wc-multi-store-sync'); ?></p>
+            <p class="description"><?php esc_html_e('This store has no local categories or tags to map.', 'multi-store-sync-for-woocommerce'); ?></p>
         </div>
 
     <?php endif; ?>

@@ -39,7 +39,7 @@ class WC_Multi_Store_Product_Edit {
     public function add_sync_metabox(): void {
         add_meta_box(
             'wc_multi_store_sync_actions',
-            __('Multi-Store Sync', 'wc-multi-store-sync'),
+            __('Multi-Store Sync', 'multi-store-sync-for-woocommerce'),
             $this->render_sync_metabox(...),
             'product',
             'side',
@@ -62,45 +62,45 @@ class WC_Multi_Store_Product_Edit {
         <div class="wc-mss-sync-actions">
             <?php if ($store_count === 0): ?>
                 <p style="color: #d63638;">
-                    <?php _e('No active stores configured.', 'wc-multi-store-sync'); ?>
+                    <?php _e('No active stores configured.', 'multi-store-sync-for-woocommerce'); ?>
                 </p>
                 <p>
                     <a href="<?php echo admin_url('admin.php?page=wc-multi-store-sync-stores'); ?>">
-                        <?php _e('Configure Stores', 'wc-multi-store-sync'); ?>
+                        <?php _e('Configure Stores', 'multi-store-sync-for-woocommerce'); ?>
                     </a>
                 </p>
             <?php else: ?>
                 <p>
                     <?php printf(
-                        __('Sync this product to %d active store(s).', 'wc-multi-store-sync'),
+                        __('Sync this product to %d active store(s).', 'multi-store-sync-for-woocommerce'),
                         $store_count
                     ); ?>
                 </p>
 
                 <?php if ($is_queued): ?>
                     <div class="wc-mss-queue-notice" style="background: #fff3cd; padding: 10px; margin-bottom: 10px; border-left: 3px solid #ffc107;">
-                        <strong><?php _e('⏱ Queued for sync', 'wc-multi-store-sync'); ?></strong>
+                        <strong><?php _e('⏱ Queued for sync', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <p style="margin: 5px 0 0 0; font-size: 12px;">
-                            <?php _e('This product is in the sync queue and will be processed soon.', 'wc-multi-store-sync'); ?>
+                            <?php _e('This product is in the sync queue and will be processed soon.', 'multi-store-sync-for-woocommerce'); ?>
                         </p>
                     </div>
                 <?php endif; ?>
 
                 <div class="wc-mss-sync-buttons">
                     <button type="button" class="button button-primary wc-mss-sync-btn" data-product-id="<?php echo esc_attr($product_id); ?>" data-sync-type="full_product">
-                        <?php _e('🔄 Full Sync', 'wc-multi-store-sync'); ?>
+                        <?php _e('🔄 Full Sync', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
 
                     <button type="button" class="button wc-mss-sync-btn" data-product-id="<?php echo esc_attr($product_id); ?>" data-sync-type="price_quantity">
-                        <?php _e('💰 Price & Stock', 'wc-multi-store-sync'); ?>
+                        <?php _e('💰 Price & Stock', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
 
                     <button type="button" class="button wc-mss-sync-btn" data-product-id="<?php echo esc_attr($product_id); ?>" data-sync-type="quantity">
-                        <?php _e('📦 Stock Only', 'wc-multi-store-sync'); ?>
+                        <?php _e('📦 Stock Only', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
 
                     <button type="button" class="button wc-mss-preview-btn" data-product-id="<?php echo esc_attr($product_id); ?>" style="margin-top: 10px;">
-                        <?php _e('👁️ Preview Changes', 'wc-multi-store-sync'); ?>
+                        <?php _e('👁️ Preview Changes', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
                 </div>
 
@@ -108,10 +108,10 @@ class WC_Multi_Store_Product_Edit {
                 <div class="wc-mss-preview-result" style="margin-top: 10px; display: none;"></div>
 
                 <p style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
-                    <strong><?php _e('Sync Types:', 'wc-multi-store-sync'); ?></strong><br>
-                    <strong><?php _e('Full Sync:', 'wc-multi-store-sync'); ?></strong> <?php _e('All product data', 'wc-multi-store-sync'); ?><br>
-                    <strong><?php _e('Price & Stock:', 'wc-multi-store-sync'); ?></strong> <?php _e('Pricing and inventory only', 'wc-multi-store-sync'); ?><br>
-                    <strong><?php _e('Stock Only:', 'wc-multi-store-sync'); ?></strong> <?php _e('Inventory only (fastest)', 'wc-multi-store-sync'); ?>
+                    <strong><?php _e('Sync Types:', 'multi-store-sync-for-woocommerce'); ?></strong><br>
+                    <strong><?php _e('Full Sync:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php _e('All product data', 'multi-store-sync-for-woocommerce'); ?><br>
+                    <strong><?php _e('Price & Stock:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php _e('Pricing and inventory only', 'multi-store-sync-for-woocommerce'); ?><br>
+                    <strong><?php _e('Stock Only:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php _e('Inventory only (fastest)', 'multi-store-sync-for-woocommerce'); ?>
                 </p>
             <?php endif; ?>
         </div>
@@ -124,7 +124,7 @@ class WC_Multi_Store_Product_Edit {
     public function add_store_deletion_metabox(): void {
         add_meta_box(
             'wc_multi_store_deletion_settings',
-            __('Selective Store Deletion', 'wc-multi-store-sync'),
+            __('Selective Store Deletion', 'multi-store-sync-for-woocommerce'),
             $this->render_store_deletion_metabox(...),
             'product',
             'side',
@@ -144,7 +144,7 @@ class WC_Multi_Store_Product_Edit {
         if (empty($stores)) {
             ?>
             <p style="color: #666;">
-                <?php _e('No active stores configured.', 'wc-multi-store-sync'); ?>
+                <?php _e('No active stores configured.', 'multi-store-sync-for-woocommerce'); ?>
             </p>
             <?php
             return;
@@ -162,7 +162,7 @@ class WC_Multi_Store_Product_Edit {
         ?>
         <div class="wc-mss-store-deletion">
             <p style="margin-bottom: 10px; color: #666;">
-                <?php _e('Choose which stores to delete this product from when deleted locally:', 'wc-multi-store-sync'); ?>
+                <?php _e('Choose which stores to delete this product from when deleted locally:', 'multi-store-sync-for-woocommerce'); ?>
             </p>
 
             <?php foreach ($stores as $store_url => $store_config): ?>
@@ -181,8 +181,8 @@ class WC_Multi_Store_Product_Edit {
             <?php endforeach; ?>
 
             <p style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
-                <strong><?php _e('Note:', 'wc-multi-store-sync'); ?></strong>
-                <?php _e('These settings override the global deletion settings for this product only.', 'wc-multi-store-sync'); ?>
+                <strong><?php _e('Note:', 'multi-store-sync-for-woocommerce'); ?></strong>
+                <?php _e('These settings override the global deletion settings for this product only.', 'multi-store-sync-for-woocommerce'); ?>
             </p>
         </div>
         <?php
@@ -253,7 +253,7 @@ class WC_Multi_Store_Product_Edit {
         // Check general permissions
         if (!current_user_can('edit_products')) {
             wp_send_json_error([
-                'message' => __('You do not have permission to sync products.', 'wc-multi-store-sync'),
+                'message' => __('You do not have permission to sync products.', 'multi-store-sync-for-woocommerce'),
             ]);
             return;
         }
@@ -263,7 +263,7 @@ class WC_Multi_Store_Product_Edit {
 
         if (!$product_id) {
             wp_send_json_error([
-                'message' => __('Invalid product ID.', 'wc-multi-store-sync'),
+                'message' => __('Invalid product ID.', 'multi-store-sync-for-woocommerce'),
             ]);
             return;
         }
@@ -271,7 +271,7 @@ class WC_Multi_Store_Product_Edit {
         // Check specific product permission
         if (!current_user_can('edit_post', $product_id)) {
             wp_send_json_error([
-                'message' => __('You do not have permission to edit this product.', 'wc-multi-store-sync'),
+                'message' => __('You do not have permission to edit this product.', 'multi-store-sync-for-woocommerce'),
             ]);
             return;
         }
@@ -280,7 +280,7 @@ class WC_Multi_Store_Product_Edit {
         $product = wc_get_product($product_id);
         if (!$product) {
             wp_send_json_error([
-                'message' => __('Product not found.', 'wc-multi-store-sync'),
+                'message' => __('Product not found.', 'multi-store-sync-for-woocommerce'),
             ]);
             return;
         }
@@ -289,7 +289,7 @@ class WC_Multi_Store_Product_Edit {
         $stores = WC_Multi_Store_Settings::get_active_stores();
         if (empty($stores)) {
             wp_send_json_error([
-                'message' => __('No active stores configured.', 'wc-multi-store-sync'),
+                'message' => __('No active stores configured.', 'multi-store-sync-for-woocommerce'),
             ]);
             return;
         }
@@ -307,7 +307,7 @@ class WC_Multi_Store_Product_Edit {
         if ($queued_count > 0) {
             wp_send_json_success([
                 'message' => sprintf(
-                    __('Product queued for sync to %d store(s). Sync will be processed shortly.', 'wc-multi-store-sync'),
+                    __('Product queued for sync to %d store(s). Sync will be processed shortly.', 'multi-store-sync-for-woocommerce'),
                     $queued_count
                 ),
                 'queued' => true,
@@ -315,7 +315,7 @@ class WC_Multi_Store_Product_Edit {
             ]);
         } else {
             wp_send_json_error([
-                'message' => __('Failed to queue product for sync. Check logs for details.', 'wc-multi-store-sync'),
+                'message' => __('Failed to queue product for sync. Check logs for details.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
     }
@@ -330,7 +330,7 @@ class WC_Multi_Store_Product_Edit {
         // Check general permissions
         if (!current_user_can('edit_products')) {
             wp_send_json_error([
-                'message' => __('You do not have permission to preview sync.', 'wc-multi-store-sync'),
+                'message' => __('You do not have permission to preview sync.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
 
@@ -339,14 +339,14 @@ class WC_Multi_Store_Product_Edit {
 
         if (!$product_id) {
             wp_send_json_error([
-                'message' => __('Invalid product ID.', 'wc-multi-store-sync'),
+                'message' => __('Invalid product ID.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
 
         // Check specific product permission
         if (!current_user_can('edit_post', $product_id)) {
             wp_send_json_error([
-                'message' => __('You do not have permission to view this product.', 'wc-multi-store-sync'),
+                'message' => __('You do not have permission to view this product.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
 
@@ -354,7 +354,7 @@ class WC_Multi_Store_Product_Edit {
         $product = wc_get_product($product_id);
         if (!$product) {
             wp_send_json_error([
-                'message' => __('Product not found.', 'wc-multi-store-sync'),
+                'message' => __('Product not found.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
 
@@ -362,7 +362,7 @@ class WC_Multi_Store_Product_Edit {
         $stores = WC_Multi_Store_Settings::get_active_stores();
         if (empty($stores)) {
             wp_send_json_error([
-                'message' => __('No active stores configured.', 'wc-multi-store-sync'),
+                'message' => __('No active stores configured.', 'multi-store-sync-for-woocommerce'),
             ]);
         }
 
@@ -381,10 +381,10 @@ class WC_Multi_Store_Product_Edit {
             $html .= '</div>';
             $html .= '<div class="wc-mss-preview-actions" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd;">';
             $html .= '<button type="button" class="button button-primary wc-mss-execute-sync" data-product-id="' . esc_attr($product_id) . '" data-sync-type="' . esc_attr($sync_type) . '">';
-            $html .= __('✓ Proceed with Sync', 'wc-multi-store-sync');
+            $html .= __('✓ Proceed with Sync', 'multi-store-sync-for-woocommerce');
             $html .= '</button> ';
             $html .= '<button type="button" class="button wc-mss-cancel-preview">';
-            $html .= __('✗ Cancel', 'wc-multi-store-sync');
+            $html .= __('✗ Cancel', 'multi-store-sync-for-woocommerce');
             $html .= '</button>';
             $html .= '</div>';
 
@@ -430,13 +430,13 @@ class WC_Multi_Store_Product_Edit {
             'syncNonce' => wp_create_nonce('wc_mss_sync_product'),
             'previewNonce' => wp_create_nonce('wc_mss_preview_sync'),
             'i18n' => [
-                'syncing' => __('Syncing...', 'wc-multi-store-sync'),
-                'loadingPreview' => __('Loading preview...', 'wc-multi-store-sync'),
-                'fullSync' => __('Full Sync', 'wc-multi-store-sync'),
-                'priceStock' => __('Price & Stock', 'wc-multi-store-sync'),
-                'stockOnly' => __('Stock Only', 'wc-multi-store-sync'),
-                'previewChanges' => __('Preview Changes', 'wc-multi-store-sync'),
-                'errorOccurred' => __('An error occurred. Please try again.', 'wc-multi-store-sync'),
+                'syncing' => __('Syncing...', 'multi-store-sync-for-woocommerce'),
+                'loadingPreview' => __('Loading preview...', 'multi-store-sync-for-woocommerce'),
+                'fullSync' => __('Full Sync', 'multi-store-sync-for-woocommerce'),
+                'priceStock' => __('Price & Stock', 'multi-store-sync-for-woocommerce'),
+                'stockOnly' => __('Stock Only', 'multi-store-sync-for-woocommerce'),
+                'previewChanges' => __('Preview Changes', 'multi-store-sync-for-woocommerce'),
+                'errorOccurred' => __('An error occurred. Please try again.', 'multi-store-sync-for-woocommerce'),
             ],
         ]);
 

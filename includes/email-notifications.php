@@ -154,7 +154,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
-            __('[%s] Product Sync Failed', 'wc-multi-store-sync'),
+            __('[%s] Product Sync Failed', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
 
@@ -192,7 +192,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
-            __('[%s] API Error Alert', 'wc-multi-store-sync'),
+            __('[%s] API Error Alert', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
 
@@ -238,7 +238,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
-            __('[%s] Low Stock Alert', 'wc-multi-store-sync'),
+            __('[%s] Low Stock Alert', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
 
@@ -288,7 +288,7 @@ class WC_Multi_Store_Email_Notifications {
         }
 
         $subject = sprintf(
-            __('[%s] Sync Conflict Detected', 'wc-multi-store-sync'),
+            __('[%s] Sync Conflict Detected', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name')
         );
 
@@ -361,7 +361,7 @@ class WC_Multi_Store_Email_Notifications {
         ), ARRAY_A);
 
         $subject = sprintf(
-            __('[%s] Daily Sync Summary - %s', 'wc-multi-store-sync'),
+            __('[%1$s] Daily Sync Summary - %2$s', 'multi-store-sync-for-woocommerce'),
             get_bloginfo('name'),
             $yesterday_date->format('F j, Y')
         );
@@ -464,37 +464,37 @@ class WC_Multi_Store_Email_Notifications {
      */
     private function get_failed_sync_template(array $data): string {
         $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
-            . __('A product sync operation has <strong>failed</strong>. Review the details below and check the sync logs for more context.', 'wc-multi-store-sync')
+            . __('A product sync operation has <strong>failed</strong>. Review the details below and check the sync logs for more context.', 'multi-store-sync-for-woocommerce')
             . '</p>';
 
         $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;margin:0 0 24px;border-radius:6px;overflow:hidden;border:1px solid #dcdcde;">'
-            . $this->data_row(__('Product', 'wc-multi-store-sync'), esc_html($data['product_name']))
+            . $this->data_row(__('Product', 'multi-store-sync-for-woocommerce'), esc_html($data['product_name']))
             . $this->data_row('SKU',
                 '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;font-size:12px;">'
                 . esc_html($data['product_sku']) . '</code>')
-            . $this->data_row(__('Product ID', 'wc-multi-store-sync'), '#' . esc_html($data['product_id']))
-            . $this->data_row(__('Remote Store', 'wc-multi-store-sync'), esc_html($data['store_url']))
-            . $this->data_row(__('Error', 'wc-multi-store-sync'), esc_html($data['error_message']), '#d63638')
-            . $this->data_row(__('Detected at', 'wc-multi-store-sync'), esc_html($data['timestamp']))
+            . $this->data_row(__('Product ID', 'multi-store-sync-for-woocommerce'), '#' . esc_html($data['product_id']))
+            . $this->data_row(__('Remote Store', 'multi-store-sync-for-woocommerce'), esc_html($data['store_url']))
+            . $this->data_row(__('Error', 'multi-store-sync-for-woocommerce'), esc_html($data['error_message']), '#d63638')
+            . $this->data_row(__('Detected at', 'multi-store-sync-for-woocommerce'), esc_html($data['timestamp']))
             . '</table>';
 
         $buttons = '';
         if (!empty($data['edit_url']) || !empty($data['logs_url'])) {
             $buttons = '<p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#646970;text-transform:uppercase;letter-spacing:.5px;">'
-                . __('Quick Actions', 'wc-multi-store-sync') . '</p><p style="margin:0;">';
+                . __('Quick Actions', 'multi-store-sync-for-woocommerce') . '</p><p style="margin:0;">';
             if (!empty($data['edit_url'])) {
-                $buttons .= $this->action_button($data['edit_url'], __('Edit Product', 'wc-multi-store-sync'), '#2271b1');
+                $buttons .= $this->action_button($data['edit_url'], __('Edit Product', 'multi-store-sync-for-woocommerce'), '#2271b1');
             }
             if (!empty($data['logs_url'])) {
-                $buttons .= $this->action_button($data['logs_url'], __('View Logs', 'wc-multi-store-sync'), '#646970');
+                $buttons .= $this->action_button($data['logs_url'], __('View Logs', 'multi-store-sync-for-woocommerce'), '#646970');
             }
             $buttons .= '</p>';
         }
 
         return $this->wrap_email(
-            __('Product Sync Failed', 'wc-multi-store-sync'),
-            __('Sync Alert', 'wc-multi-store-sync'),
+            __('Product Sync Failed', 'multi-store-sync-for-woocommerce'),
+            __('Sync Alert', 'multi-store-sync-for-woocommerce'),
             '#b32d2e',
             $lead . $table . $buttons
         );
@@ -508,29 +508,29 @@ class WC_Multi_Store_Email_Notifications {
      */
     private function get_api_error_template(array $data): string {
         $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
-            . __('An <strong>API error</strong> occurred while communicating with a remote store. The circuit breaker may pause requests to this store temporarily.', 'wc-multi-store-sync')
+            . __('An <strong>API error</strong> occurred while communicating with a remote store. The circuit breaker may pause requests to this store temporarily.', 'multi-store-sync-for-woocommerce')
             . '</p>';
 
         $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;margin:0 0 24px;border-radius:6px;overflow:hidden;border:1px solid #dcdcde;">'
-            . $this->data_row(__('Remote Store', 'wc-multi-store-sync'), esc_html($data['store_url']))
-            . $this->data_row(__('Error', 'wc-multi-store-sync'), esc_html($data['error_message']), '#d63638')
-            . $this->data_row(__('Detected at', 'wc-multi-store-sync'), esc_html($data['timestamp']))
+            . $this->data_row(__('Remote Store', 'multi-store-sync-for-woocommerce'), esc_html($data['store_url']))
+            . $this->data_row(__('Error', 'multi-store-sync-for-woocommerce'), esc_html($data['error_message']), '#d63638')
+            . $this->data_row(__('Detected at', 'multi-store-sync-for-woocommerce'), esc_html($data['timestamp']))
             . '</table>';
 
         $tip = '<p style="margin:0 0 20px;font-size:13px;color:#646970;line-height:1.5;padding:12px 16px;background:#fff8e5;border-left:3px solid #dba617;border-radius:0 4px 4px 0;">'
-            . '<strong>' . __('Suggested action:', 'wc-multi-store-sync') . '</strong> '
-            . __('Check the store\'s API credentials and connection. If the store is temporarily down, sync will resume automatically once it is back online.', 'wc-multi-store-sync')
+            . '<strong>' . __('Suggested action:', 'multi-store-sync-for-woocommerce') . '</strong> '
+            . __('Check the store\'s API credentials and connection. If the store is temporarily down, sync will resume automatically once it is back online.', 'multi-store-sync-for-woocommerce')
             . '</p>';
 
         $buttons = '';
         if (!empty($data['settings_url'])) {
-            $buttons = '<p style="margin:0;">' . $this->action_button($data['settings_url'], __('Store Settings', 'wc-multi-store-sync'), '#2271b1') . '</p>';
+            $buttons = '<p style="margin:0;">' . $this->action_button($data['settings_url'], __('Store Settings', 'multi-store-sync-for-woocommerce'), '#2271b1') . '</p>';
         }
 
         return $this->wrap_email(
-            __('API Error Alert', 'wc-multi-store-sync'),
-            __('Connectivity Alert', 'wc-multi-store-sync'),
+            __('API Error Alert', 'multi-store-sync-for-woocommerce'),
+            __('Connectivity Alert', 'multi-store-sync-for-woocommerce'),
             '#9a5001',
             $lead . $table . $tip . $buttons
         );
@@ -547,37 +547,37 @@ class WC_Multi_Store_Email_Notifications {
         $threshold = (int) $data['threshold'];
 
         if ($stock === 0) {
-            $stock_label = '<span style="color:#d63638;font-weight:700;">0 &mdash; ' . __('Out of Stock', 'wc-multi-store-sync') . '</span>';
+            $stock_label = '<span style="color:#d63638;font-weight:700;">0 &mdash; ' . __('Out of Stock', 'multi-store-sync-for-woocommerce') . '</span>';
         } else {
             $pct = $threshold > 0 ? round(($stock / $threshold) * 100) : 0;
             $stock_label = '<span style="color:#d63638;font-weight:700;">' . esc_html($stock) . '</span>'
-                . ' <span style="font-size:12px;color:#646970;">(' . $pct . '% ' . __('of threshold', 'wc-multi-store-sync') . ')</span>';
+                . ' <span style="font-size:12px;color:#646970;">(' . $pct . '% ' . __('of threshold', 'multi-store-sync-for-woocommerce') . ')</span>';
         }
 
         $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
-            . __('A product on a remote store has fallen <strong>below the stock threshold</strong>. Consider restocking soon.', 'wc-multi-store-sync')
+            . __('A product on a remote store has fallen <strong>below the stock threshold</strong>. Consider restocking soon.', 'multi-store-sync-for-woocommerce')
             . '</p>';
 
         $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;margin:0 0 24px;border-radius:6px;overflow:hidden;border:1px solid #dcdcde;">'
-            . $this->data_row(__('Product', 'wc-multi-store-sync'), esc_html($data['product_name']))
+            . $this->data_row(__('Product', 'multi-store-sync-for-woocommerce'), esc_html($data['product_name']))
             . $this->data_row('SKU',
                 '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;font-size:12px;">'
                 . esc_html($data['product_sku']) . '</code>')
-            . $this->data_row(__('Remote Store', 'wc-multi-store-sync'), esc_html($data['store_url']))
-            . $this->data_row(__('Current Stock', 'wc-multi-store-sync'), $stock_label)
-            . $this->data_row(__('Alert Threshold', 'wc-multi-store-sync'), esc_html($threshold) . ' ' . __('units', 'wc-multi-store-sync'))
-            . $this->data_row(__('Detected at', 'wc-multi-store-sync'), esc_html($data['timestamp']))
+            . $this->data_row(__('Remote Store', 'multi-store-sync-for-woocommerce'), esc_html($data['store_url']))
+            . $this->data_row(__('Current Stock', 'multi-store-sync-for-woocommerce'), $stock_label)
+            . $this->data_row(__('Alert Threshold', 'multi-store-sync-for-woocommerce'), esc_html($threshold) . ' ' . __('units', 'multi-store-sync-for-woocommerce'))
+            . $this->data_row(__('Detected at', 'multi-store-sync-for-woocommerce'), esc_html($data['timestamp']))
             . '</table>';
 
         $buttons = '';
         if (!empty($data['edit_url'])) {
-            $buttons = '<p style="margin:0;">' . $this->action_button($data['edit_url'], __('Edit Product / Restock', 'wc-multi-store-sync'), '#d97706') . '</p>';
+            $buttons = '<p style="margin:0;">' . $this->action_button($data['edit_url'], __('Edit Product / Restock', 'multi-store-sync-for-woocommerce'), '#d97706') . '</p>';
         }
 
         return $this->wrap_email(
-            __('Low Stock Alert', 'wc-multi-store-sync'),
-            __('Inventory Alert', 'wc-multi-store-sync'),
+            __('Low Stock Alert', 'multi-store-sync-for-woocommerce'),
+            __('Inventory Alert', 'multi-store-sync-for-woocommerce'),
             '#d97706',
             $lead . $table . $buttons
         );
@@ -591,36 +591,36 @@ class WC_Multi_Store_Email_Notifications {
      */
     private function get_conflict_detected_template(array $data): string {
         $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
-            . __('A product was <strong>modified directly on a remote store</strong> since our last sync. Review the change before it gets overwritten.', 'wc-multi-store-sync')
+            . __('A product was <strong>modified directly on a remote store</strong> since our last sync. Review the change before it gets overwritten.', 'multi-store-sync-for-woocommerce')
             . '</p>';
 
         $table = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;margin:0 0 24px;border-radius:6px;overflow:hidden;border:1px solid #dcdcde;">'
-            . $this->data_row(__('Product', 'wc-multi-store-sync'), esc_html($data['product_name']))
+            . $this->data_row(__('Product', 'multi-store-sync-for-woocommerce'), esc_html($data['product_name']))
             . $this->data_row('SKU',
                 '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;font-size:12px;">'
                 . esc_html($data['product_sku']) . '</code>')
-            . $this->data_row(__('Remote Store', 'wc-multi-store-sync'), esc_html($data['store_url']))
-            . $this->data_row(__('Changed Fields', 'wc-multi-store-sync'), esc_html($data['changed_fields']), '#d63638')
-            . $this->data_row(__('Detected at', 'wc-multi-store-sync'), esc_html($data['timestamp']))
+            . $this->data_row(__('Remote Store', 'multi-store-sync-for-woocommerce'), esc_html($data['store_url']))
+            . $this->data_row(__('Changed Fields', 'multi-store-sync-for-woocommerce'), esc_html($data['changed_fields']), '#d63638')
+            . $this->data_row(__('Detected at', 'multi-store-sync-for-woocommerce'), esc_html($data['timestamp']))
             . '</table>';
 
         $buttons = '';
         if (!empty($data['edit_url']) || !empty($data['conflicts_url'])) {
             $buttons = '<p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#646970;text-transform:uppercase;letter-spacing:.5px;">'
-                . __('Quick Actions', 'wc-multi-store-sync') . '</p><p style="margin:0;">';
+                . __('Quick Actions', 'multi-store-sync-for-woocommerce') . '</p><p style="margin:0;">';
             if (!empty($data['conflicts_url'])) {
-                $buttons .= $this->action_button($data['conflicts_url'], __('Review Conflict', 'wc-multi-store-sync'), '#2271b1');
+                $buttons .= $this->action_button($data['conflicts_url'], __('Review Conflict', 'multi-store-sync-for-woocommerce'), '#2271b1');
             }
             if (!empty($data['edit_url'])) {
-                $buttons .= $this->action_button($data['edit_url'], __('Edit Product', 'wc-multi-store-sync'), '#646970');
+                $buttons .= $this->action_button($data['edit_url'], __('Edit Product', 'multi-store-sync-for-woocommerce'), '#646970');
             }
             $buttons .= '</p>';
         }
 
         return $this->wrap_email(
-            __('Sync Conflict Detected', 'wc-multi-store-sync'),
-            __('Conflict Alert', 'wc-multi-store-sync'),
+            __('Sync Conflict Detected', 'multi-store-sync-for-woocommerce'),
+            __('Conflict Alert', 'multi-store-sync-for-woocommerce'),
             '#9a5001',
             $lead . $table . $buttons
         );
@@ -641,19 +641,19 @@ class WC_Multi_Store_Email_Notifications {
         // Health status badge
         if ($total === 0) {
             $health_color = '#646970';
-            $health_label = __('No Activity', 'wc-multi-store-sync');
+            $health_label = __('No Activity', 'multi-store-sync-for-woocommerce');
         } elseif ($rate >= 99) {
             $health_color = '#0a7227';
-            $health_label = __('Excellent', 'wc-multi-store-sync');
+            $health_label = __('Excellent', 'multi-store-sync-for-woocommerce');
         } elseif ($rate >= 90) {
             $health_color = '#2271b1';
-            $health_label = __('Good', 'wc-multi-store-sync');
+            $health_label = __('Good', 'multi-store-sync-for-woocommerce');
         } elseif ($rate >= 70) {
             $health_color = '#d97706';
-            $health_label = __('Warning', 'wc-multi-store-sync');
+            $health_label = __('Warning', 'multi-store-sync-for-woocommerce');
         } else {
             $health_color = '#d63638';
-            $health_label = __('Critical', 'wc-multi-store-sync');
+            $health_label = __('Critical', 'multi-store-sync-for-woocommerce');
         }
 
         $health_badge = '<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:#fff;background:' . $health_color . ';">'
@@ -667,33 +667,33 @@ class WC_Multi_Store_Email_Notifications {
         $stats_row = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;margin:0 0 24px;border:1px solid #dcdcde;border-radius:6px;overflow:hidden;">'
             . '<tr>'
-            . '<td ' . $stat_cell . '><span ' . $stat_num . ' style="color:#1d2327;">' . esc_html($total) . '</span><span ' . $stat_lbl . '>' . __('Total Syncs', 'wc-multi-store-sync') . '</span></td>'
-            . '<td ' . $stat_cell . '><span ' . $stat_num . ' style="color:#0a7227;">' . esc_html($successful) . '</span><span ' . $stat_lbl . '>' . __('Successful', 'wc-multi-store-sync') . '</span></td>'
-            . '<td ' . $stat_cell . '><span ' . $stat_num . ' style="color:' . ($failed > 0 ? '#d63638' : '#1d2327') . ';">' . esc_html($failed) . '</span><span ' . $stat_lbl . '>' . __('Failed', 'wc-multi-store-sync') . '</span></td>'
-            . '<td style="width:25%;padding:16px 12px;text-align:center;"><span ' . $stat_num . ' style="color:' . $health_color . ';">' . esc_html($rate) . '%</span><span ' . $stat_lbl . '>' . __('Success Rate', 'wc-multi-store-sync') . '</span></td>'
+            . '<td ' . $stat_cell . '><span ' . $stat_num . ' style="color:#1d2327;">' . esc_html($total) . '</span><span ' . $stat_lbl . '>' . __('Total Syncs', 'multi-store-sync-for-woocommerce') . '</span></td>'
+            . '<td ' . $stat_cell . '><span ' . $stat_num . ' style="color:#0a7227;">' . esc_html($successful) . '</span><span ' . $stat_lbl . '>' . __('Successful', 'multi-store-sync-for-woocommerce') . '</span></td>'
+            . '<td ' . $stat_cell . '><span ' . $stat_num . ' style="color:' . ($failed > 0 ? '#d63638' : '#1d2327') . ';">' . esc_html($failed) . '</span><span ' . $stat_lbl . '>' . __('Failed', 'multi-store-sync-for-woocommerce') . '</span></td>'
+            . '<td style="width:25%;padding:16px 12px;text-align:center;"><span ' . $stat_num . ' style="color:' . $health_color . ';">' . esc_html($rate) . '%</span><span ' . $stat_lbl . '>' . __('Success Rate', 'multi-store-sync-for-woocommerce') . '</span></td>'
             . '</tr></table>';
 
         // Details table
         $details = '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             . 'style="border-collapse:collapse;margin:0 0 24px;border-radius:6px;overflow:hidden;border:1px solid #dcdcde;">'
-            . $this->data_row(__('Date', 'wc-multi-store-sync'), esc_html($data['date']))
-            . $this->data_row(__('Health', 'wc-multi-store-sync'), $health_badge)
-            . $this->data_row(__('Avg. Sync Duration', 'wc-multi-store-sync'), esc_html($data['avg_duration']) . ' ms')
-            . $this->data_row(__('Total API Calls', 'wc-multi-store-sync'), esc_html($data['total_api_calls']))
+            . $this->data_row(__('Date', 'multi-store-sync-for-woocommerce'), esc_html($data['date']))
+            . $this->data_row(__('Health', 'multi-store-sync-for-woocommerce'), $health_badge)
+            . $this->data_row(__('Avg. Sync Duration', 'multi-store-sync-for-woocommerce'), esc_html($data['avg_duration']) . ' ms')
+            . $this->data_row(__('Total API Calls', 'multi-store-sync-for-woocommerce'), esc_html($data['total_api_calls']))
             . '</table>';
 
         // Per-store breakdown
         $store_section = '';
         if (!empty($data['syncs_by_store'])) {
             $store_section = '<p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#646970;text-transform:uppercase;letter-spacing:.5px;">'
-                . __('By Store', 'wc-multi-store-sync') . '</p>'
+                . __('By Store', 'multi-store-sync-for-woocommerce') . '</p>'
                 . '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
                 . 'style="border-collapse:collapse;margin:0 0 24px;border:1px solid #dcdcde;border-radius:6px;overflow:hidden;">'
                 . '<thead><tr>'
-                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#3c434a;text-align:left;border-bottom:1px solid #dcdcde;">' . __('Store', 'wc-multi-store-sync') . '</th>'
-                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#3c434a;text-align:center;border-bottom:1px solid #dcdcde;">' . __('Total', 'wc-multi-store-sync') . '</th>'
-                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#0a7227;text-align:center;border-bottom:1px solid #dcdcde;">' . __('OK', 'wc-multi-store-sync') . '</th>'
-                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#d63638;text-align:center;border-bottom:1px solid #dcdcde;">' . __('Fail', 'wc-multi-store-sync') . '</th>'
+                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#3c434a;text-align:left;border-bottom:1px solid #dcdcde;">' . __('Store', 'multi-store-sync-for-woocommerce') . '</th>'
+                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#3c434a;text-align:center;border-bottom:1px solid #dcdcde;">' . __('Total', 'multi-store-sync-for-woocommerce') . '</th>'
+                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#0a7227;text-align:center;border-bottom:1px solid #dcdcde;">' . __('OK', 'multi-store-sync-for-woocommerce') . '</th>'
+                . '<th style="padding:9px 14px;background:#f6f7f7;font-size:12px;font-weight:600;color:#d63638;text-align:center;border-bottom:1px solid #dcdcde;">' . __('Fail', 'multi-store-sync-for-woocommerce') . '</th>'
                 . '</tr></thead><tbody>';
 
             foreach ($data['syncs_by_store'] as $store) {
@@ -711,12 +711,12 @@ class WC_Multi_Store_Email_Notifications {
 
         $buttons = '';
         if (!empty($data['dashboard_url'])) {
-            $buttons = '<p style="margin:0;">' . $this->action_button($data['dashboard_url'], __('Open Dashboard', 'wc-multi-store-sync'), '#0070a7') . '</p>';
+            $buttons = '<p style="margin:0;">' . $this->action_button($data['dashboard_url'], __('Open Dashboard', 'multi-store-sync-for-woocommerce'), '#0070a7') . '</p>';
         }
 
         return $this->wrap_email(
-            sprintf(__('Daily Sync Summary — %s', 'wc-multi-store-sync'), $data['date']),
-            __('Daily Report', 'wc-multi-store-sync'),
+            sprintf(__('Daily Sync Summary — %s', 'multi-store-sync-for-woocommerce'), $data['date']),
+            __('Daily Report', 'multi-store-sync-for-woocommerce'),
             '#0070a7',
             $stats_row . $details . $store_section . $buttons
         );

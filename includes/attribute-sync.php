@@ -321,7 +321,7 @@ class WC_Multi_Store_Attribute_Sync {
      * AJAX handler: Toggle attribute sync on/off
      */
     public static function ajax_toggle(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -332,8 +332,8 @@ class WC_Multi_Store_Attribute_Sync {
 
         wp_send_json_success([
             'message' => $enabled
-                ? __('Attribute sync enabled', 'wc-multi-store-sync')
-                : __('Attribute sync disabled', 'wc-multi-store-sync'),
+                ? __('Attribute sync enabled', 'multi-store-sync-for-woocommerce')
+                : __('Attribute sync disabled', 'multi-store-sync-for-woocommerce'),
             'enabled' => $enabled,
         ]);
     }

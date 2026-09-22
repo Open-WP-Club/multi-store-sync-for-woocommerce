@@ -510,7 +510,7 @@ class WC_Multi_Store_Coupon_Sync {
      * AJAX handler: Sync all coupons
      */
     public static function ajax_sync_all(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -518,7 +518,7 @@ class WC_Multi_Store_Coupon_Sync {
 
         wp_send_json_success([
             'message' => sprintf(
-                __('Coupons synced: %d successful, %d failed (out of %d total)', 'wc-multi-store-sync'),
+                __('Coupons synced: %1$d successful, %2$d failed (out of %3$d total)', 'multi-store-sync-for-woocommerce'),
                 $results['synced'],
                 $results['failed'],
                 $results['total']
@@ -531,7 +531,7 @@ class WC_Multi_Store_Coupon_Sync {
      * AJAX handler: Toggle coupon sync on/off
      */
     public static function ajax_toggle(): void {
-        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'wc-multi-store-sync'))) {
+        if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
@@ -542,8 +542,8 @@ class WC_Multi_Store_Coupon_Sync {
 
         wp_send_json_success([
             'message' => $enabled
-                ? __('Coupon sync enabled', 'wc-multi-store-sync')
-                : __('Coupon sync disabled', 'wc-multi-store-sync'),
+                ? __('Coupon sync enabled', 'multi-store-sync-for-woocommerce')
+                : __('Coupon sync disabled', 'multi-store-sync-for-woocommerce'),
             'enabled' => $enabled,
         ]);
     }
