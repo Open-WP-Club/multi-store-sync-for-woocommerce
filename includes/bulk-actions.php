@@ -171,6 +171,7 @@ class WC_Multi_Store_Bulk_Actions {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
+                    /* translators: %d: number of products synced. */
                     esc_html__('Successfully synced %d product(s) to remote stores.', 'multi-store-sync-for-woocommerce'),
                     absint($synced)
                 )
@@ -182,6 +183,7 @@ class WC_Multi_Store_Bulk_Actions {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
+                    /* translators: %d: number of products added to the sync queue. */
                     esc_html__('Added %d product(s) to sync queue.', 'multi-store-sync-for-woocommerce'),
                     absint($queued)
                 )
@@ -193,6 +195,7 @@ class WC_Multi_Store_Bulk_Actions {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
+                    /* translators: %d: number of products queued for deletion. */
                     esc_html__('Queued %d product(s) for deletion from remote stores.', 'multi-store-sync-for-woocommerce'),
                     absint($deleted)
                 )
