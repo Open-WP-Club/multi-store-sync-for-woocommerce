@@ -25,6 +25,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+
+      # The action activates the plugin as-is from the checkout — without this,
+      # wc-multi-store-sync.php's own classes never load (its autoloader is
+      # Composer's classmap, gated on vendor/autoload.php existing) and
+      # activation fails with "Class ... not found". Mirrors the --no-dev
+      # install build-release.yml does for the real distributed ZIP.
+      - name: Install production dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
       - name: Run WordPress Plugin Check
         uses: wordpress/plugin-check-action@v1
         with:
