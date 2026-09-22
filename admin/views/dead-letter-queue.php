@@ -108,7 +108,7 @@ $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
     </table>
 
     <?php if ($items['total'] > 50): ?>
-    <p class="description"><?php printf(esc_html__('Showing 50 of %d items.', 'multi-store-sync-for-woocommerce'), absint($items['total'])); ?></p>
+    <p class="description"><?php /* translators: %d: total number of queue items. */ printf(esc_html__('Showing 50 of %d items.', 'multi-store-sync-for-woocommerce'), absint($items['total'])); ?></p>
     <?php endif; ?>
 
     <?php else: ?>
