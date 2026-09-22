@@ -224,6 +224,7 @@ class WC_Multi_Store_Store_Form_Renderer {
             <span id="<?php echo esc_attr($prefix); ?>sync_preview">
                 <?php
                 echo wp_kses_post(sprintf(
+                    /* translators: 1: products selected for sync, 2: total products. */
                     __('<strong style="color:#2271b1; font-size: 16px;">%1$d</strong> of %2$d products will be synced', 'multi-store-sync-for-woocommerce'),
                     absint($synced_count),
                     absint($total_products)
