@@ -337,6 +337,7 @@ class WC_Multi_Store_Sync_Profiles {
         $id = self::create_from_current_settings($name, $description);
 
         wp_send_json_success([
+            /* translators: %s: profile name. */
             'message' => sprintf(__('Profile "%s" saved', 'multi-store-sync-for-woocommerce'), $name),
             'profile_id' => $id,
         ]);
