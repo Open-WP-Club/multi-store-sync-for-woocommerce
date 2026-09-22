@@ -4,7 +4,7 @@
  * Plugin Name: WooCommerce Multi-Store Sync
  * Plugin URI: https://openwpclub.com/plugins/multi-store-sync-for-woocommerce/
  * Description: Professional multi-store product synchronization for WooCommerce - standalone implementation with advanced features
- * Version: 4.2.2
+ * Version: 5.0.0
  * Author: Gabriel Kanev - OpenWPClub
  * Author URI: https://gkanev.com
  * License: GPLv3 or later
@@ -12,9 +12,10 @@
  * Text Domain: wc-multi-store-sync
  * Domain Path: /languages
  * Requires at least: 5.8
+ * Tested up to: 7.1
  * Requires PHP: 8.4
  * WC requires at least: 6.0
- * WC tested up to: 9.5
+ * WC tested up to: 11.1
  *
  * @package WC_Multi_Store_Sync
  */
@@ -25,7 +26,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_MSS_VERSION', '4.2.2');
+define('WC_MSS_VERSION', '5.0.0');
 define('WC_MSS_PLUGIN_FILE', __FILE__);
 define('WC_MSS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_MSS_PLUGIN_URL', plugin_dir_url(__FILE__));

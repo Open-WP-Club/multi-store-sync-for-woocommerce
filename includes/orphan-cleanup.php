@@ -395,9 +395,12 @@ class WC_Multi_Store_Orphan_Cleanup {
      *
      * @param array $orphans Array of orphan products to delete
      * @param bool $force Permanently delete (true, the manual "Delete Selected" behavior) or move to trash (false, used by the auto-trash job)
+     * @param callable|null $on_progress Optional callback invoked after each product as
+     *                                   fn(int $deleted, int $failed, int $total), so a background
+     *                                   runner can surface live progress instead of only a final result.
      * @return array Results
      */
-    public function cleanup_orphans(array $orphans, bool $force = true): array {
+    public function cleanup_orphans(array $orphans, bool $force = true, ?callable $on_progress = null): array {
         if (empty($orphans)) {
             return [
                 'success' => false,
@@ -411,6 +414,8 @@ class WC_Multi_Store_Orphan_Cleanup {
             'failed' => 0,
             'errors' => [],
         ];
+
+        $total = count($orphans);
 
         foreach ($orphans as $orphan) {
             $store_url = $orphan['store_url'];
@@ -454,6 +459,10 @@ class WC_Multi_Store_Orphan_Cleanup {
                     $product_id,
                     $store_url
                 ));
+            }
+
+            if ($on_progress) {
+                $on_progress($results['deleted'], $results['failed'], $total);
             }
         }
 
@@ -541,6 +550,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         update_option(self::CLEANUP_STATUS_OPTION, [
             'status'      => 'scheduled',
             'total'       => count($orphans),
+            'processed'   => 0,
             'started_at'  => null,
             'finished_at' => null,
             'error'       => null,
@@ -564,20 +574,44 @@ class WC_Multi_Store_Orphan_Cleanup {
     public function run_background_cleanup(array $orphans): void {
         @set_time_limit(0);
 
+        $total = count($orphans);
+
         $status = get_option(self::CLEANUP_STATUS_OPTION, []);
         $status['status']     = 'running';
         $status['started_at'] = current_time('mysql');
+        $status['total']      = $total;
+        $status['processed']  = 0;
         update_option(self::CLEANUP_STATUS_OPTION, $status, false);
 
-        WC_Multi_Store_Logger::write(sprintf('Background orphan cleanup started: %d products', count($orphans)));
+        WC_Multi_Store_Logger::write(sprintf('Background orphan cleanup started: %d products', $total));
+
+        // Surface live progress so the admin page isn't left showing "Deleting…"
+        // with no feedback for the minutes a large batch can take. Throttled to
+        // every 5 products (still always fires on the last one) to avoid
+        // hammering wp_options on very large batches.
+        $on_progress = function (int $deleted, int $failed, int $total) {
+            $processed = $deleted + $failed;
+            if ($processed % 5 !== 0 && $processed !== $total) {
+                return;
+            }
+
+            $status = get_option(self::CLEANUP_STATUS_OPTION, []);
+            $status['status']    = 'running';
+            $status['total']     = $total;
+            $status['processed'] = $processed;
+            $status['deleted']   = $deleted;
+            $status['failed']    = $failed;
+            update_option(self::CLEANUP_STATUS_OPTION, $status, false);
+        };
 
         try {
-            $results = $this->cleanup_orphans($orphans);
+            $results = $this->cleanup_orphans($orphans, true, $on_progress);
 
             $status['status']      = $results['success'] ? 'done' : 'failed';
             $status['finished_at'] = current_time('mysql');
             $status['deleted']     = $results['deleted'] ?? 0;
             $status['failed']      = $results['failed'] ?? 0;
+            $status['processed']   = ($results['deleted'] ?? 0) + ($results['failed'] ?? 0);
             $status['errors']      = $results['errors'] ?? [];
             $status['message']     = $results['success']
                 ? sprintf(
@@ -861,6 +895,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         $recipient         = $email_settings['recipient_email'] ?? get_option('admin_email');
         $nonce             = wp_create_nonce('wc_mss_orphan_cleanup');
         $auto_trash_status = get_option(self::AUTO_TRASH_STATUS_OPTION, null);
+        $cleanup_status    = get_option(self::CLEANUP_STATUS_OPTION, ['status' => 'idle']);
 
         ?>
         <div class="wrap wc-mss-orphan-cleanup">
@@ -958,6 +993,42 @@ class WC_Multi_Store_Orphan_Cleanup {
                         <?php endif; ?>
                     </div>
 
+                    <!-- Background cleanup ("Delete Selected") status banner -->
+                    <div id="wc-mss-cleanup-status" style="margin-bottom:16px;<?php echo ($cleanup_status['status'] ?? 'idle') === 'idle' ? 'display:none;' : ''; ?>">
+                        <?php
+                        $cleanup_status_val = $cleanup_status['status'] ?? 'idle';
+                        $cleanup_status_class = match($cleanup_status_val) {
+                            'scheduled', 'running' => 'notice-info',
+                            'done'                  => 'notice-success',
+                            'failed'                => 'notice-error',
+                            default                 => 'notice-info',
+                        };
+                        $cleanup_processed = (int) ($cleanup_status['processed'] ?? 0);
+                        $cleanup_total     = (int) ($cleanup_status['total'] ?? 0);
+                        $cleanup_status_label = match($cleanup_status_val) {
+                            'scheduled' => __('Deletion queued — waiting for Action Scheduler to pick it up…', 'wc-multi-store-sync'),
+                            'running'   => sprintf(
+                                /* translators: 1: number processed so far, 2: total number queued for deletion */
+                                __('Deleting products… %1$d of %2$d processed.', 'wc-multi-store-sync'),
+                                $cleanup_processed,
+                                $cleanup_total
+                            ),
+                            'done'      => $cleanup_status['message'] ?? sprintf(
+                                __('Cleanup complete: %1$d deleted, %2$d failed.', 'wc-multi-store-sync'),
+                                (int) ($cleanup_status['deleted'] ?? 0),
+                                (int) ($cleanup_status['failed'] ?? 0)
+                            ),
+                            'failed'    => sprintf(__('Cleanup failed: %s', 'wc-multi-store-sync'), esc_html($cleanup_status['error'] ?? $cleanup_status['message'] ?? '')),
+                            default     => '',
+                        };
+                        if ($cleanup_status_label):
+                        ?>
+                        <div class="notice <?php echo $cleanup_status_class; ?> inline" id="wc-mss-cleanup-status-notice">
+                            <p id="wc-mss-cleanup-status-text"><?php echo esc_html($cleanup_status_label); ?></p>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
                     <div id="wc-mss-orphan-results" style="margin-top:20px;">
                         <?php if ($last_results && ($scan_status['status'] ?? '') === 'done'): ?>
                             <div class="notice notice-info inline" style="margin-bottom:12px;">
@@ -993,6 +1064,8 @@ class WC_Multi_Store_Orphan_Cleanup {
             var bgStatus   = $('#wc-mss-bg-status');
             var bgText     = $('#wc-mss-bg-status-text');
             var pollTimer  = null;
+            var cleanupStatus   = $('#wc-mss-cleanup-status');
+            var cleanupPollTimer = null;
 
             // Render stored last-results on page load if present
             var lastResultsEl = $('#wc-mss-last-results-placeholder');
@@ -1010,6 +1083,15 @@ class WC_Multi_Store_Orphan_Cleanup {
             var initialStatus = '<?php echo esc_js($scan_status['status'] ?? 'idle'); ?>';
             if (initialStatus === 'scheduled' || initialStatus === 'running') {
                 startPolling();
+            }
+
+            // Auto-resume polling if a "Delete Selected" batch is still in
+            // progress (or just finished) when the page loads/reloads — this
+            // is what lets the admin know whether it went through even after
+            // navigating away instead of leaving them staring at nothing.
+            var initialCleanupStatus = '<?php echo esc_js($cleanup_status['status'] ?? 'idle'); ?>';
+            if (initialCleanupStatus === 'scheduled' || initialCleanupStatus === 'running') {
+                startCleanupPolling();
             }
 
             // Sync scan
@@ -1193,51 +1275,100 @@ class WC_Multi_Store_Orphan_Cleanup {
                         return;
                     }
 
-                    var button = $(this);
-                    button.prop('disabled', true).text('<?php echo esc_js(__('Deleting…', 'wc-multi-store-sync')); ?>');
+                    disableCleanupButtons();
+                    $(this).text('<?php echo esc_js(__('Deleting…', 'wc-multi-store-sync')); ?>');
 
                     $.ajax({
                         url: ajaxurl, type: 'POST',
                         data: { action: 'wc_mss_cleanup_orphans', nonce: nonce, orphans: JSON.stringify(orphans) },
                         success: function(res) {
                             if (res.success && res.data.scheduled) {
-                                pollCleanupStatus(button);
+                                // Show feedback immediately — this is the "yes, it's queued"
+                                // confirmation the admin needs before the background job
+                                // (which can take minutes for 100+ products) even starts.
+                                var queuedMsg = res.data.message || '<?php echo esc_js(__('Cleanup started in the background…', 'wc-multi-store-sync')); ?>';
+                                showCleanupStatus('notice-info', queuedMsg);
+                                startCleanupPolling();
                             } else if (res.success) {
-                                alert(res.data.message);
+                                showCleanupStatus('notice-success', res.data.message);
+                                resetCleanupButtons();
                                 scanBtn.trigger('click');
                             } else {
-                                alert((res.data && res.data.message) || '<?php echo esc_js(__('Failed.', 'wc-multi-store-sync')); ?>');
-                                button.prop('disabled', false).text('<?php echo esc_js(__('Delete Selected', 'wc-multi-store-sync')); ?>');
+                                showCleanupStatus('notice-error', (res.data && res.data.message) || '<?php echo esc_js(__('Failed.', 'wc-multi-store-sync')); ?>');
+                                resetCleanupButtons();
                             }
                         },
                         error: function() {
-                            alert('<?php echo esc_js(__('An error occurred while cleaning up orphans.', 'wc-multi-store-sync')); ?>');
-                            button.prop('disabled', false).text('<?php echo esc_js(__('Delete Selected', 'wc-multi-store-sync')); ?>');
+                            showCleanupStatus('notice-error', '<?php echo esc_js(__('An error occurred while cleaning up orphans.', 'wc-multi-store-sync')); ?>');
+                            resetCleanupButtons();
                         }
                     });
                 });
             }
 
-            // Poll the background cleanup job started by "Delete Selected"
-            // until it's done, then report the result and re-scan.
-            function pollCleanupStatus(button) {
-                var timer = setInterval(function() {
-                    $.ajax({
-                        url: ajaxurl, type: 'POST',
-                        data: { action: 'wc_mss_orphan_cleanup_status', nonce: nonce },
-                        success: function(res) {
-                            if (!res.success) return;
-                            var st = (res.data.status || {}).status || 'idle';
+            function disableCleanupButtons() {
+                resultsDiv.find('.cleanup-selected').prop('disabled', true);
+            }
 
-                            if (st === 'done' || st === 'failed') {
-                                clearInterval(timer);
-                                alert(res.data.status.message || '<?php echo esc_js(__('Failed.', 'wc-multi-store-sync')); ?>');
-                                button.prop('disabled', false).text('<?php echo esc_js(__('Delete Selected', 'wc-multi-store-sync')); ?>');
-                                if (st === 'done') scanBtn.trigger('click');
-                            }
+            function resetCleanupButtons() {
+                resultsDiv.find('.cleanup-selected').prop('disabled', false).text('<?php echo esc_js(__('Delete Selected', 'wc-multi-store-sync')); ?>');
+            }
+
+            function showCleanupStatus(cssClass, message) {
+                var notice = cleanupStatus.find('.notice');
+                if (!notice.length) {
+                    cleanupStatus.html('<div class="notice inline"><p id="wc-mss-cleanup-status-text"></p></div>');
+                    notice = cleanupStatus.find('.notice');
+                }
+                notice.attr('class', 'notice ' + cssClass + ' inline');
+                notice.find('p').text(message);
+                cleanupStatus.show();
+            }
+
+            function startCleanupPolling() {
+                if (cleanupPollTimer) return;
+                pollCleanupStatus();
+                cleanupPollTimer = setInterval(pollCleanupStatus, 3000);
+            }
+
+            function stopCleanupPolling() {
+                if (cleanupPollTimer) { clearInterval(cleanupPollTimer); cleanupPollTimer = null; }
+            }
+
+            // Poll the background cleanup job started by "Delete Selected" —
+            // updates a persistent banner (survives page reloads, since the
+            // status is read from the DB on load too) instead of leaving the
+            // admin staring at a "Deleting…" button with no other feedback.
+            function pollCleanupStatus() {
+                $.ajax({
+                    url: ajaxurl, type: 'POST',
+                    data: { action: 'wc_mss_orphan_cleanup_status', nonce: nonce },
+                    success: function(res) {
+                        if (!res.success) return;
+                        var s  = res.data.status || {};
+                        var st = s.status || 'idle';
+
+                        if (st === 'scheduled') {
+                            showCleanupStatus('notice-info', '<?php echo esc_js(__('Deletion queued — waiting for Action Scheduler to pick it up…', 'wc-multi-store-sync')); ?>');
+                        } else if (st === 'running') {
+                            var processed = s.processed || 0;
+                            var total     = s.total || 0;
+                            var progressMsg = '<?php echo esc_js(__('Deleting products…', 'wc-multi-store-sync')); ?>' + ' ' + processed + ' / ' + total;
+                            showCleanupStatus('notice-info', progressMsg);
+                        } else if (st === 'done') {
+                            stopCleanupPolling();
+                            showCleanupStatus('notice-success', s.message || '<?php echo esc_js(__('Cleanup complete.', 'wc-multi-store-sync')); ?>');
+                            resetCleanupButtons();
+                            scanBtn.trigger('click');
+                        } else if (st === 'failed') {
+                            stopCleanupPolling();
+                            showCleanupStatus('notice-error', '<?php echo esc_js(__('Cleanup failed:', 'wc-multi-store-sync')); ?> ' + (s.error || s.message || ''));
+                            resetCleanupButtons();
+                        } else {
+                            stopCleanupPolling();
                         }
-                    });
-                }, 3000);
+                    }
+                });
             }
         });
         </script>

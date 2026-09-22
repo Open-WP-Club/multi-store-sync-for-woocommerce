@@ -979,7 +979,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         Functions\when('sanitize_text_field')->alias(fn($v) => $v);
 
         $cleanup = new class extends WC_Multi_Store_Orphan_Cleanup {
-            public function cleanup_orphans(array $orphans, bool $force = true): array {
+            public function cleanup_orphans(array $orphans, bool $force = true, ?callable $on_progress = null): array {
                 throw new \RuntimeException('boom');
             }
         };

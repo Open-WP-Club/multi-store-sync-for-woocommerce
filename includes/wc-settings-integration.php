@@ -46,26 +46,43 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     #[\Override]
     public function get_sections(): array {
-        // Return sections directly - parent class handles the filter application
-        return [
+        // Return sections directly - parent class handles the filter application.
+        // Category/attribute mapping and conflict detection are optional features
+        // (see WC_Multi_Store_Toggleable_Feature / WC_Multi_Store_Conflict_Detector)
+        // — their tabs only show up once turned on, so a store that never enabled
+        // them doesn't have to look at empty, irrelevant screens.
+        $sections = [
             ''                    => __('Dashboard', 'wc-multi-store-sync'),
             'stores'              => __('Stores', 'wc-multi-store-sync'),
-            'category-mapping'    => __('Category Mapping', 'wc-multi-store-sync'),
-            'attribute-mapping'   => __('Attribute Mapping', 'wc-multi-store-sync'),
-            'settings'            => __('Settings', 'wc-multi-store-sync'),
-            'queue'               => __('Queue', 'wc-multi-store-sync'),
-            'weekly-verification' => __('Weekly Verification', 'wc-multi-store-sync'),
-            'history'             => __('History', 'wc-multi-store-sync'),
-            'api-usage'           => __('API Usage', 'wc-multi-store-sync'),
-            'discrepancies'       => __('Discrepancies', 'wc-multi-store-sync'),
-            'conflicts'           => __('Conflicts', 'wc-multi-store-sync'),
-            'deletion-audit'      => __('Deletion Audit', 'wc-multi-store-sync'),
-            'orphan-cleanup'      => __('Orphan Cleanup', 'wc-multi-store-sync'),
-            'dead-letter-queue'   => __('Dead Letters', 'wc-multi-store-sync'),
-            'sync-profiles'       => __('Sync Profiles', 'wc-multi-store-sync'),
-            'config'              => __('Export/Import', 'wc-multi-store-sync'),
-            'logs'                => __('Logs', 'wc-multi-store-sync'),
         ];
+
+        if (class_exists('WC_Multi_Store_Category_Mapper') && WC_Multi_Store_Category_Mapper::is_enabled()) {
+            $sections['category-mapping'] = __('Category Mapping', 'wc-multi-store-sync');
+        }
+
+        if (class_exists('WC_Multi_Store_Attribute_Remapper') && WC_Multi_Store_Attribute_Remapper::is_enabled()) {
+            $sections['attribute-mapping'] = __('Attribute Mapping', 'wc-multi-store-sync');
+        }
+
+        $sections['settings']            = __('Settings', 'wc-multi-store-sync');
+        $sections['queue']               = __('Queue', 'wc-multi-store-sync');
+        $sections['weekly-verification'] = __('Weekly Verification', 'wc-multi-store-sync');
+        $sections['history']             = __('History', 'wc-multi-store-sync');
+        $sections['api-usage']           = __('API Usage', 'wc-multi-store-sync');
+        $sections['discrepancies']       = __('Discrepancies', 'wc-multi-store-sync');
+
+        if (class_exists('WC_Multi_Store_Conflict_Detector') && !empty(WC_Multi_Store_Conflict_Detector::get_settings()['enabled'])) {
+            $sections['conflicts'] = __('Conflicts', 'wc-multi-store-sync');
+        }
+
+        $sections['deletion-audit']    = __('Deletion Audit', 'wc-multi-store-sync');
+        $sections['orphan-cleanup']    = __('Orphan Cleanup', 'wc-multi-store-sync');
+        $sections['dead-letter-queue'] = __('Dead Letters', 'wc-multi-store-sync');
+        $sections['sync-profiles']     = __('Sync Profiles', 'wc-multi-store-sync');
+        $sections['config']            = __('Export/Import', 'wc-multi-store-sync');
+        $sections['logs']              = __('Logs', 'wc-multi-store-sync');
+
+        return $sections;
     }
 
     /**

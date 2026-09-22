@@ -1199,6 +1199,19 @@
                                     $(this).css('background-color', '');
                                     next();
                                 });
+
+                                // These specific toggles show/hide their own settings tab
+                                // (see get_sections() in wc-settings-integration.php) —
+                                // reload so the tab list matches the new state right away
+                                // instead of only after a manual refresh.
+                                var tabTogglingActions = [
+                                    'wc_mss_toggle_category_mapper',
+                                    'wc_mss_toggle_attribute_remapping',
+                                    'wc_mss_toggle_conflict_detection'
+                                ];
+                                if (tabTogglingActions.indexOf(action) !== -1) {
+                                    setTimeout(function() { location.reload(); }, 600);
+                                }
                             } else {
                                 // Revert on failure
                                 $checkbox.prop('checked', !enabled);

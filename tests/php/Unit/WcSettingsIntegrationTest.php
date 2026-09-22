@@ -78,19 +78,57 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
     // ─── get_sections ──────────────────────────────
 
-    public function test_get_sections_returns_all_sections(): void
+    public function test_get_sections_returns_always_visible_sections(): void
     {
+        // setUp() mocks get_option() to justReturn([]), so category mapping,
+        // attribute mapping and conflict detection all read as disabled
+        // (their default) — their tabs must not appear (see
+        // test_get_sections_hides_optional_features_by_default below).
         $sections = $this->integration->get_sections();
 
         $expected_keys = [
-            '', 'stores', 'category-mapping', 'settings', 'queue', 'weekly-verification',
-            'history', 'api-usage', 'discrepancies', 'conflicts', 'deletion-audit',
+            '', 'stores', 'settings', 'queue', 'weekly-verification',
+            'history', 'api-usage', 'discrepancies', 'deletion-audit',
             'orphan-cleanup', 'logs',
         ];
 
         foreach ($expected_keys as $key) {
             $this->assertArrayHasKey($key, $sections, "Missing section: '{$key}'");
         }
+    }
+
+    public function test_get_sections_hides_optional_features_by_default(): void
+    {
+        // Category mapping, attribute mapping and conflict detection are all
+        // opt-in — an admin who never turned them on shouldn't see tabs for
+        // screens that don't apply to them.
+        $sections = $this->integration->get_sections();
+
+        $this->assertArrayNotHasKey('category-mapping', $sections);
+        $this->assertArrayNotHasKey('attribute-mapping', $sections);
+        $this->assertArrayNotHasKey('conflicts', $sections);
+    }
+
+    public function test_get_sections_shows_optional_features_when_enabled(): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'category_mapper_enabled' => true,
+                    'attribute_remapping_enabled' => true,
+                ];
+            }
+            if ($option === 'wc_mss_conflict_settings') {
+                return ['enabled' => true];
+            }
+            return $default;
+        });
+
+        $sections = $this->integration->get_sections();
+
+        $this->assertArrayHasKey('category-mapping', $sections);
+        $this->assertArrayHasKey('attribute-mapping', $sections);
+        $this->assertArrayHasKey('conflicts', $sections);
     }
 
     public function test_get_sections_default_is_dashboard(): void
@@ -102,6 +140,28 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
     public function test_get_sections_count(): void
     {
+        // Optional feature tabs (category/attribute mapping, conflicts) are
+        // hidden by default — see test_get_sections_hides_optional_features_by_default.
+        $sections = $this->integration->get_sections();
+
+        $this->assertCount(14, $sections);
+    }
+
+    public function test_get_sections_count_with_all_optional_features_enabled(): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'category_mapper_enabled' => true,
+                    'attribute_remapping_enabled' => true,
+                ];
+            }
+            if ($option === 'wc_mss_conflict_settings') {
+                return ['enabled' => true];
+            }
+            return $default;
+        });
+
         $sections = $this->integration->get_sections();
 
         $this->assertCount(17, $sections);
