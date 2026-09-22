@@ -96,12 +96,14 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
         if (isset($assoc_args['product'])) {
             $product = wc_get_product((int) $assoc_args['product']);
             if (!$product) {
+                /* translators: Product ID. */
                 WP_CLI::error(sprintf(__('Product ID %d not found.', 'multi-store-sync-for-woocommerce'), $assoc_args['product']));
             }
             $product_ids[] = $product->get_id();
         } elseif (isset($assoc_args['sku'])) {
             $product_id = wc_get_product_id_by_sku($assoc_args['sku']);
             if (!$product_id) {
+                /* translators: Product SKU. */
                 WP_CLI::error(sprintf(__('Product with SKU "%s" not found.', 'multi-store-sync-for-woocommerce'), $assoc_args['sku']));
             }
             $product_ids[] = $product_id;
@@ -109,14 +111,17 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
             $id_or_slug = $assoc_args['category'];
             $term = WC_Multi_Store_Category_Sync::resolve_term($id_or_slug);
             if (!$term) {
+                /* translators: Category ID or slug. */
                 WP_CLI::error(sprintf(__('Category "%s" not found.', 'multi-store-sync-for-woocommerce'), $id_or_slug));
             }
             $include_children = !isset($assoc_args['no-children']);
             $product_ids = WC_Multi_Store_Category_Sync::get_product_ids($term->term_id, $include_children);
             if (empty($product_ids)) {
+                /* translators: Category name. */
                 WP_CLI::error(sprintf(__('No published products found in category "%s".', 'multi-store-sync-for-woocommerce'), $term->name));
             }
             WP_CLI::log(sprintf(
+                /* translators: 1: category name, 2: number of products, 3: child-category note. */
                 __('Category "%1$s" — %2$d product(s)%3$s', 'multi-store-sync-for-woocommerce'),
                 $term->name,
                 count($product_ids),
@@ -139,6 +144,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
         $count = count($product_ids);
 
         if ($dry_run) {
+            /* translators: 1: number of products, 2: sync type. */
             WP_CLI::log(sprintf(__('Dry run: Would sync %1$d product(s) with type "%2$s".', 'multi-store-sync-for-woocommerce'), $count, $sync_type));
 
             $stores = WC_Multi_Store_Settings::get_active_stores();
@@ -149,10 +155,12 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
             foreach ($stores as $url => $config) {
                 WP_CLI::log(sprintf('  -> %s', $url));
             }
+            /* translators: 1: number of products, 2: number of stores. */
             WP_CLI::success(sprintf(__('Dry run complete. %1$d product(s) would be queued to %2$d store(s).', 'multi-store-sync-for-woocommerce'), $count, count($stores)));
             return;
         }
 
+        /* translators: Number of products being queued for sync. */
         WP_CLI::log(sprintf(__('Queuing %d product(s) for sync...', 'multi-store-sync-for-woocommerce'), $count));
 
         $progress = \WP_CLI\Utils\make_progress_bar(__('Queuing products', 'multi-store-sync-for-woocommerce'), $count);
@@ -170,6 +178,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
         }
 
         $progress->finish();
+        /* translators: 1: number of queue items, 2: number of products. */
         WP_CLI::success(sprintf(__('Queued %1$d item(s) for %2$d product(s).', 'multi-store-sync-for-woocommerce'), $queued, $count));
     }
 
@@ -242,6 +251,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
             case 'process':
                 $batch_size = (int) ($assoc_args['batch-size'] ?? 30);
                 $verbose    = isset($assoc_args['verbose']);
+                /* translators: Number of queue items to process in a batch. */
                 WP_CLI::log(sprintf(__('Processing queue (batch size: %d)...', 'multi-store-sync-for-woocommerce'), $batch_size));
 
                 $ok   = 0;
@@ -288,6 +298,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
                     WP_CLI::warning(__('Queue processor is already running.', 'multi-store-sync-for-woocommerce'));
                 } else {
                     WP_CLI::success(sprintf(
+                        /* translators: 1: number of processed items, 2: successful items, 3: failed items, 4: remaining items. */
                         __('Processed %1$d item(s): %2$d success, %3$d errors, %4$d remaining.', 'multi-store-sync-for-woocommerce'),
                         $result['processed'],
                         $result['success'],
@@ -300,11 +311,13 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
             case 'clear':
                 WP_CLI::confirm(__('Are you sure you want to clear the entire queue?', 'multi-store-sync-for-woocommerce'));
                 $cleared = WC_MSS()->queue_manager->clear_queue();
+                /* translators: Number of queue items removed. */
                 WP_CLI::success(sprintf(__('Queue cleared. %s item(s) removed.', 'multi-store-sync-for-woocommerce'), $cleared ?: 0));
                 break;
 
             case 'retry':
                 $retried = WC_Multi_Store_Queue_Table::retry_failed_items();
+                /* translators: Number of failed queue items reset to pending. */
                 WP_CLI::success(sprintf(__('%s failed item(s) reset to pending.', 'multi-store-sync-for-woocommerce'), $retried ?: 0));
                 break;
         }
@@ -383,15 +396,19 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
                 $store = WC_Multi_Store_Settings::get_store($store_url);
 
                 if (!$store) {
+                    /* translators: Store URL. */
                     WP_CLI::error(sprintf(__('Store "%s" not found.', 'multi-store-sync-for-woocommerce'), $store_url));
                 }
 
+                /* translators: Store URL. */
                 WP_CLI::log(sprintf(__('Testing connection to %s...', 'multi-store-sync-for-woocommerce'), $store_url));
 
                 $result = WC_Multi_Store_Health_Check::check_store_connection($store_url, $store);
                 if (is_wp_error($result)) {
+                    /* translators: Connection error message. */
                     WP_CLI::error(sprintf(__('Connection failed: %s', 'multi-store-sync-for-woocommerce'), $result->get_error_message()));
                 } else {
+                    /* translators: Store URL. */
                     WP_CLI::success(sprintf(__('Connection to %s successful.', 'multi-store-sync-for-woocommerce'), $store_url));
                 }
                 break;
@@ -403,6 +420,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
                 }
                 $store_url = rtrim($store_url, '/');
                 WC_Multi_Store_Circuit_Breaker::reset($store_url);
+                /* translators: Store URL. */
                 WP_CLI::success(sprintf(__('Circuit breaker reset for %s. Requests will resume immediately.', 'multi-store-sync-for-woocommerce'), $store_url));
                 break;
         }
@@ -441,6 +459,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
         }
 
         WP_CLI::success(sprintf(
+            /* translators: 1: number of products checked, 2: number of discrepancies found. */
             __('Verification complete. %1$d product(s) checked, %2$d discrepancy(ies) found.', 'multi-store-sync-for-woocommerce'),
             $result['products_checked'] ?? 0,
             $result['discrepancies_found'] ?? 0
@@ -495,6 +514,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
         $stats = WC_Multi_Store_Sync_History::get_statistics(['days' => $days]);
         $overall = $stats['overall'];
 
+        /* translators: Number of days included in the sync statistics. */
         WP_CLI::log(sprintf(__('Sync Statistics (last %d days):', 'multi-store-sync-for-woocommerce'), $days));
         WP_CLI::log(sprintf('  Total syncs: %s', $overall['total_syncs']));
         WP_CLI::log(sprintf('  Successful: %s', $overall['successful_syncs']));
@@ -575,9 +595,11 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
             $json = wp_json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
             if (file_put_contents($file, $json) === false) {
+                /* translators: Configuration file path. */
                 WP_CLI::error(sprintf(__('Failed to write to %s.', 'multi-store-sync-for-woocommerce'), $file));
             }
 
+            /* translators: Configuration file path. */
             WP_CLI::success(sprintf(__('Configuration exported to %s.', 'multi-store-sync-for-woocommerce'), $file));
 
             if (!$include_keys) {
@@ -585,11 +607,13 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
             }
         } else {
             if (!file_exists($file)) {
+                /* translators: Configuration file path. */
                 WP_CLI::error(sprintf(__('File not found: %s', 'multi-store-sync-for-woocommerce'), $file));
             }
 
             $json = file_get_contents($file);
             if ($json === false) {
+                /* translators: Configuration file path. */
                 WP_CLI::error(sprintf(__('Failed to read file: %s', 'multi-store-sync-for-woocommerce'), $file));
             }
             $config = json_decode($json, true);
@@ -683,6 +707,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
                 }
 
                 WP_CLI\Utils\format_items($format, $table, ['ID', 'Product ID', 'SKU', 'Store', 'Type', 'Attempts', 'Error', 'Failed At']);
+                /* translators: Total number of dead letter queue items. */
                 WP_CLI::log(sprintf(__('Total: %d item(s)', 'multi-store-sync-for-woocommerce'), $items['total']));
                 break;
 
@@ -691,13 +716,16 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
                 if ($id) {
                     $result = WC_Multi_Store_Dead_Letter_Queue::retry_item((int) $id);
                     if ($result) {
+                        /* translators: Dead letter queue item ID. */
                         WP_CLI::success(sprintf(__('Item %d re-queued for processing.', 'multi-store-sync-for-woocommerce'), $id));
                     } else {
+                        /* translators: Dead letter queue item ID. */
                         WP_CLI::error(sprintf(__('Failed to retry item %d.', 'multi-store-sync-for-woocommerce'), $id));
                     }
                 } else {
                     WP_CLI::confirm(__('Retry all items in the dead letter queue?', 'multi-store-sync-for-woocommerce'));
                     $count = WC_Multi_Store_Dead_Letter_Queue::retry_all();
+                    /* translators: Number of dead letter queue items re-queued. */
                     WP_CLI::success(sprintf(__('%d item(s) re-queued for processing.', 'multi-store-sync-for-woocommerce'), $count));
                 }
                 break;
@@ -705,6 +733,7 @@ class WC_Multi_Store_CLI_Commands extends WP_CLI_Command {
             case 'clear':
                 WP_CLI::confirm(__('Are you sure you want to clear the dead letter queue?', 'multi-store-sync-for-woocommerce'));
                 $cleared = WC_Multi_Store_Dead_Letter_Queue::clear_all();
+                /* translators: Number of dead letter queue items cleared. */
                 WP_CLI::success(sprintf(__('Cleared %d item(s) from dead letter queue.', 'multi-store-sync-for-woocommerce'), $cleared));
                 break;
 
