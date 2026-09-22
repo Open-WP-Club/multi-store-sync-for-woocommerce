@@ -154,6 +154,7 @@ class WC_Multi_Store_Remote_Order_Admin {
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
+                    /* translators: %d: number of deleted remote orders. */
                     esc_html(_n('%d order deleted.', '%d orders deleted.', $deleted, 'multi-store-sync-for-woocommerce')),
                     absint($deleted)
                 )
@@ -220,7 +221,7 @@ class WC_Multi_Store_Remote_Order_Admin {
         ?>
         <div class="wrap woocommerce">
             <h1 class="wp-heading-inline">
-                <?php printf(esc_html__('Remote Order #%s', 'multi-store-sync-for-woocommerce'), esc_html($order->order_number)); ?>
+                <?php /* translators: %s: remote order number. */ printf(esc_html__('Remote Order #%s', 'multi-store-sync-for-woocommerce'), esc_html($order->order_number)); ?>
             </h1>
 
             <a href="<?php echo esc_url($back_url); ?>" class="page-title-action">
@@ -287,7 +288,7 @@ class WC_Multi_Store_Remote_Order_Admin {
                                     <strong><?php echo esc_html($item->product_name); ?></strong>
                                     <?php if ($item->product_sku): ?>
                                         <div class="wc-order-item-sku">
-                                            <small><?php printf(esc_html__('SKU: %s', 'multi-store-sync-for-woocommerce'), esc_html($item->product_sku)); ?></small>
+                                            <small><?php /* translators: %s: product SKU. */ printf(esc_html__('SKU: %s', 'multi-store-sync-for-woocommerce'), esc_html($item->product_sku)); ?></small>
                                         </div>
                                     <?php endif; ?>
                                     <?php if (!empty($item->meta_data) && is_array($item->meta_data)): ?>
