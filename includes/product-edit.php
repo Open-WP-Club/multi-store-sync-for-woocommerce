@@ -72,6 +72,7 @@ class WC_Multi_Store_Product_Edit {
             <?php else: ?>
                 <p>
                     <?php printf(
+                        /* translators: %d: number of active stores. */
                         esc_html__('Sync this product to %d active store(s).', 'multi-store-sync-for-woocommerce'),
                         absint($store_count)
                     ); ?>
@@ -307,6 +308,7 @@ class WC_Multi_Store_Product_Edit {
         if ($queued_count > 0) {
             wp_send_json_success([
                 'message' => sprintf(
+                    /* translators: %d: number of active stores receiving the product sync. */
                     __('Product queued for sync to %d store(s). Sync will be processed shortly.', 'multi-store-sync-for-woocommerce'),
                     $queued_count
                 ),
