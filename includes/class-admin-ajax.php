@@ -186,6 +186,7 @@ class WC_Multi_Store_Admin_Ajax {
 
                 wp_send_json_success([
                     'message' => sprintf(
+                        /* translators: Number of orphan products queued for deletion. */
                         __('%d orphan product(s) queued for deletion', 'multi-store-sync-for-woocommerce'),
                         $queued
                     ),
@@ -242,6 +243,7 @@ class WC_Multi_Store_Admin_Ajax {
                 ]);
             } elseif ($deleted > 0) {
                 wp_send_json_success([
+                    /* translators: Number of history records deleted. */
                     'message'   => sprintf(__('%d records deleted', 'multi-store-sync-for-woocommerce'), $deleted),
                     'deleted'   => $deleted,
                     'remaining' => WC_Multi_Store_Sync_History::get_count(),
@@ -492,9 +494,13 @@ class WC_Multi_Store_Admin_Ajax {
 
             $message = match ($delete_type) {
                 'all'        => __('All logs deleted', 'multi-store-sync-for-woocommerce'),
+                /* translators: Number of error log records deleted. */
                 'errors'     => sprintf(__('%d error records deleted', 'multi-store-sync-for-woocommerce'), $deleted),
+                /* translators: Number of successful log records deleted. */
                 'success'    => sprintf(__('%d success records deleted', 'multi-store-sync-for-woocommerce'), $deleted),
+                /* translators: 1: number of log records deleted, 2: age in days. */
                 'older_than' => sprintf(__('%1$d records older than %2$d days deleted', 'multi-store-sync-for-woocommerce'), $deleted, $days),
+                /* translators: 1: number of log records deleted, 2: log type. */
                 'by_type'    => sprintf(__('%1$d records of type "%2$s" deleted', 'multi-store-sync-for-woocommerce'), $deleted, $log_type),
             };
 
@@ -670,6 +676,7 @@ class WC_Multi_Store_Admin_Ajax {
                     'deleted'      => true,
                     'queued_count' => $queued_count,
                     'message'      => sprintf(
+                        /* translators: 1: product SKU, 2: number of stores. */
                         __('SKU %1$s not found locally — queued for deletion from %2$d store(s)', 'multi-store-sync-for-woocommerce'),
                         esc_html($sku),
                         $queued_count
@@ -683,6 +690,7 @@ class WC_Multi_Store_Admin_Ajax {
                 $results[] = [
                     'sku'     => $sku,
                     'success' => false,
+                    /* translators: Product SKU. */
                     'message' => sprintf(__('Could not load product for SKU: %s', 'multi-store-sync-for-woocommerce'), esc_html($sku)),
                 ];
                 continue;
@@ -699,6 +707,7 @@ class WC_Multi_Store_Admin_Ajax {
                 $results[] = [
                     'sku'     => $sku,
                     'success' => false,
+                    /* translators: Product SKU. */
                     'message' => sprintf(__('SKU %s: no active stores or product is excluded from all stores', 'multi-store-sync-for-woocommerce'), esc_html($sku)),
                 ];
                 continue;
@@ -716,10 +725,11 @@ class WC_Multi_Store_Admin_Ajax {
             ));
 
             $results[] = [
-                'sku'          => $sku,
-                'success'      => true,
-                'message'      => sprintf(
-                    __('"%1$s" (SKU: %2$s) queued to %3$d store(s)', 'multi-store-sync-for-woocommerce'),
+                    'sku'          => $sku,
+                    'success'      => true,
+                    'message'      => sprintf(
+                        /* translators: 1: product name, 2: product SKU, 3: number of stores. */
+                        __('"%1$s" (SKU: %2$s) queued to %3$d store(s)', 'multi-store-sync-for-woocommerce'),
                     esc_html($product_name),
                     esc_html($sku),
                     $added
@@ -732,6 +742,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: Number of SKUs queued for a full sync. */
                 _n(
                     '%d SKU queued for full sync.',
                     '%d SKUs queued for full sync.',
@@ -775,6 +786,7 @@ class WC_Multi_Store_Admin_Ajax {
             if (empty($product_ids)) {
                 wp_send_json_error([
                     'message' => sprintf(
+                        /* translators: Category name. */
                         __('No published products found in category "%s"', 'multi-store-sync-for-woocommerce'),
                         esc_html($term->name)
                     ),
@@ -810,6 +822,7 @@ class WC_Multi_Store_Admin_Ajax {
 
             wp_send_json_success([
                 'message' => sprintf(
+                    /* translators: 1: category name, 2: number of products queued. */
                     _n(
                         'Category "%1$s": %2$d product queued for full sync across all active stores.',
                         'Category "%1$s": %2$d products queued for full sync across all active stores.',
@@ -856,6 +869,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: Number of warning and error entries removed. */
                 __('%d warning/error entries removed', 'multi-store-sync-for-woocommerce'),
                 $result['removed']
             ),
@@ -899,6 +913,7 @@ class WC_Multi_Store_Admin_Ajax {
                 }
             }
             if (!$config) {
+                /* translators: Store URL. */
                 wp_send_json_error(['message' => sprintf(__('Store not found: %s', 'multi-store-sync-for-woocommerce'), $store_url)]);
                 return;
             }
@@ -939,6 +954,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         $config = WC_Multi_Store_Settings::get_store($store_url);
         if (!$config) {
+            /* translators: Store URL. */
             wp_send_json_error(['message' => sprintf(__('Store not found: %s', 'multi-store-sync-for-woocommerce'), $store_url)]);
             return;
         }
@@ -1104,6 +1120,7 @@ class WC_Multi_Store_Admin_Ajax {
         if ((int) $result['products'] === 0) {
             wp_send_json_error([
                 'message' => sprintf(
+                    /* translators: Category name. */
                     __('No published products found in category "%s"', 'multi-store-sync-for-woocommerce'),
                     esc_html($result['category_name'])
                 ),
@@ -1113,6 +1130,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: 1: number of products, 2: category name, 3: number of queue items created. */
                 __('Queued %1$d product(s) from "%2$s" (%3$d queue items created).', 'multi-store-sync-for-woocommerce'),
                 $result['products'],
                 $result['category_name'],
@@ -1193,6 +1211,7 @@ class WC_Multi_Store_Admin_Ajax {
         if ($added > 0) {
             wp_send_json_success([
                 'message' => sprintf(
+                    /* translators: Number of stores the product was queued to. */
                     __('Product queued for full sync to %d store(s)', 'multi-store-sync-for-woocommerce'),
                     $added
                 ),
@@ -1224,7 +1243,7 @@ class WC_Multi_Store_Admin_Ajax {
                 var catId  = $link.data('category-id');
                 var catName = $link.data('category-name');
 
-                if (!confirm('<?php echo esc_js(__('Sync all products in "%s" (and children) to all stores?', 'multi-store-sync-for-woocommerce')); ?>'.replace('%s', catName))) {
+                if (!confirm('<?php /* translators: Category name. */ echo esc_js(__('Sync all products in "%s" (and children) to all stores?', 'multi-store-sync-for-woocommerce')); ?>'.replace('%s', catName))) {
                     return;
                 }
 
