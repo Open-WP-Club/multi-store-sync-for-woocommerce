@@ -366,6 +366,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: 1: successful shipping classes, 2: failed classes, 3: total classes. */
                 __('Shipping classes synced: %1$d successful, %2$d failed (out of %3$d total)', 'multi-store-sync-for-woocommerce'),
                 $results['synced'],
                 $results['failed'],
