@@ -518,6 +518,7 @@ class WC_Multi_Store_Coupon_Sync {
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: 1: successful coupons, 2: failed coupons, 3: total coupons. */
                 __('Coupons synced: %1$d successful, %2$d failed (out of %3$d total)', 'multi-store-sync-for-woocommerce'),
                 $results['synced'],
                 $results['failed'],
