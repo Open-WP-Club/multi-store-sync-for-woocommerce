@@ -20,19 +20,19 @@ foreach ($stores as $store) {
 ?>
 
 <div class="wrap wc-mss-dashboard">
-    <h1><?php _e('WooCommerce Multi-Store Sync - Dashboard', 'multi-store-sync-for-woocommerce'); ?></h1>
+    <h1><?php esc_html_e('WooCommerce Multi-Store Sync - Dashboard', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <div class="wc-mss-dashboard-grid">
         <!-- System Status Card (includes Scheduler) -->
         <div class="wc-mss-card">
-            <h2><?php _e('System Status', 'multi-store-sync-for-woocommerce'); ?></h2>
+            <h2><?php esc_html_e('System Status', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="wc-mss-status-table">
                 <tr>
-                    <td><?php _e('Plugin Version', 'multi-store-sync-for-woocommerce'); ?></td>
+                    <td><?php esc_html_e('Plugin Version', 'multi-store-sync-for-woocommerce'); ?></td>
                     <td><strong><?php echo esc_html(WC_MSS_VERSION); ?></strong></td>
                 </tr>
                 <tr>
-                    <td><?php _e('Sync Status', 'multi-store-sync-for-woocommerce'); ?></td>
+                    <td><?php esc_html_e('Sync Status', 'multi-store-sync-for-woocommerce'); ?></td>
                     <td>
                         <?php if ($settings['enabled']): ?>
                             <span class="status-active"><span class="wc-mss-status-dot active"></span>Active</span>
@@ -42,11 +42,11 @@ foreach ($stores as $store) {
                     </td>
                 </tr>
                 <tr>
-                    <td><?php _e('Stores', 'multi-store-sync-for-woocommerce'); ?></td>
-                    <td><strong><?php echo $active_count; ?></strong> / <?php echo count($stores); ?> <?php _e('active', 'multi-store-sync-for-woocommerce'); ?></td>
+                    <td><?php esc_html_e('Stores', 'multi-store-sync-for-woocommerce'); ?></td>
+                    <td><strong><?php echo esc_html($active_count); ?></strong> / <?php echo esc_html(count($stores)); ?> <?php esc_html_e('active', 'multi-store-sync-for-woocommerce'); ?></td>
                 </tr>
                 <tr>
-                    <td><?php _e('Queue Processor', 'multi-store-sync-for-woocommerce'); ?></td>
+                    <td><?php esc_html_e('Queue Processor', 'multi-store-sync-for-woocommerce'); ?></td>
                     <td>
                         <?php if ($scheduler_status['queue_processor']['is_scheduled']): ?>
                             <span class="status-active"><span class="wc-mss-status-dot active"></span></span>
@@ -57,7 +57,7 @@ foreach ($stores as $store) {
                     </td>
                 </tr>
                 <tr>
-                    <td><?php _e('Scheduled Sync', 'multi-store-sync-for-woocommerce'); ?></td>
+                    <td><?php esc_html_e('Scheduled Sync', 'multi-store-sync-for-woocommerce'); ?></td>
                     <td>
                         <?php if ($scheduler_status['scheduled_sync']['is_scheduled']): ?>
                             <span class="status-active"><span class="wc-mss-status-dot active"></span></span>
@@ -69,7 +69,7 @@ foreach ($stores as $store) {
                 </tr>
                 <?php if ($scheduler_status['scheduler_type'] === 'Action Scheduler'): ?>
                 <tr>
-                    <td><?php _e('Pending / Failed', 'multi-store-sync-for-woocommerce'); ?></td>
+                    <td><?php esc_html_e('Pending / Failed', 'multi-store-sync-for-woocommerce'); ?></td>
                     <td>
                         <?php echo esc_html($scheduler_status['pending_actions']); ?> /
                         <?php if ($scheduler_status['failed_actions'] > 0): ?>
@@ -85,7 +85,7 @@ foreach ($stores as $store) {
                 <form method="post" style="display: inline;">
                     <?php wp_nonce_field('wc_mss_reschedule_actions'); ?>
                     <button type="submit" name="wc_mss_reschedule_actions" class="button button-small">
-                        <?php _e('Reschedule', 'multi-store-sync-for-woocommerce'); ?>
+                        <?php esc_html_e('Reschedule', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
                 </form>
             </div>
@@ -93,45 +93,45 @@ foreach ($stores as $store) {
 
         <!-- Quick Actions Card -->
         <div class="wc-mss-card">
-            <h2><?php _e('Quick Actions', 'multi-store-sync-for-woocommerce'); ?></h2>
+            <h2><?php esc_html_e('Quick Actions', 'multi-store-sync-for-woocommerce'); ?></h2>
             <div class="wc-mss-actions">
-                <a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=stores'); ?>" class="button button-primary">
-                    <?php _e('Manage Stores', 'multi-store-sync-for-woocommerce'); ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=stores')); ?>" class="button button-primary">
+                    <?php esc_html_e('Manage Stores', 'multi-store-sync-for-woocommerce'); ?>
                 </a>
-                <a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=settings'); ?>" class="button">
-                    <?php _e('Settings', 'multi-store-sync-for-woocommerce'); ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=settings')); ?>" class="button">
+                    <?php esc_html_e('Settings', 'multi-store-sync-for-woocommerce'); ?>
                 </a>
-                <a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=queue'); ?>" class="button">
-                    <?php _e('View Queue', 'multi-store-sync-for-woocommerce'); ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=queue')); ?>" class="button">
+                    <?php esc_html_e('View Queue', 'multi-store-sync-for-woocommerce'); ?>
                 </a>
-                <a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=history'); ?>" class="button">
-                    <?php _e('Sync History', 'multi-store-sync-for-woocommerce'); ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=history')); ?>" class="button">
+                    <?php esc_html_e('Sync History', 'multi-store-sync-for-woocommerce'); ?>
                 </a>
-                <a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=logs'); ?>" class="button">
-                    <?php _e('View Logs', 'multi-store-sync-for-woocommerce'); ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=logs')); ?>" class="button">
+                    <?php esc_html_e('View Logs', 'multi-store-sync-for-woocommerce'); ?>
                 </a>
                 <br/><br/>
                 <button type="button" id="wc-mss-force-sync-all" class="button button-large" style="background: #2271b1; color: #fff; border-color: #2271b1;">
-                    <?php _e('Force Full Sync All Products', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Force Full Sync All Products', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <p class="description" style="margin-top: 10px;">
-                    <?php _e('Queues all products for immediate full sync to all active stores.', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Queues all products for immediate full sync to all active stores.', 'multi-store-sync-for-woocommerce'); ?>
                 </p>
 
                 <div style="margin-top: 15px;">
                     <button type="button" id="wc-mss-start-verification" class="button button-large" style="background: #d63638; color: #fff; border-color: #d63638;">
-                        <?php _e('Force Weekly Verification', 'multi-store-sync-for-woocommerce'); ?>
+                        <?php esc_html_e('Force Weekly Verification', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
                     <button type="button" id="wc-mss-cancel-verification" class="button button-large" style="display: none; margin-left: 10px;">
-                        <?php _e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
+                        <?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
                 </div>
                 <p class="description" style="margin-top: 10px;">
-                    <?php _e('Runs stock discrepancy check between all stores in the background.', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Runs stock discrepancy check between all stores in the background.', 'multi-store-sync-for-woocommerce'); ?>
                 </p>
                 <div id="wc-mss-verification-progress" style="display: none; margin-top: 15px; padding: 15px; background: #f0f0f1; border-radius: 4px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span id="wc-mss-verification-status"><?php _e('Starting verification...', 'multi-store-sync-for-woocommerce'); ?></span>
+                        <span id="wc-mss-verification-status"><?php esc_html_e('Starting verification...', 'multi-store-sync-for-woocommerce'); ?></span>
                         <span id="wc-mss-verification-percent">0%</span>
                     </div>
                     <div class="wc-mss-progress-container">
@@ -306,11 +306,11 @@ foreach ($stores as $store) {
         <!-- Sync Statistics Card -->
         <div class="wc-mss-card wc-mss-full-width">
             <h2>
-                <?php _e('Sync Activity (Last 7 Days)', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Sync Activity (Last 7 Days)', 'multi-store-sync-for-woocommerce'); ?>
                 <select id="wc-mss-chart-days" style="float: right; margin-top: -3px;">
-                    <option value="7"><?php _e('Last 7 days', 'multi-store-sync-for-woocommerce'); ?></option>
-                    <option value="14"><?php _e('Last 14 days', 'multi-store-sync-for-woocommerce'); ?></option>
-                    <option value="30"><?php _e('Last 30 days', 'multi-store-sync-for-woocommerce'); ?></option>
+                    <option value="7"><?php esc_html_e('Last 7 days', 'multi-store-sync-for-woocommerce'); ?></option>
+                    <option value="14"><?php esc_html_e('Last 14 days', 'multi-store-sync-for-woocommerce'); ?></option>
+                    <option value="30"><?php esc_html_e('Last 30 days', 'multi-store-sync-for-woocommerce'); ?></option>
                 </select>
             </h2>
             <?php
@@ -324,24 +324,24 @@ foreach ($stores as $store) {
             ?>
             <div style="display: flex; gap: 20px; margin-bottom: 15px;">
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">
-                    <div style="font-size: 28px; font-weight: 600;"><?php echo (int) ($overall['total_syncs'] ?? 0); ?></div>
-                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php _e('Total Syncs', 'multi-store-sync-for-woocommerce'); ?></div>
+                    <div style="font-size: 28px; font-weight: 600;"><?php echo esc_html((int) ($overall['total_syncs'] ?? 0)); ?></div>
+                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php esc_html_e('Total Syncs', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">
-                    <div style="font-size: 28px; font-weight: 600; color: #00a32a;"><?php echo (int) ($overall['successful_syncs'] ?? 0); ?></div>
-                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php _e('Successful', 'multi-store-sync-for-woocommerce'); ?></div>
+                    <div style="font-size: 28px; font-weight: 600; color: #00a32a;"><?php echo esc_html((int) ($overall['successful_syncs'] ?? 0)); ?></div>
+                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php esc_html_e('Successful', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">
-                    <div style="font-size: 28px; font-weight: 600; color: <?php echo ($overall['failed_syncs'] ?? 0) > 0 ? '#d63638' : '#646970'; ?>;"><?php echo (int) ($overall['failed_syncs'] ?? 0); ?></div>
-                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php _e('Failed', 'multi-store-sync-for-woocommerce'); ?></div>
+                    <div style="font-size: 28px; font-weight: 600; color: <?php echo esc_attr(($overall['failed_syncs'] ?? 0) > 0 ? '#d63638' : '#646970'); ?>;"><?php echo esc_html((int) ($overall['failed_syncs'] ?? 0)); ?></div>
+                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php esc_html_e('Failed', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">
-                    <div style="font-size: 28px; font-weight: 600; color: <?php echo $success_rate_color; ?>;"><?php echo $has_syncs ? esc_html($success_rate) . '%' : '&mdash;'; ?></div>
-                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php _e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></div>
+                    <div style="font-size: 28px; font-weight: 600; color: <?php echo esc_attr($success_rate_color); ?>;"><?php echo $has_syncs ? esc_html($success_rate) . '%' : '&mdash;'; ?></div>
+                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php esc_html_e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
                 <div style="text-align: center; flex: 1; padding: 10px; background: #f6f7f7; border-radius: 4px;">
-                    <div style="font-size: 28px; font-weight: 600;"><?php echo round($overall['avg_duration_ms'] ?? 0); ?><span style="font-size: 14px;">ms</span></div>
-                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php _e('Avg Duration', 'multi-store-sync-for-woocommerce'); ?></div>
+                    <div style="font-size: 28px; font-weight: 600;"><?php echo esc_html(round($overall['avg_duration_ms'] ?? 0)); ?><span style="font-size: 14px;">ms</span></div>
+                    <div style="font-size: 11px; color: #646970; text-transform: uppercase;"><?php esc_html_e('Avg Duration', 'multi-store-sync-for-woocommerce'); ?></div>
                 </div>
             </div>
 
@@ -356,8 +356,8 @@ foreach ($stores as $store) {
             if ($dlq_stats['total_dead'] > 0):
             ?>
             <div style="margin-top: 15px; padding: 10px 15px; background: #fcf0f1; border-left: 4px solid #d63638; border-radius: 2px;">
-                <strong><?php echo sprintf(__('%d item(s) in the Dead Letter Queue', 'multi-store-sync-for-woocommerce'), $dlq_stats['total_dead']); ?></strong>
-                — <a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=dead-letter-queue'); ?>"><?php _e('Review failed items', 'multi-store-sync-for-woocommerce'); ?></a>
+                <strong><?php echo sprintf(esc_html__('%d item(s) in the Dead Letter Queue', 'multi-store-sync-for-woocommerce'), absint($dlq_stats['total_dead'])); ?></strong>
+                — <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=dead-letter-queue')); ?>"><?php esc_html_e('Review failed items', 'multi-store-sync-for-woocommerce'); ?></a>
             </div>
             <?php endif; ?>
         </div>
@@ -431,24 +431,24 @@ foreach ($stores as $store) {
 
         <!-- Configuration Summary Card -->
         <div class="wc-mss-card wc-mss-full-width">
-            <h2><?php _e('Current Configuration', 'multi-store-sync-for-woocommerce'); ?></h2>
+            <h2><?php esc_html_e('Current Configuration', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="wp-list-table widefat fixed striped">
                 <tbody>
                     <tr>
-                        <th><?php _e('Default Sync Type:', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Default Sync Type:', 'multi-store-sync-for-woocommerce'); ?></th>
                         <td><?php echo esc_html($settings['sync_type_default']); ?></td>
                     </tr>
                     <tr>
-                        <th><?php _e('Authentication Method:', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Authentication Method:', 'multi-store-sync-for-woocommerce'); ?></th>
                         <td><?php echo esc_html($settings['auth_method']); ?></td>
                     </tr>
                     <tr>
-                        <th><?php _e('Match Products By:', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Match Products By:', 'multi-store-sync-for-woocommerce'); ?></th>
                         <td><?php echo esc_html($settings['match_products_by']); ?></td>
                     </tr>
                     <tr>
-                        <th><?php _e('Stock Sync Enabled:', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <td><?php echo $settings['stock_sync_enabled'] ? __('Yes', 'multi-store-sync-for-woocommerce') : __('No', 'multi-store-sync-for-woocommerce'); ?></td>
+                        <th><?php esc_html_e('Stock Sync Enabled:', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <td><?php echo esc_html($settings['stock_sync_enabled'] ? __('Yes', 'multi-store-sync-for-woocommerce') : __('No', 'multi-store-sync-for-woocommerce')); ?></td>
                     </tr>
                 </tbody>
             </table>
@@ -457,13 +457,13 @@ foreach ($stores as $store) {
         <!-- Stores List Card -->
         <?php if (!empty($stores)): ?>
         <div class="wc-mss-card wc-mss-full-width">
-            <h2><?php _e('Configured Stores', 'multi-store-sync-for-woocommerce'); ?></h2>
+            <h2><?php esc_html_e('Configured Stores', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
-                        <th><?php _e('Store URL', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php _e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php _e('Added Date', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Store URL', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Added Date', 'multi-store-sync-for-woocommerce'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -489,9 +489,9 @@ foreach ($stores as $store) {
         <?php else: ?>
         <div class="wc-mss-card wc-mss-full-width">
             <div class="wc-mss-empty-state">
-                <p><?php _e('No stores configured yet.', 'multi-store-sync-for-woocommerce'); ?></p>
-                <a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=stores'); ?>" class="button button-primary">
-                    <?php _e('Add Your First Store', 'multi-store-sync-for-woocommerce'); ?>
+                <p><?php esc_html_e('No stores configured yet.', 'multi-store-sync-for-woocommerce'); ?></p>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=stores')); ?>" class="button button-primary">
+                    <?php esc_html_e('Add Your First Store', 'multi-store-sync-for-woocommerce'); ?>
                 </a>
             </div>
         </div>
