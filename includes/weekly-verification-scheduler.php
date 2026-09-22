@@ -569,6 +569,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         return [
             'success' => true,
             'message' => sprintf(
+                /* translators: 1: number of products, 2: number of batches. */
                 __('Verification started: %1$d products will be checked in %2$d batches.', 'multi-store-sync-for-woocommerce'),
                 count($products),
                 $progress_data['total_batches']
