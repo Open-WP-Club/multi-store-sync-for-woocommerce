@@ -113,7 +113,7 @@ class WC_Multi_Store_Dashboard_Widget {
             <?php if ($queue_stats['failed'] > 0): ?>
             <div class="wc-mss-w-status" style="margin-top: 8px;">
                 <span class="wc-mss-w-dot warning"></span>
-                <span><?php echo sprintf(esc_html__('%d failed item(s) in queue', 'multi-store-sync-for-woocommerce'), absint($queue_stats['failed'])); ?></span>
+                <span><?php /* translators: %d: number of failed queue items. */ echo sprintf(esc_html__('%d failed item(s) in queue', 'multi-store-sync-for-woocommerce'), absint($queue_stats['failed'])); ?></span>
             </div>
             <?php endif; ?>
 
