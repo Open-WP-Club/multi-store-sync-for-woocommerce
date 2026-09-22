@@ -247,6 +247,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
             header('Content-Type: text/csv');
             header('Content-Disposition: attachment; filename="api-usage-' . date('Y-m-d') . '.csv"');
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV download response must not be HTML escaped.
             echo $csv;
             exit;
         }
