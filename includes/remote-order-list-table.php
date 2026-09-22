@@ -399,7 +399,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
             if (!empty($stores)) {
                 ?>
                 <select name="store_url" id="filter-by-store">
-                    <option value=""><?php _e('All stores', 'multi-store-sync-for-woocommerce'); ?></option>
+                    <option value=""><?php esc_html_e('All stores', 'multi-store-sync-for-woocommerce'); ?></option>
                     <?php
                     $current_store = $_GET['store_url'] ?? '';
                     foreach ($stores as $store) {
@@ -418,7 +418,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
             // Status filter
             ?>
             <select name="status" id="filter-by-status">
-                <option value=""><?php _e('All statuses', 'multi-store-sync-for-woocommerce'); ?></option>
+                <option value=""><?php esc_html_e('All statuses', 'multi-store-sync-for-woocommerce'); ?></option>
                 <?php
                 $statuses = [
                     'pending'    => __('Pending payment', 'multi-store-sync-for-woocommerce'),
@@ -467,7 +467,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
      */
     #[\Override]
     public function no_items(): void {
-        _e('No remote orders found.', 'multi-store-sync-for-woocommerce');
+        esc_html_e('No remote orders found.', 'multi-store-sync-for-woocommerce');
     }
 
     /**
