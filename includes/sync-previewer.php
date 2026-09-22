@@ -329,6 +329,7 @@ class WC_Multi_Store_Sync_Previewer {
                     'field' => 'stock_quantity',
                     'type' => 'warning',
                     'message' => sprintf(
+                        /* translators: 1: remote stock quantity, 2: local stock quantity. */
                         __('Remote stock (%1$d) is higher than local stock (%2$d). Syncing will reduce remote stock.', 'multi-store-sync-for-woocommerce'),
                         $remote_product['stock_quantity'],
                         $sync_data['stock_quantity']
@@ -345,6 +346,7 @@ class WC_Multi_Store_Sync_Previewer {
                     'field' => 'regular_price',
                     'type' => 'warning',
                     'message' => sprintf(
+                        /* translators: 1: remote price, 2: local price, 3: percentage difference. */
                         __('Price difference is significant: Remote: %1$s, Local: %2$s (%3$d%% change)', 'multi-store-sync-for-woocommerce'),
                         wc_price($remote_product['regular_price']),
                         wc_price($sync_data['regular_price']),
@@ -369,6 +371,7 @@ class WC_Multi_Store_Sync_Previewer {
         }
 
         $html = '<div class="wc-mss-preview">';
+        /* translators: %s: store name. */
         $html .= '<h3>' . sprintf(__('Preview: %s', 'multi-store-sync-for-woocommerce'), esc_html($preview['store_name'])) . '</h3>';
 
         // Action
