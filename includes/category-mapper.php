@@ -347,6 +347,7 @@ class WC_Multi_Store_Category_Mapper {
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: 1: number of mappings saved, 2: mapping type. */
                 __('%1$d %2$s mapping(s) saved for store', 'multi-store-sync-for-woocommerce'),
                 count($mappings),
                 $mapping_type
