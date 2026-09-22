@@ -32,9 +32,9 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
 ?>
 
 <div class="wrap wc-mss-stores">
-    <h1 class="wp-heading-inline"><?php _e('Manage Stores', 'multi-store-sync-for-woocommerce'); ?></h1>
+    <h1 class="wp-heading-inline"><?php esc_html_e('Manage Stores', 'multi-store-sync-for-woocommerce'); ?></h1>
     <?php if (!$editing_store && !isset($_GET['add_new'])): ?>
-    <a href="<?php echo esc_url(add_query_arg('add_new', '1')); ?>" class="page-title-action"><?php _e('Add New Store', 'multi-store-sync-for-woocommerce'); ?></a>
+    <a href="<?php echo esc_url(add_query_arg('add_new', '1')); ?>" class="page-title-action"><?php esc_html_e('Add New Store', 'multi-store-sync-for-woocommerce'); ?></a>
     <?php endif; ?>
     <hr class="wp-header-end">
 
@@ -44,8 +44,8 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
     <!-- Edit Store Form -->
     <div class="wc-mss-store-form">
         <div class="wc-mss-store-form-header">
-            <h2><?php printf(__('Edit Store: %s', 'multi-store-sync-for-woocommerce'), esc_html($editing_store_url)); ?></h2>
-            <a href="<?php echo esc_url(remove_query_arg('edit_store')); ?>" class="button"><?php _e('Cancel', 'multi-store-sync-for-woocommerce'); ?></a>
+            <h2><?php printf(esc_html__('Edit Store: %s', 'multi-store-sync-for-woocommerce'), esc_html($editing_store_url)); ?></h2>
+            <a href="<?php echo esc_url(remove_query_arg('edit_store')); ?>" class="button"><?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?></a>
         </div>
         <div class="wc-mss-store-form-body">
             <form method="post" action="">
@@ -96,10 +96,10 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
 
                 <p class="submit">
                     <button type="submit" name="wc_mss_update_store" class="button button-primary">
-                        <?php _e('Save Changes', 'multi-store-sync-for-woocommerce'); ?>
+                        <?php esc_html_e('Save Changes', 'multi-store-sync-for-woocommerce'); ?>
                     </button>
                     <a href="<?php echo esc_url(remove_query_arg('edit_store')); ?>" class="button">
-                        <?php _e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
+                        <?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
                     </a>
                 </p>
             </form>
@@ -116,8 +116,8 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
     <!-- Add New Store Form -->
     <div class="wc-mss-store-form">
         <div class="wc-mss-store-form-header">
-            <h2><?php _e('Add New Store', 'multi-store-sync-for-woocommerce'); ?></h2>
-            <a href="<?php echo esc_url(remove_query_arg('add_new')); ?>" class="button"><?php _e('Cancel', 'multi-store-sync-for-woocommerce'); ?></a>
+            <h2><?php esc_html_e('Add New Store', 'multi-store-sync-for-woocommerce'); ?></h2>
+            <a href="<?php echo esc_url(remove_query_arg('add_new')); ?>" class="button"><?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?></a>
         </div>
         <div class="wc-mss-store-form-body">
         <form method="post" action="">
@@ -162,13 +162,13 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
 
             <p class="submit">
                 <button type="submit" name="wc_mss_add_store" class="button button-primary">
-                    <?php _e('Add Store', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Add Store', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <button type="button" id="wc-mss-test-connection" class="button">
-                    <?php _e('Test Connection', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Test Connection', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
                 <a href="<?php echo esc_url(remove_query_arg('add_new')); ?>" class="button">
-                    <?php _e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
                 </a>
             </p>
         </form>
@@ -179,26 +179,26 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
     <!-- Existing Stores List -->
     <?php if (!$editing_store && !$show_add_form): ?>
     <div class="wc-mss-card">
-        <h2><?php _e('Configured Stores', 'multi-store-sync-for-woocommerce'); ?></h2>
+        <h2><?php esc_html_e('Configured Stores', 'multi-store-sync-for-woocommerce'); ?></h2>
         <?php if (!empty($stores)): ?>
         <p>
             <button type="button" id="wc-mss-run-health-check" class="button">
-                <?php _e('Run Health Check', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Run Health Check', 'multi-store-sync-for-woocommerce'); ?>
             </button>
             <button type="button" id="wc-mss-export-exclusions" class="button" style="margin-left: 10px;">
-                <?php _e('Export Exclusions', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Export Exclusions', 'multi-store-sync-for-woocommerce'); ?>
             </button>
             <span id="wc-mss-health-check-result" style="margin-left: 10px;"></span>
         </p>
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
-                    <th><?php _e('Store URL', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php _e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php _e('Health', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php _e('Exclusions', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php _e('Added Date', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th style="width: 150px;"><?php _e('Actions', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Store URL', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Health', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Exclusions', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th><?php esc_html_e('Added Date', 'multi-store-sync-for-woocommerce'); ?></th>
+                    <th style="width: 150px;"><?php esc_html_e('Actions', 'multi-store-sync-for-woocommerce'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -248,28 +248,28 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
                                 $exclusions[] = sprintf(_n('%d tag', '%d tags', count($exc_tags), 'multi-store-sync-for-woocommerce'), count($exc_tags));
                             }
                             echo '<span style="color:#b32d2e;">' . esc_html(implode(', ', $exclusions)) . '</span>';
-                            echo '<br><strong style="color:#2271b1;">' . sprintf(__('%1$d / %2$d products', 'multi-store-sync-for-woocommerce'), $sync_count, $total_products) . '</strong>';
+                            echo '<br><strong style="color:#2271b1;">' . sprintf(esc_html__('%1$d / %2$d products', 'multi-store-sync-for-woocommerce'), absint($sync_count), absint($total_products)) . '</strong>';
                         } else {
                             echo '<span style="color:#999;">None</span>';
-                            echo '<br><strong style="color:#2271b1;">' . sprintf(__('%d products', 'multi-store-sync-for-woocommerce'), $total_products) . '</strong>';
+                            echo '<br><strong style="color:#2271b1;">' . sprintf(esc_html__('%d products', 'multi-store-sync-for-woocommerce'), absint($total_products)) . '</strong>';
                         }
                         ?>
                     </td>
                     <td><?php echo isset($store['added_date']) ? esc_html(date('M j, Y', strtotime($store['added_date']))) : '-'; ?></td>
                     <td>
                         <a href="<?php echo esc_url(add_query_arg('edit_store', urlencode($url))); ?>" class="button button-small">
-                            <?php _e('Edit', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Edit', 'multi-store-sync-for-woocommerce'); ?>
                         </a>
                         <button type="button" class="button button-small wc-mss-check-store-btn"
                                 data-store-url="<?php echo esc_attr($url); ?>">
-                            <?php _e('Check', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Check', 'multi-store-sync-for-woocommerce'); ?>
                         </button>
                         <form method="post" style="display: inline;">
                             <?php wp_nonce_field('wc_mss_delete_store'); ?>
                             <input type="hidden" name="store_url" value="<?php echo esc_attr($url); ?>">
                             <button type="submit" name="wc_mss_delete_store" class="button button-small" style="color: #b32d2e;"
                                     onclick="return confirm('<?php esc_attr_e('Are you sure you want to delete this store?', 'multi-store-sync-for-woocommerce'); ?>')">
-                                <?php _e('Delete', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Delete', 'multi-store-sync-for-woocommerce'); ?>
                             </button>
                         </form>
                     </td>
@@ -280,9 +280,9 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
         <?php else: ?>
         <!-- Empty State -->
         <div class="wc-mss-empty-state">
-            <p><?php _e('No stores configured yet.', 'multi-store-sync-for-woocommerce'); ?></p>
+            <p><?php esc_html_e('No stores configured yet.', 'multi-store-sync-for-woocommerce'); ?></p>
             <a href="<?php echo esc_url(add_query_arg('add_new', '1')); ?>" class="button button-primary">
-                <?php _e('Add Your First Store', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Add Your First Store', 'multi-store-sync-for-woocommerce'); ?>
             </a>
         </div>
         <?php endif; ?>
@@ -290,14 +290,14 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
     <?php endif; ?>
 
     <div class="wc-mss-card">
-        <h3><?php _e('How to get WooCommerce API Keys', 'multi-store-sync-for-woocommerce'); ?></h3>
+        <h3><?php esc_html_e('How to get WooCommerce API Keys', 'multi-store-sync-for-woocommerce'); ?></h3>
         <ol>
-            <li><?php _e('Go to your remote WooCommerce store admin panel', 'multi-store-sync-for-woocommerce'); ?></li>
-            <li><?php _e('Navigate to WooCommerce > Settings > Advanced > REST API', 'multi-store-sync-for-woocommerce'); ?></li>
-            <li><?php _e('Click "Add key"', 'multi-store-sync-for-woocommerce'); ?></li>
-            <li><?php _e('Set Description, User, and Permissions to "Read/Write"', 'multi-store-sync-for-woocommerce'); ?></li>
-            <li><?php _e('Click "Generate API key"', 'multi-store-sync-for-woocommerce'); ?></li>
-            <li><?php _e('Copy the Consumer Key and Consumer Secret', 'multi-store-sync-for-woocommerce'); ?></li>
+            <li><?php esc_html_e('Go to your remote WooCommerce store admin panel', 'multi-store-sync-for-woocommerce'); ?></li>
+            <li><?php esc_html_e('Navigate to WooCommerce > Settings > Advanced > REST API', 'multi-store-sync-for-woocommerce'); ?></li>
+            <li><?php esc_html_e('Click "Add key"', 'multi-store-sync-for-woocommerce'); ?></li>
+            <li><?php esc_html_e('Set Description, User, and Permissions to "Read/Write"', 'multi-store-sync-for-woocommerce'); ?></li>
+            <li><?php esc_html_e('Click "Generate API key"', 'multi-store-sync-for-woocommerce'); ?></li>
+            <li><?php esc_html_e('Copy the Consumer Key and Consumer Secret', 'multi-store-sync-for-woocommerce'); ?></li>
         </ol>
     </div>
 </div>
