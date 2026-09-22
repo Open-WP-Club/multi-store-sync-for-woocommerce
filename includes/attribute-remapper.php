@@ -377,6 +377,7 @@ class WC_Multi_Store_Attribute_Remapper {
 
             wp_send_json_success([
                 'message' => sprintf(
+                    /* translators: %d: number of attribute name mappings saved. */
                     __('%d attribute name mapping(s) saved', 'multi-store-sync-for-woocommerce'),
                     count($mappings)
                 ),
@@ -394,6 +395,7 @@ class WC_Multi_Store_Attribute_Remapper {
 
             wp_send_json_success([
                 'message' => sprintf(
+                    /* translators: 1: number of value mappings saved, 2: attribute name. */
                     __('%1$d value mapping(s) saved for attribute "%2$s"', 'multi-store-sync-for-woocommerce'),
                     count($mappings),
                     $attribute_name
