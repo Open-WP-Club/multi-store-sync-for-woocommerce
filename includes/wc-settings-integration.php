@@ -692,6 +692,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         WC_Multi_Store_Action_Scheduler_Manager::reschedule_all();
 
         WC_Admin_Settings::add_message(sprintf(
+            /* translators: %s: time when actions were rescheduled. */
             __('Actions rescheduled successfully at %s. Refresh the page to see updated times.', 'multi-store-sync-for-woocommerce'),
             date('H:i:s', time())
         ));
@@ -711,6 +712,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         };
 
         WC_Admin_Settings::add_message(sprintf(
+            /* translators: 1: number of cleared queue items, 2: queue status. */
             __('Cleared %1$d %2$s queue items.', 'multi-store-sync-for-woocommerce'),
             $deleted ?: 0,
             $status
@@ -726,6 +728,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         if ($reset_count > 0) {
             WC_Admin_Settings::add_message(sprintf(
+                /* translators: %d: number of queue items reset. */
                 __('Reset %d stuck items back to pending status.', 'multi-store-sync-for-woocommerce'),
                 $reset_count
             ));
@@ -743,6 +746,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         if ($retry_count > 0) {
             WC_Admin_Settings::add_message(sprintf(
+                /* translators: %d: number of failed queue items queued for retry. */
                 __('Queued %d failed items for retry.', 'multi-store-sync-for-woocommerce'),
                 $retry_count
             ));
@@ -783,6 +787,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             if ($result && isset($result['discrepancies_found'])) {
                 if ($result['discrepancies_found'] > 0) {
                     WC_Admin_Settings::add_message(sprintf(
+                        /* translators: 1: products checked, 2: stores checked, 3: discrepancies found. */
                         __('Verification completed! Checked %1$d products across %2$d stores. Found %3$d discrepancies. Scroll down to see the report.', 'multi-store-sync-for-woocommerce'),
                         $result['products_checked'] ?? 0,
                         $result['stores_checked'] ?? 0,
@@ -790,6 +795,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     ));
                 } else {
                     WC_Admin_Settings::add_message(sprintf(
+                        /* translators: 1: products checked, 2: stores checked. */
                         __('Verification completed! All %1$d products are in sync across %2$d stores.', 'multi-store-sync-for-woocommerce'),
                         $result['products_checked'] ?? 0,
                         $result['stores_checked'] ?? 0
@@ -801,6 +807,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         } catch (Exception $e) {
             WC_Multi_Store_Logger::write('Verification error: ' . $e->getMessage(), 'error');
             WC_Admin_Settings::add_error(sprintf(
+                /* translators: %s: verification error message. */
                 __('Verification failed: %s', 'multi-store-sync-for-woocommerce'),
                 $e->getMessage()
             ));
@@ -1000,6 +1007,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     'merge' => __('Merge', 'multi-store-sync-for-woocommerce'),
                     'resolving' => __('Resolving…', 'multi-store-sync-for-woocommerce'),
                     'resolve_failed' => __('Failed to resolve conflict.', 'multi-store-sync-for-woocommerce'),
+                    /* translators: %s: selected conflict resolution. */
                     'confirm_resolve_all' => __('Resolve all unresolved conflicts shown below as "%s"?', 'multi-store-sync-for-woocommerce'),
                     'resolve_all' => __('Resolve All', 'multi-store-sync-for-woocommerce'),
                     'product_not_found' => __('(Product not found)', 'multi-store-sync-for-woocommerce'),
@@ -1015,10 +1023,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     'saving' => __('Saving…', 'multi-store-sync-for-woocommerce'),
                     'save_profile' => __('Save Profile', 'multi-store-sync-for-woocommerce'),
                     'error_saving' => __('Error saving profile.', 'multi-store-sync-for-woocommerce'),
+                    /* translators: %s: preset name. */
                     'confirm_apply_preset' => __('Apply preset "%s"? This will overwrite your current settings.', 'multi-store-sync-for-woocommerce'),
                     'error_applying_preset' => __('Error applying preset.', 'multi-store-sync-for-woocommerce'),
+                    /* translators: %s: profile name. */
                     'confirm_apply_profile' => __('Apply profile "%s"? This will overwrite your current settings.', 'multi-store-sync-for-woocommerce'),
                     'error_applying_profile' => __('Error applying profile.', 'multi-store-sync-for-woocommerce'),
+                    /* translators: %s: profile name. */
                     'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'multi-store-sync-for-woocommerce'),
                     'error_deleting_profile' => __('Error deleting profile.', 'multi-store-sync-for-woocommerce'),
                 ],
@@ -1147,6 +1158,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         wp_send_json_success([
             'message' => sprintf(
+                /* translators: %d: number of products queued for force sync. */
                 __('Force sync scheduled! %d products will be queued in batches. Check the Logs tab for progress.', 'multi-store-sync-for-woocommerce'),
                 $total_products
             )
@@ -1285,6 +1297,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             $remaining = WC_Multi_Store_Sync_History::get_count();
             wp_send_json_success([
                 'message' => sprintf(
+                    /* translators: %d: number of history records deleted. */
                     __('%d history records deleted successfully', 'multi-store-sync-for-woocommerce'),
                     $deleted
                 ),
