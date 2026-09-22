@@ -356,7 +356,7 @@ foreach ($stores as $store) {
             if ($dlq_stats['total_dead'] > 0):
             ?>
             <div style="margin-top: 15px; padding: 10px 15px; background: #fcf0f1; border-left: 4px solid #d63638; border-radius: 2px;">
-                <strong><?php echo sprintf(esc_html__('%d item(s) in the Dead Letter Queue', 'multi-store-sync-for-woocommerce'), absint($dlq_stats['total_dead'])); ?></strong>
+                <strong><?php /* translators: %d: number of items in the Dead Letter Queue. */ echo sprintf(esc_html__('%d item(s) in the Dead Letter Queue', 'multi-store-sync-for-woocommerce'), absint($dlq_stats['total_dead'])); ?></strong>
                 — <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=dead-letter-queue')); ?>"><?php esc_html_e('Review failed items', 'multi-store-sync-for-woocommerce'); ?></a>
             </div>
             <?php endif; ?>
