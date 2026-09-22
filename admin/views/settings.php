@@ -311,7 +311,7 @@ if (!defined('ABSPATH')) {
                                value="<?php echo esc_attr($cb_duration); ?>"
                                min="60" max="86400" step="60" class="small-text">
                         <span><?php esc_html_e('seconds', 'multi-store-sync-for-woocommerce'); ?></span>
-                        <p class="description"><?php echo esc_html(sprintf(esc_html__('How long to pause requests to a failing store. Default: 1800 (30 minutes). Current: %d min.', 'multi-store-sync-for-woocommerce'), absint(round($cb_duration / 60)))); ?></p>
+                        <p class="description"><?php /* translators: %d: current circuit breaker duration in minutes. */ echo esc_html(sprintf(esc_html__('How long to pause requests to a failing store. Default: 1800 (30 minutes). Current: %d min.', 'multi-store-sync-for-woocommerce'), absint(round($cb_duration / 60)))); ?></p>
                     </td>
                 </tr>
                 <tr>
@@ -501,6 +501,7 @@ if (!defined('ABSPATH')) {
                             $peak_hours = ceil($queue_count / $batch_size_peak) * 5 / 60;
                             $offpeak_hours = ceil($queue_count / $batch_size_offpeak) * 5 / 60;
                             echo wp_kses_post(sprintf(
+                                /* translators: 1: products queued, 2: estimated peak-hours duration, 3: estimated off-peak duration. */
                                 __('<strong>%1$d products in queue</strong><br>Peak: ~%2$.1f hours | Off-peak: ~%3$.1f hours', 'multi-store-sync-for-woocommerce'),
                                 absint($queue_count),
                                 (float) $peak_hours,
@@ -867,7 +868,7 @@ if (!defined('ABSPATH')) {
                         <p style="margin-top: 5px; color: #d63638;">
                             <strong>
                                 <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=conflicts')); ?>" style="color: #d63638;">
-                                    <?php echo esc_html(sprintf(esc_html__('%d unresolved conflict(s)', 'multi-store-sync-for-woocommerce'), absint($conflict_stats['unresolved']))); ?>
+                                    <?php /* translators: %d: number of unresolved conflicts. */ echo esc_html(sprintf(esc_html__('%d unresolved conflict(s)', 'multi-store-sync-for-woocommerce'), absint($conflict_stats['unresolved']))); ?>
                                 </a>
                             </strong>
                         </p>
