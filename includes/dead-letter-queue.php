@@ -481,6 +481,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
         $count = self::retry_all();
 
         wp_send_json_success([
+            /* translators: %d: number of queue items re-queued. */
             'message' => sprintf(__('%d item(s) re-queued for processing.', 'multi-store-sync-for-woocommerce'), $count),
             'count' => $count,
         ]);
@@ -526,6 +527,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
         $cleared = self::clear_all();
 
         wp_send_json_success([
+            /* translators: %d: number of dead letter queue items cleared. */
             'message' => sprintf(__('Cleared %d item(s) from dead letter queue.', 'multi-store-sync-for-woocommerce'), $cleared),
             'count' => $cleared,
         ]);
