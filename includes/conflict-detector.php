@@ -573,6 +573,7 @@ class WC_Multi_Store_Conflict_Detector {
         $resolved = self::resolve_all($store_url, $resolution);
 
         wp_send_json_success([
+            /* translators: %d: number of conflicts resolved. */
             'message'  => sprintf(__('%d conflict(s) resolved', 'multi-store-sync-for-woocommerce'), $resolved),
             'resolved' => $resolved,
         ]);
