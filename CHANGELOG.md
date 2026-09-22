@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 - New: Orphan Cleanup's "Delete Selected" now shows live progress (X of Y products processed) in a persistent status banner that survives page reloads, instead of leaving a "Deleting…" button with no feedback for the minutes a large batch can take in the background
 - Change: the Category Mapping, Attribute Mapping, and Conflicts settings tabs are now hidden until their matching feature toggle is turned on in Settings, so the tab bar doesn't show screens that don't apply to a store that never enabled them
+- Fix: lowered the declared minimum PHP version from 8.4 to 8.3 — the codebase never actually used any PHP 8.4-only syntax (the two newest features in use, typed class constants and the `#[\Override]` attribute, both shipped in PHP 8.3), and the inflated requirement was blocking activation in PHP 8.3 environments, including the WordPress Plugin Check CI job
+- Updated compatibility headers: `WC tested up to` 9.5 → 11.1, added a `Tested up to` header for WordPress core (7.1)
 - Chore: updated dev dependencies (PHPUnit, PHPStan, WooCommerce stubs, Mockery) to their latest compatible versions
 
 ## 4.2.2
