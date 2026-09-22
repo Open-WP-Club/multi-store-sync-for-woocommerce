@@ -113,12 +113,12 @@ foreach ($active_stores as $store_url => $store_config) {
 ?>
 
 <div class="wrap wc-mss-weekly-verification">
-    <h1><?php _e('Weekly Sync Verification', 'multi-store-sync-for-woocommerce'); ?></h1>
+    <h1><?php esc_html_e('Weekly Sync Verification', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <?php settings_errors('wc_mss_weekly_verification'); ?>
 
     <p class="description">
-        <?php _e('Automatically verify that all products are correctly synchronized across all stores on a weekly basis.', 'multi-store-sync-for-woocommerce'); ?>
+        <?php esc_html_e('Automatically verify that all products are correctly synchronized across all stores on a weekly basis.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
     <!-- Two-column layout -->
@@ -127,7 +127,7 @@ foreach ($active_stores as $store_url => $store_config) {
         <div class="wc-mss-main-content">
 
     <div class="wc-mss-card">
-        <h2><?php _e('Verification Settings', 'multi-store-sync-for-woocommerce'); ?></h2>
+        <h2><?php esc_html_e('Verification Settings', 'multi-store-sync-for-woocommerce'); ?></h2>
 
         <form method="post" action="">
             <?php wp_nonce_field('wc_mss_save_weekly_verification'); ?>
@@ -135,125 +135,125 @@ foreach ($active_stores as $store_url => $store_config) {
             <table class="form-table">
                 <tr>
                     <th scope="row">
-                        <label for="verification_enabled"><?php _e('Enable Weekly Verification', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="verification_enabled"><?php esc_html_e('Enable Weekly Verification', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <label>
                             <input type="checkbox" name="verification_enabled" id="verification_enabled" value="1"
                                    <?php checked($settings['enabled'], true); ?>>
-                            <?php _e('Enable automatic weekly sync verification', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Enable automatic weekly sync verification', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
-                        <p class="description"><?php _e('When enabled, the system will automatically verify product sync across all stores on a weekly schedule.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('When enabled, the system will automatically verify product sync across all stores on a weekly schedule.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr>
                     <th scope="row">
-                        <label for="verification_day"><?php _e('Verification Day', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="verification_day"><?php esc_html_e('Verification Day', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <select name="verification_day" id="verification_day">
-                            <option value="0" <?php selected($settings['day_of_week'], 0); ?>><?php _e('Sunday', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="1" <?php selected($settings['day_of_week'], 1); ?>><?php _e('Monday', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="2" <?php selected($settings['day_of_week'], 2); ?>><?php _e('Tuesday', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="3" <?php selected($settings['day_of_week'], 3); ?>><?php _e('Wednesday', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="4" <?php selected($settings['day_of_week'], 4); ?>><?php _e('Thursday', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="5" <?php selected($settings['day_of_week'], 5); ?>><?php _e('Friday', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="6" <?php selected($settings['day_of_week'], 6); ?>><?php _e('Saturday', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="0" <?php selected($settings['day_of_week'], 0); ?>><?php esc_html_e('Sunday', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="1" <?php selected($settings['day_of_week'], 1); ?>><?php esc_html_e('Monday', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="2" <?php selected($settings['day_of_week'], 2); ?>><?php esc_html_e('Tuesday', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="3" <?php selected($settings['day_of_week'], 3); ?>><?php esc_html_e('Wednesday', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="4" <?php selected($settings['day_of_week'], 4); ?>><?php esc_html_e('Thursday', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="5" <?php selected($settings['day_of_week'], 5); ?>><?php esc_html_e('Friday', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="6" <?php selected($settings['day_of_week'], 6); ?>><?php esc_html_e('Saturday', 'multi-store-sync-for-woocommerce'); ?></option>
                         </select>
-                        <p class="description"><?php _e('Which day of the week to run verification', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('Which day of the week to run verification', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr>
                     <th scope="row">
-                        <label for="verification_time"><?php _e('Verification Time', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="verification_time"><?php esc_html_e('Verification Time', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <input type="time" name="verification_time" id="verification_time" value="<?php echo esc_attr($settings['time_of_day']); ?>">
-                        <p class="description"><?php _e('What time to run verification (server time). Recommended: during low traffic hours.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('What time to run verification (server time). Recommended: during low traffic hours.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr>
                     <th scope="row">
-                        <label><?php _e('What to Check', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label><?php esc_html_e('What to Check', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <label style="display: block; margin-bottom: 5px;">
                             <input type="checkbox" name="check_stock" value="1" <?php checked($settings['check_stock'], true); ?>>
-                            <?php _e('Stock Quantities', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Stock Quantities', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
                         <label style="display: block; margin-bottom: 5px;">
                             <input type="checkbox" name="check_prices" value="1" <?php checked($settings['check_prices'], true); ?>>
-                            <?php _e('Prices (Regular & Sale)', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Prices (Regular & Sale)', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
-                        <p class="description"><?php _e('Select what fields to verify during the check', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('Select what fields to verify during the check', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr>
                     <th scope="row">
-                        <label for="sample_mode"><?php _e('Products to Check', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="sample_mode"><?php esc_html_e('Products to Check', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <select name="sample_mode" id="sample_mode">
-                            <option value="all" <?php selected($settings['sample_mode'], 'all'); ?>><?php _e('All Products', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="recent" <?php selected($settings['sample_mode'], 'recent'); ?>><?php _e('Most Recent Products', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="modified" <?php selected($settings['sample_mode'], 'modified'); ?>><?php _e('Recently Modified Products', 'multi-store-sync-for-woocommerce'); ?></option>
-                            <option value="random" <?php selected($settings['sample_mode'], 'random'); ?>><?php _e('Random Sample', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="all" <?php selected($settings['sample_mode'], 'all'); ?>><?php esc_html_e('All Products', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="recent" <?php selected($settings['sample_mode'], 'recent'); ?>><?php esc_html_e('Most Recent Products', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="modified" <?php selected($settings['sample_mode'], 'modified'); ?>><?php esc_html_e('Recently Modified Products', 'multi-store-sync-for-woocommerce'); ?></option>
+                            <option value="random" <?php selected($settings['sample_mode'], 'random'); ?>><?php esc_html_e('Random Sample', 'multi-store-sync-for-woocommerce'); ?></option>
                         </select>
-                        <p class="description"><?php _e('Which products to include in verification', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('Which products to include in verification', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr>
                     <th scope="row">
-                        <label for="product_limit"><?php _e('Product Limit', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="product_limit"><?php esc_html_e('Product Limit', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <input type="number" name="product_limit" id="product_limit" value="<?php echo esc_attr($settings['product_limit']); ?>" min="0" step="1" class="small-text">
-                        <p class="description"><?php _e('Maximum number of products to check (0 = unlimited). Recommended: 100-500 for large catalogs to avoid timeouts.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('Maximum number of products to check (0 = unlimited). Recommended: 100-500 for large catalogs to avoid timeouts.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr>
                     <th scope="row">
-                        <label for="batch_size"><?php _e('Batch Size', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="batch_size"><?php esc_html_e('Batch Size', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <input type="number" name="batch_size" id="batch_size" value="<?php echo esc_attr(isset($settings['batch_size']) ? $settings['batch_size'] : 20); ?>" min="1" max="100" step="1" class="small-text">
-                        <span><?php _e('products per batch', 'multi-store-sync-for-woocommerce'); ?></span>
-                        <p class="description"><?php _e('Number of products to verify per batch. Higher values = faster verification but more server load. Recommended: 10-30.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <span><?php esc_html_e('products per batch', 'multi-store-sync-for-woocommerce'); ?></span>
+                        <p class="description"><?php esc_html_e('Number of products to verify per batch. Higher values = faster verification but more server load. Recommended: 10-30.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr>
                     <th scope="row">
-                        <label for="auto_correct"><?php _e('Auto-Correct Discrepancies', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="auto_correct"><?php esc_html_e('Auto-Correct Discrepancies', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <label>
                             <input type="checkbox" name="auto_correct" id="auto_correct" value="1"
                                    <?php checked($settings['auto_correct'], true); ?>>
-                            <?php _e('Automatically queue products for re-sync when discrepancies are found', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Automatically queue products for re-sync when discrepancies are found', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
-                        <p class="description"><?php _e('When enabled, products with discrepancies will be automatically added to the sync queue for correction.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('When enabled, products with discrepancies will be automatically added to the sync queue for correction.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
 
                 <tr id="auto_correct_limit_row" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
                     <th scope="row">
-                        <label for="auto_correct_limit"><?php _e('Auto-Correct Limit', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="auto_correct_limit"><?php esc_html_e('Auto-Correct Limit', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <?php $auto_correct_limit = isset($settings['auto_correct_limit']) ? (int) $settings['auto_correct_limit'] : 500; ?>
                         <input type="number" name="auto_correct_limit" id="auto_correct_limit"
                                value="<?php echo esc_attr($auto_correct_limit); ?>"
                                min="0" max="10000" step="50" class="small-text">
-                        <span><?php _e('products max', 'multi-store-sync-for-woocommerce'); ?></span>
+                        <span><?php esc_html_e('products max', 'multi-store-sync-for-woocommerce'); ?></span>
                         <p class="description">
-                            <?php _e('Maximum number of products to auto-correct per verification run. Set to 0 for unlimited (not recommended). Default: 500.', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Maximum number of products to auto-correct per verification run. Set to 0 for unlimited (not recommended). Default: 500.', 'multi-store-sync-for-woocommerce'); ?>
                         </p>
                     </td>
                 </tr>
@@ -267,7 +267,7 @@ foreach ($active_stores as $store_url => $store_config) {
 
                 <tr id="auto_correct_sync_type_row" class="auto-correct-option" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
                     <th scope="row">
-                        <label for="weekly_sync_type"><?php _e('Auto-Correct Sync Type', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="weekly_sync_type"><?php esc_html_e('Auto-Correct Sync Type', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <select name="weekly_sync_type" id="weekly_sync_type">
@@ -282,51 +282,51 @@ foreach ($active_stores as $store_url => $store_config) {
                             ?>
                         </select>
                         <p class="description">
-                            <?php _e('What type of data to sync when auto-correcting discrepancies.', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('What type of data to sync when auto-correcting discrepancies.', 'multi-store-sync-for-woocommerce'); ?>
                         </p>
                     </td>
                 </tr>
 
                 <tr id="auto_correct_stock_sync_row" class="auto-correct-option" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
                     <th scope="row">
-                        <label for="weekly_stock_sync"><?php _e('Stock Synchronization', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="weekly_stock_sync"><?php esc_html_e('Stock Synchronization', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <select name="weekly_stock_sync" id="weekly_stock_sync">
                             <option value="use_default" <?php selected($weekly_stock_sync, 'use_default'); ?>>
-                                <?php _e('Use General Settings', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Use General Settings', 'multi-store-sync-for-woocommerce'); ?>
                             </option>
                             <option value="enabled" <?php selected($weekly_stock_sync, 'enabled'); ?>>
-                                <?php _e('Enabled', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Enabled', 'multi-store-sync-for-woocommerce'); ?>
                             </option>
                             <option value="disabled" <?php selected($weekly_stock_sync, 'disabled'); ?>>
-                                <?php _e('Disabled', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Disabled', 'multi-store-sync-for-woocommerce'); ?>
                             </option>
                         </select>
                         <p class="description">
-                            <?php _e('Whether to sync stock quantities when auto-correcting.', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Whether to sync stock quantities when auto-correcting.', 'multi-store-sync-for-woocommerce'); ?>
                         </p>
                     </td>
                 </tr>
 
                 <tr id="auto_correct_category_row" class="auto-correct-option" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
                     <th scope="row">
-                        <label for="weekly_category_auto_create"><?php _e('Auto-create Categories', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="weekly_category_auto_create"><?php esc_html_e('Auto-create Categories', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <select name="weekly_category_auto_create" id="weekly_category_auto_create">
                             <option value="use_default" <?php selected($weekly_category_auto_create, 'use_default'); ?>>
-                                <?php _e('Use General Settings', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Use General Settings', 'multi-store-sync-for-woocommerce'); ?>
                             </option>
                             <option value="enabled" <?php selected($weekly_category_auto_create, 'enabled'); ?>>
-                                <?php _e('Enabled', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Enabled', 'multi-store-sync-for-woocommerce'); ?>
                             </option>
                             <option value="disabled" <?php selected($weekly_category_auto_create, 'disabled'); ?>>
-                                <?php _e('Disabled', 'multi-store-sync-for-woocommerce'); ?>
+                                <?php esc_html_e('Disabled', 'multi-store-sync-for-woocommerce'); ?>
                             </option>
                         </select>
                         <p class="description">
-                            <?php _e('Whether to auto-create missing categories on remote stores when auto-correcting.', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Whether to auto-create missing categories on remote stores when auto-correcting.', 'multi-store-sync-for-woocommerce'); ?>
                         </p>
                     </td>
                 </tr>
@@ -347,69 +347,69 @@ foreach ($active_stores as $store_url => $store_config) {
 
                 <tr>
                     <th scope="row">
-                        <label for="email_enabled"><?php _e('Email Notifications', 'multi-store-sync-for-woocommerce'); ?></label>
+                        <label for="email_enabled"><?php esc_html_e('Email Notifications', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
                         <label style="display: block; margin-bottom: 10px;">
                             <input type="checkbox" name="email_enabled" id="email_enabled" value="1"
                                    <?php checked($settings['email_enabled'], true); ?>>
-                            <?php _e('Send email when discrepancies are found', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php esc_html_e('Send email when discrepancies are found', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
 
-                        <label for="email_recipients"><?php _e('Email Recipients:', 'multi-store-sync-for-woocommerce'); ?></label><br>
+                        <label for="email_recipients"><?php esc_html_e('Email Recipients:', 'multi-store-sync-for-woocommerce'); ?></label><br>
                         <input type="text" name="email_recipients" id="email_recipients" value="<?php echo esc_attr($settings['email_recipients']); ?>" class="regular-text">
-                        <p class="description"><?php _e('Comma-separated list of email addresses to notify when discrepancies are found.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('Comma-separated list of email addresses to notify when discrepancies are found.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </td>
                 </tr>
             </table>
 
             <p class="submit">
                 <button type="submit" name="wc_mss_save_weekly_verification" class="button button-primary">
-                    <?php _e('Save Settings', 'multi-store-sync-for-woocommerce'); ?>
+                    <?php esc_html_e('Save Settings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
             </p>
         </form>
     </div>
 
     <div class="wc-mss-card">
-        <h2><?php _e('Manual Verification & Sync Control', 'multi-store-sync-for-woocommerce'); ?></h2>
+        <h2><?php esc_html_e('Manual Verification & Sync Control', 'multi-store-sync-for-woocommerce'); ?></h2>
 
         <?php if ($next_run): ?>
             <p>
-                <strong><?php _e('Next Scheduled Run:', 'multi-store-sync-for-woocommerce'); ?></strong>
-                <?php echo date('l, F j, Y \a\t g:i A', $next_run); ?>
-                (<?php echo human_time_diff($next_run, current_time('timestamp')); ?>)
+                <strong><?php esc_html_e('Next Scheduled Run:', 'multi-store-sync-for-woocommerce'); ?></strong>
+                <?php echo esc_html(date('l, F j, Y \a\t g:i A', $next_run)); ?>
+                (<?php echo esc_html(human_time_diff($next_run, current_time('timestamp'))); ?>)
             </p>
         <?php else: ?>
-            <p><em><?php _e('No verification scheduled. Enable weekly verification above to schedule.', 'multi-store-sync-for-woocommerce'); ?></em></p>
+            <p><em><?php esc_html_e('No verification scheduled. Enable weekly verification above to schedule.', 'multi-store-sync-for-woocommerce'); ?></em></p>
         <?php endif; ?>
 
         <div style="margin: 15px 0;">
             <button type="button" id="wc-mss-start-verification-page" class="button button-secondary">
-                <?php _e('Run Verification Now', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Run Verification Now', 'multi-store-sync-for-woocommerce'); ?>
             </button>
             <button type="button" id="wc-mss-cancel-verification-page" class="button" style="display: none; margin-left: 10px;">
-                <?php _e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
             </button>
-            <span class="description" style="margin-left: 10px;"><?php _e('Runs verification in the background.', 'multi-store-sync-for-woocommerce'); ?></span>
+            <span class="description" style="margin-left: 10px;"><?php esc_html_e('Runs verification in the background.', 'multi-store-sync-for-woocommerce'); ?></span>
         </div>
 
-        <h3><?php _e('Stop Synchronization', 'multi-store-sync-for-woocommerce'); ?></h3>
-        <p class="description"><?php _e('Use these buttons to stop sync operations. Products queued by auto-correct will be removed.', 'multi-store-sync-for-woocommerce'); ?></p>
+        <h3><?php esc_html_e('Stop Synchronization', 'multi-store-sync-for-woocommerce'); ?></h3>
+        <p class="description"><?php esc_html_e('Use these buttons to stop sync operations. Products queued by auto-correct will be removed.', 'multi-store-sync-for-woocommerce'); ?></p>
         <div style="margin: 15px 0;">
             <button type="button" id="stop-weekly-sync" class="button button-secondary" style="color: #d63638; border-color: #d63638;">
                 <span class="dashicons dashicons-controls-pause" style="margin-top: 4px;"></span>
-                <?php _e('Stop Weekly Verification', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Stop Weekly Verification', 'multi-store-sync-for-woocommerce'); ?>
             </button>
             <button type="button" id="stop-all-sync" class="button button-secondary" style="color: #fff; background-color: #d63638; border-color: #d63638; margin-left: 10px;">
                 <span class="dashicons dashicons-no" style="margin-top: 4px;"></span>
-                <?php _e('Stop All Sync & Clear Queue', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Stop All Sync & Clear Queue', 'multi-store-sync-for-woocommerce'); ?>
             </button>
         </div>
         <div id="sync-stop-status" style="margin-top: 10px; display: none;"></div>
         <div id="wc-mss-verification-progress-page" style="display: none; margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <span id="wc-mss-verification-status-page"><?php _e('Starting...', 'multi-store-sync-for-woocommerce'); ?></span>
+                <span id="wc-mss-verification-status-page"><?php esc_html_e('Starting...', 'multi-store-sync-for-woocommerce'); ?></span>
                 <span id="wc-mss-verification-percent-page">0%</span>
             </div>
             <div class="wc-mss-progress-container">
@@ -587,56 +587,56 @@ foreach ($active_stores as $store_url => $store_config) {
 
     <?php if ($latest_report): ?>
         <div class="wc-mss-card">
-            <h2><?php _e('Latest Verification Report', 'multi-store-sync-for-woocommerce'); ?></h2>
+            <h2><?php esc_html_e('Latest Verification Report', 'multi-store-sync-for-woocommerce'); ?></h2>
 
             <div class="wc-mss-report-summary">
                 <p>
-                    <strong><?php _e('Run Date:', 'multi-store-sync-for-woocommerce'); ?></strong>
-                    <?php echo date('F j, Y \a\t g:i A', strtotime($latest_report['started_at'])); ?>
+                    <strong><?php esc_html_e('Run Date:', 'multi-store-sync-for-woocommerce'); ?></strong>
+                    <?php echo esc_html(date('F j, Y \a\t g:i A', strtotime($latest_report['started_at']))); ?>
                 </p>
 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
                     <div style="background: #f0f0f1; padding: 15px; border-radius: 4px;">
                         <div style="font-size: 24px; font-weight: bold; color: #2271b1;"><?php echo number_format($latest_report['products_checked']); ?></div>
-                        <div style="color: #646970;"><?php _e('Products Checked', 'multi-store-sync-for-woocommerce'); ?></div>
+                        <div style="color: #646970;"><?php esc_html_e('Products Checked', 'multi-store-sync-for-woocommerce'); ?></div>
                     </div>
                     <div style="background: #f0f0f1; padding: 15px; border-radius: 4px;">
                         <div style="font-size: 24px; font-weight: bold; color: #2271b1;"><?php echo number_format($latest_report['stores_checked']); ?></div>
-                        <div style="color: #646970;"><?php _e('Stores Checked', 'multi-store-sync-for-woocommerce'); ?></div>
+                        <div style="color: #646970;"><?php esc_html_e('Stores Checked', 'multi-store-sync-for-woocommerce'); ?></div>
                     </div>
                     <div style="background: <?php echo $latest_report['discrepancies_found'] > 0 ? '#fff3cd' : '#d1f0d1'; ?>; padding: 15px; border-radius: 4px;">
                         <div style="font-size: 24px; font-weight: bold; color: <?php echo $latest_report['discrepancies_found'] > 0 ? '#856404' : '#0f5c0f'; ?>;">
                             <?php echo number_format($latest_report['discrepancies_found']); ?>
                         </div>
-                        <div style="color: #646970;"><?php _e('Discrepancies Found', 'multi-store-sync-for-woocommerce'); ?></div>
+                        <div style="color: #646970;"><?php esc_html_e('Discrepancies Found', 'multi-store-sync-for-woocommerce'); ?></div>
                     </div>
                     <div style="background: #f0f0f1; padding: 15px; border-radius: 4px;">
                         <div style="font-size: 24px; font-weight: bold; color: #2271b1;"><?php echo number_format($latest_report['duration_seconds'], 1); ?>s</div>
-                        <div style="color: #646970;"><?php _e('Duration', 'multi-store-sync-for-woocommerce'); ?></div>
+                        <div style="color: #646970;"><?php esc_html_e('Duration', 'multi-store-sync-for-woocommerce'); ?></div>
                     </div>
                 </div>
 
                 <?php if ($latest_report['discrepancies_found'] > 0): ?>
                     <div style="margin-top: 15px;">
-                        <h3><?php _e('Breakdown', 'multi-store-sync-for-woocommerce'); ?></h3>
+                        <h3><?php esc_html_e('Breakdown', 'multi-store-sync-for-woocommerce'); ?></h3>
                         <ul>
-                            <li><strong><?php _e('Missing Products:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['missing_products']); ?></li>
+                            <li><strong><?php esc_html_e('Missing Products:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['missing_products']); ?></li>
                             <?php
                             $report_data_temp = maybe_unserialize($latest_report['report_data']);
                             $orphan_count = isset($report_data_temp['orphan_products']) ? $report_data_temp['orphan_products'] : 0;
                             if ($orphan_count > 0):
                             ?>
                             <li style="color: #d63638;">
-                                <strong><?php _e('Orphan Products:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($orphan_count); ?>
-                                <em>(<?php _e('exist on remote but should be excluded', 'multi-store-sync-for-woocommerce'); ?>)</em>
+                                <strong><?php esc_html_e('Orphan Products:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($orphan_count); ?>
+                                <em>(<?php esc_html_e('exist on remote but should be excluded', 'multi-store-sync-for-woocommerce'); ?>)</em>
                                 <button type="button" id="wc-mss-queue-orphans" class="button button-small" style="margin-left: 10px; background: #d63638; border-color: #d63638; color: #fff;">
-                                    <?php _e('Queue for Deletion', 'multi-store-sync-for-woocommerce'); ?>
+                                    <?php esc_html_e('Queue for Deletion', 'multi-store-sync-for-woocommerce'); ?>
                                 </button>
                                 <span id="wc-mss-orphan-status" style="margin-left: 10px;"></span>
                             </li>
                             <?php endif; ?>
-                            <li><strong><?php _e('Stock Mismatches:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['stock_mismatches']); ?></li>
-                            <li><strong><?php _e('Price Mismatches:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['price_mismatches']); ?></li>
+                            <li><strong><?php esc_html_e('Stock Mismatches:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['stock_mismatches']); ?></li>
+                            <li><strong><?php esc_html_e('Price Mismatches:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['price_mismatches']); ?></li>
                         </ul>
 
                         <?php
@@ -644,7 +644,7 @@ foreach ($active_stores as $store_url => $store_config) {
                         if (!empty($report_data['details'])):
                             $shown = 0;
                         ?>
-                            <h3><?php _e('Sample Discrepancies (First 5)', 'multi-store-sync-for-woocommerce'); ?></h3>
+                            <h3><?php esc_html_e('Sample Discrepancies (First 5)', 'multi-store-sync-for-woocommerce'); ?></h3>
                             <?php foreach ($report_data['details'] as $product_report):
                                 if ($shown >= 5) break;
                                 if (!empty($product_report['discrepancies'])):
@@ -652,12 +652,12 @@ foreach ($active_stores as $store_url => $store_config) {
                             ?>
                                 <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0;">
                                     <strong><?php echo esc_html($product_report['name']); ?></strong>
-                                    (SKU: <?php echo esc_html($product_report['sku']); ?>, ID: <?php echo $product_report['product_id']; ?>)
+                                    (SKU: <?php echo esc_html($product_report['sku']); ?>, ID: <?php echo esc_html($product_report['product_id']); ?>)
                                     <ul style="margin: 5px 0 0 20px;">
                                         <?php foreach ($product_report['discrepancies'] as $disc): ?>
                                             <li>
                                                 <strong><?php echo esc_html($disc['store_name']); ?>:</strong>
-                                                <?php echo WC_Multi_Store_Weekly_Sync_Verifier::format_discrepancy_message($disc); ?>
+                                                <?php echo wp_kses_post(WC_Multi_Store_Weekly_Sync_Verifier::format_discrepancy_message($disc)); ?>
                                             </li>
                                         <?php endforeach; ?>
                                     </ul>
@@ -670,8 +670,8 @@ foreach ($active_stores as $store_url => $store_config) {
                     </div>
                 <?php else: ?>
                     <div style="background: #d1f0d1; border-left: 4px solid #46b450; padding: 15px; margin: 15px 0;">
-                        <strong><?php _e('All products are in sync!', 'multi-store-sync-for-woocommerce'); ?></strong>
-                        <p><?php _e('No discrepancies were found during this verification.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <strong><?php esc_html_e('All products are in sync!', 'multi-store-sync-for-woocommerce'); ?></strong>
+                        <p><?php esc_html_e('No discrepancies were found during this verification.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -680,27 +680,27 @@ foreach ($active_stores as $store_url => $store_config) {
 
     <?php if (!empty($reports)): ?>
         <div class="wc-mss-card">
-            <h2><?php _e('Recent Verification Reports', 'multi-store-sync-for-woocommerce'); ?></h2>
+            <h2><?php esc_html_e('Recent Verification Reports', 'multi-store-sync-for-woocommerce'); ?></h2>
 
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
-                        <th><?php _e('Date', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php _e('Products Checked', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php _e('Stores', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php _e('Discrepancies', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php _e('Duration', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php _e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Date', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Products Checked', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Stores', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Discrepancies', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Duration', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($reports as $report): ?>
                         <tr>
-                            <td><?php echo date('M j, Y g:i A', strtotime($report['started_at'])); ?></td>
+                            <td><?php echo esc_html(date('M j, Y g:i A', strtotime($report['started_at']))); ?></td>
                             <td><?php echo number_format($report['products_checked']); ?></td>
                             <td><?php echo number_format($report['stores_checked']); ?></td>
                             <td>
-                                <span style="<?php echo $report['discrepancies_found'] > 0 ? 'color: #856404; font-weight: bold;' : 'color: #0f5c0f;'; ?>">
+                                <span style="<?php echo esc_attr($report['discrepancies_found'] > 0 ? 'color: #856404; font-weight: bold;' : 'color: #0f5c0f;'); ?>">
                                     <?php echo number_format($report['discrepancies_found']); ?>
                                 </span>
                                 <?php if ($report['discrepancies_found'] > 0): ?>
@@ -720,7 +720,7 @@ foreach ($active_stores as $store_url => $store_config) {
                                         if ($report['price_mismatches'] > 0) {
                                             $parts[] = number_format($report['price_mismatches']) . ' price';
                                         }
-                                        echo '(' . implode(', ', $parts) . ')';
+                                        echo wp_kses_post('(' . implode(', ', $parts) . ')');
                                         ?>
                                     </small>
                                 <?php endif; ?>
@@ -733,7 +733,7 @@ foreach ($active_stores as $store_url => $store_config) {
                                     'running' => __('Running', 'multi-store-sync-for-woocommerce'),
                                     'failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
                                 ];
-                                echo isset($status_labels[$report['status']]) ? $status_labels[$report['status']] : $report['status'];
+                                echo esc_html(isset($status_labels[$report['status']]) ? $status_labels[$report['status']] : $report['status']);
                                 ?>
                             </td>
                         </tr>
@@ -748,21 +748,21 @@ foreach ($active_stores as $store_url => $store_config) {
         <!-- Right sidebar: System Health -->
         <div class="wc-mss-sidebar">
             <div class="wc-mss-sidebar-card">
-                <h3><?php _e('System Health', 'multi-store-sync-for-woocommerce'); ?></h3>
+                <h3><?php esc_html_e('System Health', 'multi-store-sync-for-woocommerce'); ?></h3>
 
                 <div class="wc-mss-health-local">
                     <span class="dashicons dashicons-store"></span>
-                    <strong><?php _e('Local Store', 'multi-store-sync-for-woocommerce'); ?></strong>
+                    <strong><?php esc_html_e('Local Store', 'multi-store-sync-for-woocommerce'); ?></strong>
                     <div class="wc-mss-health-stats">
-                        <span class="stat"><?php echo $local_cat_count; ?> <?php _e('Cat', 'multi-store-sync-for-woocommerce'); ?></span>
-                        <span class="stat"><?php echo $local_tag_count; ?> <?php _e('Tags', 'multi-store-sync-for-woocommerce'); ?></span>
+                        <span class="stat"><?php echo esc_html($local_cat_count); ?> <?php esc_html_e('Cat', 'multi-store-sync-for-woocommerce'); ?></span>
+                        <span class="stat"><?php echo esc_html($local_tag_count); ?> <?php esc_html_e('Tags', 'multi-store-sync-for-woocommerce'); ?></span>
                     </div>
                 </div>
 
                 <?php if (empty($store_health)): ?>
                     <p class="wc-mss-no-stores">
                         <span class="dashicons dashicons-warning"></span>
-                        <?php _e('No active stores', 'multi-store-sync-for-woocommerce'); ?>
+                        <?php esc_html_e('No active stores', 'multi-store-sync-for-woocommerce'); ?>
                     </p>
                 <?php else: ?>
                     <?php foreach ($store_health as $health):
@@ -784,34 +784,34 @@ foreach ($active_stores as $store_url => $store_config) {
                             $status_icon = 'warning';
                         }
                     ?>
-                    <div class="wc-mss-health-store <?php echo $status_class; ?>">
+                    <div class="wc-mss-health-store <?php echo esc_attr($status_class); ?>">
                         <div class="store-header">
-                            <span class="dashicons dashicons-<?php echo $status_icon; ?>"></span>
+                            <span class="dashicons dashicons-<?php echo esc_attr($status_icon); ?>"></span>
                             <strong><?php echo esc_html($health['name']); ?></strong>
                         </div>
                         <?php if ($no_cache): ?>
-                            <small class="store-status"><?php _e('No cache yet', 'multi-store-sync-for-woocommerce'); ?></small>
+                            <small class="store-status"><?php esc_html_e('No cache yet', 'multi-store-sync-for-woocommerce'); ?></small>
                         <?php else: ?>
                             <div class="store-counts">
                                 <div class="sync-row" title="<?php echo $cat_missing > 0 ? esc_attr(__('Missing: ', 'multi-store-sync-for-woocommerce') . implode(', ', array_slice($health['categories']['missing'], 0, 10))) : ''; ?>">
-                                    <span class="sync-label"><?php _e('Categories:', 'multi-store-sync-for-woocommerce'); ?></span>
+                                    <span class="sync-label"><?php esc_html_e('Categories:', 'multi-store-sync-for-woocommerce'); ?></span>
                                     <span class="sync-status <?php echo $cat_missing === 0 ? 'synced' : 'partial'; ?>">
-                                        <?php echo $cat_synced; ?>/<?php echo $local_cat_count; ?>
+                                        <?php echo esc_html($cat_synced); ?>/<?php echo esc_html($local_cat_count); ?>
                                         <?php if ($cat_missing === 0): ?>
                                             <span class="dashicons dashicons-yes"></span>
                                         <?php else: ?>
-                                            <em class="missing">(<?php echo $cat_missing; ?> <?php _e('missing', 'multi-store-sync-for-woocommerce'); ?>)</em>
+                                            <em class="missing">(<?php echo esc_html($cat_missing); ?> <?php esc_html_e('missing', 'multi-store-sync-for-woocommerce'); ?>)</em>
                                         <?php endif; ?>
                                     </span>
                                 </div>
                                 <div class="sync-row">
-                                    <span class="sync-label"><?php _e('Tags:', 'multi-store-sync-for-woocommerce'); ?></span>
+                                    <span class="sync-label"><?php esc_html_e('Tags:', 'multi-store-sync-for-woocommerce'); ?></span>
                                     <span class="sync-status <?php echo $tag_missing === 0 ? 'synced' : 'partial'; ?>">
-                                        <?php echo $tag_synced; ?>/<?php echo $local_tag_count; ?>
+                                        <?php echo esc_html($tag_synced); ?>/<?php echo esc_html($local_tag_count); ?>
                                         <?php if ($tag_missing === 0): ?>
                                             <span class="dashicons dashicons-yes"></span>
                                         <?php else: ?>
-                                            <em class="missing">(<?php echo $tag_missing; ?> <?php _e('missing', 'multi-store-sync-for-woocommerce'); ?>)</em>
+                                            <em class="missing">(<?php echo esc_html($tag_missing); ?> <?php esc_html_e('missing', 'multi-store-sync-for-woocommerce'); ?>)</em>
                                         <?php endif; ?>
                                     </span>
                                 </div>
@@ -822,8 +822,8 @@ foreach ($active_stores as $store_url => $store_config) {
 
                     <p class="wc-mss-health-note">
                         <small>
-                            <?php printf(__('Match: %s', 'multi-store-sync-for-woocommerce'), $match_by); ?><br>
-                            <?php _e('Cache: 24h', 'multi-store-sync-for-woocommerce'); ?>
+                            <?php echo esc_html(sprintf(esc_html__('Match: %s', 'multi-store-sync-for-woocommerce'), $match_by)); ?><br>
+                            <?php esc_html_e('Cache: 24h', 'multi-store-sync-for-woocommerce'); ?>
                         </small>
                     </p>
                 <?php endif; ?>
@@ -1055,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var formData = new FormData();
         formData.append('action', 'wc_mss_queue_orphans_for_deletion');
-        formData.append('nonce', '<?php echo wp_create_nonce('wc_mss_admin'); ?>');
+        formData.append('nonce', '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>');
 
         fetch(ajaxurl, {
             method: 'POST',
@@ -1107,7 +1107,7 @@ jQuery(document).ready(function($) {
             type: 'POST',
             data: {
                 action: 'wc_mss_stop_weekly_verification',
-                nonce: '<?php echo wp_create_nonce('wc_mss_stop_sync'); ?>'
+                nonce: '<?php echo esc_js(wp_create_nonce('wc_mss_stop_sync')); ?>'
             },
             success: function(response) {
                 if (response.success) {
@@ -1140,7 +1140,7 @@ jQuery(document).ready(function($) {
             type: 'POST',
             data: {
                 action: 'wc_mss_stop_all_sync',
-                nonce: '<?php echo wp_create_nonce('wc_mss_stop_sync'); ?>'
+                nonce: '<?php echo esc_js(wp_create_nonce('wc_mss_stop_sync')); ?>'
             },
             success: function(response) {
                 if (response.success) {
