@@ -194,6 +194,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         $accent = $cleanup['failed'] > 0 ? '#b32d2e' : '#00a32a';
         $badge  = __('Orphan Auto-Trash', 'multi-store-sync-for-woocommerce');
         $title  = sprintf(
+            /* translators: %d: number of products moved to trash. */
             __('%d Product(s) Moved to Trash', 'multi-store-sync-for-woocommerce'),
             $cleanup['deleted']
         );
@@ -215,13 +216,14 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         $failed_note = $cleanup['failed'] > 0
             ? '<p style="margin:0 0 20px;font-size:13px;color:#b32d2e;">'
-                . sprintf(__('%d product(s) failed to trash — check the logs.', 'multi-store-sync-for-woocommerce'), $cleanup['failed'])
+                . sprintf(/* translators: %d: number of products that could not be moved to trash. */ __('%d product(s) failed to trash — check the logs.', 'multi-store-sync-for-woocommerce'), $cleanup['failed'])
                 . '</p>'
             : '';
 
         $body = $this->wrap_email($title, $badge, $accent, $lead . $table . $failed_note);
 
         $subject = sprintf(
+            /* translators: 1: site name, 2: trashed products, 3: failed products. */
             __('[%1$s] Orphan Auto-Trash — %2$d trashed, %3$d failed', 'multi-store-sync-for-woocommerce'),
             $site,
             $cleanup['deleted'],
@@ -258,6 +260,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if ($config === null) {
                 return [
                     'success' => false,
+                    /* translators: %s: store URL. */
                     'message' => sprintf(__('Store not found: %s', 'multi-store-sync-for-woocommerce'), $store_url),
                 ];
             }
@@ -426,6 +429,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if (!$config) {
                 $results['failed']++;
                 $results['errors'][] = sprintf(
+                    /* translators: %s: store URL. */
                     __('Store not found: %s', 'multi-store-sync-for-woocommerce'),
                     $store_url
                 );
@@ -439,6 +443,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if (is_wp_error($response)) {
                 $results['failed']++;
                 $results['errors'][] = sprintf(
+                    /* translators: 1: product ID, 2: store URL, 3: API error message. */
                     __('Failed to delete product ID %1$d from %2$s: %3$s', 'multi-store-sync-for-woocommerce'),
                     $product_id,
                     $store_url,
@@ -615,6 +620,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             $status['errors']      = $results['errors'] ?? [];
             $status['message']     = $results['success']
                 ? sprintf(
+                    /* translators: 1: deleted products, 2: failed products. */
                     __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
                     $results['deleted'],
                     $results['failed']
@@ -669,12 +675,12 @@ class WC_Multi_Store_Orphan_Cleanup {
         $accent   = $total_orphans > 0 ? '#b32d2e' : '#00a32a';
         $badge    = __('Orphan Cleanup', 'multi-store-sync-for-woocommerce');
         $title    = $total_orphans > 0
-            ? sprintf(__('Found %d Orphan Product(s)', 'multi-store-sync-for-woocommerce'), $total_orphans)
+            ? sprintf(/* translators: %d: number of orphan products. */ __('Found %d Orphan Product(s)', 'multi-store-sync-for-woocommerce'), $total_orphans)
             : __('No Orphan Products Found', 'multi-store-sync-for-woocommerce');
 
         $lead = '<p style="margin:0 0 20px;font-size:14px;color:#3c434a;line-height:1.6;">'
             . ($store_url
-                ? sprintf(__('Background scan of <strong>%s</strong> completed.', 'multi-store-sync-for-woocommerce'), esc_html($store_url))
+                ? sprintf(/* translators: %s: store URL. */ __('Background scan of <strong>%s</strong> completed.', 'multi-store-sync-for-woocommerce'), esc_html($store_url))
                 : __('Background scan of all active stores completed.', 'multi-store-sync-for-woocommerce'))
             . '</p>';
 
@@ -700,6 +706,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         $body = $this->wrap_email($title, $badge, $accent, $lead . $table . $button);
 
         $subject = sprintf(
+            /* translators: 1: site name, 2: number of orphan products. */
             __('[%1$s] Orphan Scan Complete — %2$d orphan(s) found', 'multi-store-sync-for-woocommerce'),
             $site,
             $total_orphans
@@ -865,6 +872,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             if ($results['success']) {
                 wp_send_json_success([
                     'message' => sprintf(
+                        /* translators: 1: deleted products, 2: failed products. */
                         __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
                         $results['deleted'],
                         $results['failed']
@@ -981,8 +989,8 @@ class WC_Multi_Store_Orphan_Cleanup {
                         $status_label = match($status_val) {
                             'scheduled' => __('Background scan scheduled — waiting for Action Scheduler to pick it up…', 'multi-store-sync-for-woocommerce'),
                             'running'   => __('Background scan is running…', 'multi-store-sync-for-woocommerce'),
-                            'done'      => sprintf(__('Background scan completed at %s.', 'multi-store-sync-for-woocommerce'), esc_html($scan_status['finished_at'] ?? '')),
-                            'failed'    => sprintf(__('Background scan failed: %s', 'multi-store-sync-for-woocommerce'), esc_html($scan_status['error'] ?? '')),
+                            'done'      => sprintf(/* translators: %s: scan completion time. */ __('Background scan completed at %s.', 'multi-store-sync-for-woocommerce'), esc_html($scan_status['finished_at'] ?? '')),
+                            'failed'    => sprintf(/* translators: %s: scan error message. */ __('Background scan failed: %s', 'multi-store-sync-for-woocommerce'), esc_html($scan_status['error'] ?? '')),
                             default     => '',
                         };
                         if ($status_label):
@@ -1014,11 +1022,12 @@ class WC_Multi_Store_Orphan_Cleanup {
                                 $cleanup_total
                             ),
                             'done'      => $cleanup_status['message'] ?? sprintf(
+                                /* translators: 1: deleted products, 2: failed products. */
                                 __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
                                 (int) ($cleanup_status['deleted'] ?? 0),
                                 (int) ($cleanup_status['failed'] ?? 0)
                             ),
-                            'failed'    => sprintf(__('Cleanup failed: %s', 'multi-store-sync-for-woocommerce'), esc_html($cleanup_status['error'] ?? $cleanup_status['message'] ?? '')),
+                            'failed'    => sprintf(/* translators: %s: cleanup error message. */ __('Cleanup failed: %s', 'multi-store-sync-for-woocommerce'), esc_html($cleanup_status['error'] ?? $cleanup_status['message'] ?? '')),
                             default     => '',
                         };
                         if ($cleanup_status_label):
@@ -1035,6 +1044,7 @@ class WC_Multi_Store_Orphan_Cleanup {
                                 <p><?php
                                     $finished = $scan_status['finished_at'] ?? '';
                                     printf(
+                                        /* translators: %s: scan completion time. */
                                         esc_html__('Showing results from last background scan (%s).', 'multi-store-sync-for-woocommerce'),
                                         esc_html($finished)
                                     );
