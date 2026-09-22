@@ -61,7 +61,7 @@ $table_size_formatted = size_format($table_size, 2);
     <!-- Statistics Overview with integrated History Management -->
     <div class="wc-mss-stats-overview" style="margin: 20px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-            <h2 style="margin: 0;"><?php printf(esc_html__('Statistics (Last %d Days)', 'multi-store-sync-for-woocommerce'), absint($filter_days)); ?></h2>
+            <h2 style="margin: 0;"><?php /* translators: %d: number of days in the statistics period. */ printf(esc_html__('Statistics (Last %d Days)', 'multi-store-sync-for-woocommerce'), absint($filter_days)); ?></h2>
             <div style="font-size: 13px; color: #666;">
                 <span id="wc-mss-total-records"><?php echo esc_html(number_format($total_records)); ?></span> <?php esc_html_e('records', 'multi-store-sync-for-woocommerce'); ?>
                 (<span style="color: #46b450;"><?php echo esc_html(number_format($success_records)); ?></span> /
@@ -328,6 +328,7 @@ $table_size_formatted = size_format($table_size, 2);
                 $start_item = (($page_num - 1) * $per_page) + 1;
                 $end_item = min($page_num * $per_page, $history_data['total']);
                 echo wp_kses_post(sprintf(
+                    /* translators: 1: first record number, 2: last record number, 3: total record count. */
                     __('Showing <strong>%1$d-%2$d</strong> of <strong>%3$s</strong> records', 'multi-store-sync-for-woocommerce'),
                     absint($start_item),
                     absint($end_item),
