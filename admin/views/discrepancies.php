@@ -44,6 +44,7 @@ if (isset($_POST['action']) && isset($_POST['discrepancy_id'])) {
 if (isset($_POST['cleanup_old']) && check_admin_referer('wc_mss_cleanup_discrepancies')) {
     $days = isset($_POST['cleanup_days']) ? absint($_POST['cleanup_days']) : 30;
     $deleted = WC_Multi_Store_Stock_Verifier::cleanup_old_discrepancies($days);
+    /* translators: %d: number of deleted discrepancies. */
     echo '<div class="notice notice-success"><p>' . sprintf(esc_html__('Cleaned up %d old discrepancies.', 'multi-store-sync-for-woocommerce'), absint($deleted)) . '</p></div>';
 }
 
