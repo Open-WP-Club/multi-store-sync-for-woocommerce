@@ -78,28 +78,28 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
             <div class="content">
                 <div class="summary">
                     <div class="summary-item">
-                        <span class="summary-label">Products Checked:</span> <?php echo $report['products_checked']; ?>
+                        <span class="summary-label">Products Checked:</span> <?php echo esc_html($report['products_checked']); ?>
                     </div>
                     <div class="summary-item">
-                        <span class="summary-label">Stores Checked:</span> <?php echo $report['stores_checked']; ?>
+                        <span class="summary-label">Stores Checked:</span> <?php echo esc_html($report['stores_checked']); ?>
                     </div>
                     <div class="summary-item">
-                        <span class="summary-label">Discrepancies Found:</span> <?php echo $report['discrepancies_found']; ?>
+                        <span class="summary-label">Discrepancies Found:</span> <?php echo esc_html($report['discrepancies_found']); ?>
                     </div>
                     <div class="summary-item">
-                        <span class="summary-label">Duration:</span> <?php echo $report['duration_seconds']; ?>s
+                        <span class="summary-label">Duration:</span> <?php echo esc_html($report['duration_seconds']); ?>s
                     </div>
                 </div>
 
                 <h2>Breakdown</h2>
                 <ul>
-                    <li><strong>Missing Products:</strong> <?php echo $report['missing_products']; ?></li>
-                    <li><strong>Orphan Products:</strong> <?php echo $report['orphan_products'] ?? 0; ?> <em>(exist on remote but should be excluded)</em></li>
-                    <li><strong>Ghost Products:</strong> <?php echo $report['ghost_products'] ?? 0; ?> <em>(exist on remote but not in local catalogue)</em></li>
-                    <li><strong>Stock Mismatches:</strong> <?php echo $report['stock_mismatches']; ?></li>
-                    <li><strong>Price Mismatches:</strong> <?php echo $report['price_mismatches']; ?></li>
-                    <li><strong>Category Mismatches:</strong> <?php echo $report['category_mismatches'] ?? 0; ?></li>
-                    <li><strong>Field Mismatches:</strong> <?php echo $report['field_mismatches'] ?? 0; ?> <em>(name, description, tags, images, attributes, weight, dimensions, tax, status, etc.)</em></li>
+                    <li><strong>Missing Products:</strong> <?php echo esc_html($report['missing_products']); ?></li>
+                    <li><strong>Orphan Products:</strong> <?php echo esc_html($report['orphan_products'] ?? 0); ?> <em>(exist on remote but should be excluded)</em></li>
+                    <li><strong>Ghost Products:</strong> <?php echo esc_html($report['ghost_products'] ?? 0); ?> <em>(exist on remote but not in local catalogue)</em></li>
+                    <li><strong>Stock Mismatches:</strong> <?php echo esc_html($report['stock_mismatches']); ?></li>
+                    <li><strong>Price Mismatches:</strong> <?php echo esc_html($report['price_mismatches']); ?></li>
+                    <li><strong>Category Mismatches:</strong> <?php echo esc_html($report['category_mismatches'] ?? 0); ?></li>
+                    <li><strong>Field Mismatches:</strong> <?php echo esc_html($report['field_mismatches'] ?? 0); ?> <em>(name, description, tags, images, attributes, weight, dimensions, tax, status, etc.)</em></li>
                 </ul>
 
                 <?php if (!empty($report['details'])): ?>
@@ -117,7 +117,7 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
                                 <?php foreach ($product_report['discrepancies'] as $disc): ?>
                                     <li>
                                         <strong><?php echo esc_html($disc['store_name']); ?>:</strong>
-                                        <?php echo self::format_discrepancy_message($disc); ?>
+                                        <?php echo wp_kses_post(self::format_discrepancy_message($disc)); ?>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -128,11 +128,11 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
                     ?>
                 <?php endif; ?>
 
-                <p><a href="<?php echo admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=weekly-verification'); ?>">View Full Report in Dashboard</a></p>
+                <p><a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=weekly-verification')); ?>">View Full Report in Dashboard</a></p>
             </div>
             <div class="footer">
                 <p>This is an automated message from WooCommerce Multi-Store Sync plugin.</p>
-                <p>Site: <?php echo get_bloginfo('name'); ?> (<?php echo get_site_url(); ?>)</p>
+                <p>Site: <?php echo esc_html(get_bloginfo('name')); ?> (<?php echo esc_url(get_site_url()); ?>)</p>
             </div>
         </body>
         </html>
