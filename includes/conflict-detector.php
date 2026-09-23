@@ -26,6 +26,11 @@ class WC_Multi_Store_Conflict_Detector {
     const LEGACY_HASH_OPTION_KEY = 'wc_mss_remote_product_hashes';
     const LEGACY_CONFLICT_LOG_KEY = 'wc_mss_conflict_log';
 
+    /** @param array<string, mixed> $data */
+    private static function send_ajax_error(array $data): void {
+        wp_send_json_error($data);
+    }
+
     /**
      * Fields to compare for conflict detection
      */
@@ -562,7 +567,7 @@ class WC_Multi_Store_Conflict_Detector {
         $resolution = isset($_POST['resolution']) ? sanitize_text_field(wp_unslash($_POST['resolution'])) : 'overwrite';
 
         if (!in_array($resolution, ['overwrite', 'keep_remote', 'merge'], true)) {
-            wp_send_json_error(['message' => __('Invalid resolution type', 'multi-store-sync-for-woocommerce')]);
+            self::send_ajax_error(['message' => __('Invalid resolution type', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 

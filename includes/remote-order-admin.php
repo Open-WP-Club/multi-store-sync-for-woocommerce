@@ -88,7 +88,8 @@ class WC_Multi_Store_Remote_Order_Admin {
         $action = sanitize_text_field(wp_unslash($_GET['action']));
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- ID is only acted on after the action-specific nonce verification below.
-        $order_id_input = isset($_GET['order_id']) ? map_deep(wp_unslash($_GET['order_id']), 'absint') : null;
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Scalar and array inputs are type-checked and reduced with absint() in their respective delete branches below.
+        $order_id_input = isset($_GET['order_id']) ? wp_unslash($_GET['order_id']) : null;
 
         // Handle bulk delete — check is_array FIRST to avoid the single-delete branch catching arrays
         if ($action === 'delete' && is_array($order_id_input)) {
@@ -100,6 +101,10 @@ class WC_Multi_Store_Remote_Order_Admin {
 
             $deleted = 0;
             foreach ($order_id_input as $order_id) {
+                if (!is_scalar($order_id)) {
+                    continue;
+                }
+
                 if (WC_Multi_Store_Remote_Order_Table::delete(absint($order_id))) {
                     $deleted++;
                 }
@@ -113,8 +118,8 @@ class WC_Multi_Store_Remote_Order_Admin {
         }
 
         // Handle single delete (scalar order_id)
-        if ($action === 'delete' && $order_id_input !== null && !is_array($order_id_input)) {
-            $order_id = $order_id_input;
+        if ($action === 'delete' && is_scalar($order_id_input)) {
+            $order_id = absint($order_id_input);
             $nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
 
             if (!wp_verify_nonce($nonce, 'delete_remote_order_' . $order_id)) {

@@ -141,6 +141,11 @@ class WC_Multi_Store_Admin_Ajax {
         }
     }
 
+    /** @param array<string, mixed> $data */
+    private static function send_ajax_error(array $data): void {
+        wp_send_json_error($data);
+    }
+
     /**
      * Normalize the read-only webhook-log filters shared by listing and export.
      * Invalid optional filters are ignored rather than broadening them into
@@ -298,13 +303,7 @@ class WC_Multi_Store_Admin_Ajax {
                 'successful' => WC_Multi_Store_Sync_History::delete_successful(),
                 'older_than' => WC_Multi_Store_Sync_History::cleanup_old_records($days),
                 'by_store'   => !empty($store_url) ? WC_Multi_Store_Sync_History::delete_by_store($store_url) : 0,
-                default      => null,
             };
-
-            if ($deleted === null) {
-                wp_send_json_error(['message' => __('Unknown deletion type', 'multi-store-sync-for-woocommerce')]);
-                return;
-            }
 
             if ($deleted === -1) {
                 wp_send_json_success([
@@ -550,13 +549,7 @@ class WC_Multi_Store_Admin_Ajax {
                 'success'    => WC_Multi_Store_Webhook_Logger::delete_by_status('success'),
                 'older_than' => WC_Multi_Store_Webhook_Logger::delete_older_than($days),
                 'by_type'    => WC_Multi_Store_Webhook_Logger::delete_by_type($log_type),
-                default      => null,
             };
-
-            if ($deleted === null) {
-                wp_send_json_error(['message' => __('Unknown delete type', 'multi-store-sync-for-woocommerce')]);
-                return;
-            }
 
             $message = match ($delete_type) {
                 'all'        => __('All logs deleted', 'multi-store-sync-for-woocommerce'),
@@ -1277,7 +1270,7 @@ class WC_Multi_Store_Admin_Ajax {
         $product_id = isset($_POST['product_id']) ? absint(wp_unslash($_POST['product_id'])) : 0;
 
         if (!$product_id) {
-            wp_send_json_error(['message' => __('Invalid product ID', 'multi-store-sync-for-woocommerce')]);
+            self::send_ajax_error(['message' => __('Invalid product ID', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 

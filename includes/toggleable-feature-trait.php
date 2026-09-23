@@ -72,6 +72,11 @@ trait WC_Multi_Store_Toggleable_Feature {
         }
     }
 
+    /** @param array<string, mixed> $data */
+    private static function send_toggle_ajax_error(array $data): void {
+        wp_send_json_error($data);
+    }
+
     /**
      * AJAX handler: Toggle this feature on/off
      */
@@ -79,7 +84,7 @@ trait WC_Multi_Store_Toggleable_Feature {
         check_ajax_referer('wc_mss_admin', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
+            self::send_toggle_ajax_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 

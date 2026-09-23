@@ -774,6 +774,16 @@ class WC_Multi_Store_Orphan_Cleanup {
         return $normalized;
     }
 
+    /** @param array<string, mixed> $data */
+    private function send_ajax_error(array $data): void {
+        wp_send_json_error($data);
+    }
+
+    /** @param array<string, mixed> $data */
+    private function send_ajax_success(array $data): void {
+        wp_send_json_success($data);
+    }
+
     /**
      * AJAX: Schedule a background orphan scan.
      */
@@ -781,23 +791,23 @@ class WC_Multi_Store_Orphan_Cleanup {
         check_ajax_referer('wc_mss_orphan_cleanup', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'multi-store-sync-for-woocommerce')]);
+            $this->send_ajax_error(['message' => __('Permission denied.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         if (isset($_POST['store_url']) && !is_string($_POST['store_url'])) {
-            wp_send_json_error(['message' => __('Invalid store URL.', 'multi-store-sync-for-woocommerce')]);
+            $this->send_ajax_error(['message' => __('Invalid store URL.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
         $requested_store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
         $store_url = $this->get_registered_store_url($requested_store_url);
         if ($requested_store_url !== '' && $store_url === null) {
-            wp_send_json_error(['message' => __('Store not found.', 'multi-store-sync-for-woocommerce')]);
+            $this->send_ajax_error(['message' => __('Store not found.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
         if (!$this->schedule_background_scan($store_url ?? '')) {
-            wp_send_json_error(['message' => __('Action Scheduler is not available. Please ensure WooCommerce is active.', 'multi-store-sync-for-woocommerce')]);
+            $this->send_ajax_error(['message' => __('Action Scheduler is not available. Please ensure WooCommerce is active.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
@@ -853,7 +863,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         check_ajax_referer('wc_mss_orphan_cleanup', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error([
+            $this->send_ajax_error([
                 'message' => __('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'),
             ]);
             return;
@@ -863,13 +873,13 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         try {
             if (isset($_POST['store_url']) && !is_string($_POST['store_url'])) {
-                wp_send_json_error(['message' => __('Invalid store URL.', 'multi-store-sync-for-woocommerce')]);
+                $this->send_ajax_error(['message' => __('Invalid store URL.', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
             $requested_store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
             $store_url = $this->get_registered_store_url($requested_store_url);
             if ($requested_store_url !== '' && $store_url === null) {
-                wp_send_json_error(['message' => __('Store not found.', 'multi-store-sync-for-woocommerce')]);
+                $this->send_ajax_error(['message' => __('Store not found.', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
@@ -903,7 +913,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         check_ajax_referer('wc_mss_orphan_cleanup', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error([
+            $this->send_ajax_error([
                 'message' => __('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'),
             ]);
             return;
@@ -911,19 +921,19 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         try {
             if (!isset($_POST['orphans']) || !is_string($_POST['orphans'])) {
-                wp_send_json_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
+                $this->send_ajax_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
             // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON is decoded, shape-checked, and reduced to registered store URLs and positive product IDs below; text sanitization would corrupt valid JSON.
             $orphans = $this->normalize_cleanup_orphans(wp_unslash($_POST['orphans']));
             if ($orphans === null) {
-                wp_send_json_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
+                $this->send_ajax_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
             if (empty($orphans)) {
-                wp_send_json_error([
+                $this->send_ajax_error([
                     'message' => __('No orphan products specified.', 'multi-store-sync-for-woocommerce'),
                 ]);
                 return;
@@ -935,7 +945,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             // for the whole batch. Falls back to running inline only if
             // Action Scheduler isn't available.
             if ($this->schedule_background_cleanup($orphans)) {
-                wp_send_json_success([
+                $this->send_ajax_success([
                     'scheduled' => true,
                     'message'   => __('Cleanup started in the background…', 'multi-store-sync-for-woocommerce'),
                 ]);

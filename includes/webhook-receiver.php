@@ -215,7 +215,7 @@ class WC_Multi_Store_Webhook_Receiver {
         $store_url = $request->get_param('store_url');
 
         // Validate required data
-        if (!is_array($order_data) || empty($order_data)) {
+        if (empty($order_data)) {
             WC_Multi_Store_Logger::write('Webhook rejected: Empty order data', 'error');
             WC_Multi_Store_Webhook_Logger::log_validation_error(
                 'Empty order data',

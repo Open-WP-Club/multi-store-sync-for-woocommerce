@@ -320,7 +320,6 @@ class WC_Multi_Store_Category_Mapper {
 
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error(['message' => __('Unauthorized', 'multi-store-sync-for-woocommerce')]);
-            return;
         }
 
         $store_url = isset($_POST['store_url']) && is_string($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';

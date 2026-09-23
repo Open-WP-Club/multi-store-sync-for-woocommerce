@@ -388,7 +388,7 @@ class WC_Multi_Store_Product_Edit {
 
             $html .= '</div>';
             $html .= '<div class="wc-mss-preview-actions" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd;">';
-            $html .= '<button type="button" class="button button-primary wc-mss-execute-sync" data-product-id="' . esc_attr($product_id) . '" data-sync-type="' . esc_attr($sync_type) . '">';
+            $html .= '<button type="button" class="button button-primary wc-mss-execute-sync" data-product-id="' . esc_attr((string) $product_id) . '" data-sync-type="' . esc_attr($sync_type) . '">';
             $html .= __('✓ Proceed with Sync', 'multi-store-sync-for-woocommerce');
             $html .= '</button> ';
             $html .= '<button type="button" class="button wc-mss-cancel-preview">';
