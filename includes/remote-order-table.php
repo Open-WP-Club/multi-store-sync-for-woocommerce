@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Custom table names are fixed constants; filters use placeholders and ordering is strictly whitelisted.
 /**
  * WooCommerce Multi-Store Remote Order Table
  *
@@ -609,11 +610,13 @@ class WC_Multi_Store_Remote_Order_Table {
 
         $placeholders = implode(',', array_fill(0, count($order_ids), '%d'));
 
-        // Delete line items for these orders
+        // Delete line items for these orders.
+        // phpcs:disable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $placeholders is generated exclusively from %d tokens for IDs returned by the preceding database query; $items_table is a fixed plugin table name.
         $wpdb->query($wpdb->prepare(
             "DELETE FROM {$items_table} WHERE remote_order_id IN ({$placeholders})",
             $order_ids
         ));
+        // phpcs:enable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 
         // Delete orders
         $deleted = $wpdb->query($wpdb->prepare(

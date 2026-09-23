@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Table name is derived solely from the fixed plugin table constant; sort columns are whitelisted and remaining values are prepared.
 /**
  * Weekly Verification Report Repository
  * Persistence for weekly sync-verification reports — extracted from
@@ -116,7 +117,11 @@ class WC_Multi_Store_Weekly_Verification_Report_Repository {
         $limit = absint($args['limit']);
         $offset = absint($args['offset']);
 
-        $query = "SELECT * FROM {$table_name} ORDER BY {$orderby} LIMIT {$limit} OFFSET {$offset}";
+        $query = $wpdb->prepare(
+            "SELECT * FROM {$table_name} ORDER BY {$orderby} LIMIT %d OFFSET %d",
+            $limit,
+            $offset
+        );
 
         $results = $wpdb->get_results($query, ARRAY_A);
 

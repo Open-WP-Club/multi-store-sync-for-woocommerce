@@ -719,6 +719,62 @@ class WC_Multi_Store_Orphan_Cleanup {
     }
 
     /**
+     * Resolve a submitted store URL to a configured store key.
+     *
+     * @param string $store_url Already unslashed and sanitized store URL.
+     * @return string|null Registered store URL, preserving trailing-slash compatibility.
+     */
+    private function get_registered_store_url(string $store_url): ?string {
+        if ($store_url === '') {
+            return null;
+        }
+
+        if (WC_Multi_Store_Settings::get_store($store_url) !== null) {
+            return $store_url;
+        }
+
+        $alternate_url = str_ends_with($store_url, '/')
+            ? rtrim($store_url, '/')
+            : $store_url . '/';
+
+        return WC_Multi_Store_Settings::get_store($alternate_url) !== null ? $alternate_url : null;
+    }
+
+    /**
+     * Normalize a cleanup JSON payload to the fields used for remote deletion.
+     *
+     * @param string $payload Already unslashed JSON payload.
+     * @return array<int, array{store_url: string, product_id: int}>|null
+     */
+    private function normalize_cleanup_orphans(string $payload): ?array {
+        $orphans = json_decode($payload, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($orphans) || !array_is_list($orphans)) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($orphans as $orphan) {
+            if (!is_array($orphan) || !isset($orphan['store_url'], $orphan['product_id']) || !is_string($orphan['store_url'])) {
+                return null;
+            }
+
+            $store_url = $this->get_registered_store_url(sanitize_text_field($orphan['store_url']));
+            $product_id = $orphan['product_id'];
+            if ($store_url === null
+                || !((is_int($product_id) && $product_id > 0) || (is_string($product_id) && ctype_digit($product_id) && (int) $product_id > 0))) {
+                return null;
+            }
+
+            $normalized[] = [
+                'store_url'  => $store_url,
+                'product_id' => (int) $product_id,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
      * AJAX: Schedule a background orphan scan.
      */
     public function ajax_schedule_scan(): void {
@@ -729,9 +785,18 @@ class WC_Multi_Store_Orphan_Cleanup {
             return;
         }
 
-        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
+        if (isset($_POST['store_url']) && !is_string($_POST['store_url'])) {
+            wp_send_json_error(['message' => __('Invalid store URL.', 'multi-store-sync-for-woocommerce')]);
+            return;
+        }
+        $requested_store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
+        $store_url = $this->get_registered_store_url($requested_store_url);
+        if ($requested_store_url !== '' && $store_url === null) {
+            wp_send_json_error(['message' => __('Store not found.', 'multi-store-sync-for-woocommerce')]);
+            return;
+        }
 
-        if (!$this->schedule_background_scan($store_url)) {
+        if (!$this->schedule_background_scan($store_url ?? '')) {
             wp_send_json_error(['message' => __('Action Scheduler is not available. Please ensure WooCommerce is active.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
@@ -791,12 +856,22 @@ class WC_Multi_Store_Orphan_Cleanup {
             wp_send_json_error([
                 'message' => __('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'),
             ]);
+            return;
         }
 
         @set_time_limit(0);
 
         try {
-            $store_url = isset($_POST['store_url']) ? sanitize_text_field($_POST['store_url']) : null;
+            if (isset($_POST['store_url']) && !is_string($_POST['store_url'])) {
+                wp_send_json_error(['message' => __('Invalid store URL.', 'multi-store-sync-for-woocommerce')]);
+                return;
+            }
+            $requested_store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
+            $store_url = $this->get_registered_store_url($requested_store_url);
+            if ($requested_store_url !== '' && $store_url === null) {
+                wp_send_json_error(['message' => __('Store not found.', 'multi-store-sync-for-woocommerce')]);
+                return;
+            }
 
             WC_Multi_Store_Logger::write('Starting orphan scan via AJAX');
 
@@ -816,7 +891,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             ), 'error');
             wp_send_json_error([
                 'message' => __('An error occurred while scanning for orphans', 'multi-store-sync-for-woocommerce'),
-                'error' => $e->getMessage(),
+                'error' => WP_DEBUG ? $e->getMessage() : null,
             ]);
         }
     }
@@ -831,23 +906,27 @@ class WC_Multi_Store_Orphan_Cleanup {
             wp_send_json_error([
                 'message' => __('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'),
             ]);
+            return;
         }
 
         try {
-            $orphans = [];
-            if (!empty($_POST['orphans'])) {
-                $orphans = json_decode(wp_unslash($_POST['orphans']), true);
-                if (json_last_error() !== JSON_ERROR_NONE || !is_array($orphans)) {
-                    wp_send_json_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
-                    return;
-                }
-                $orphans = array_values(array_filter($orphans, fn($o) => is_array($o) && !empty($o['store_url']) && !empty($o['product_id'])));
+            if (!isset($_POST['orphans']) || !is_string($_POST['orphans'])) {
+                wp_send_json_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
+                return;
+            }
+
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON is decoded, shape-checked, and reduced to registered store URLs and positive product IDs below; text sanitization would corrupt valid JSON.
+            $orphans = $this->normalize_cleanup_orphans(wp_unslash($_POST['orphans']));
+            if ($orphans === null) {
+                wp_send_json_error(['message' => __('Invalid orphan data format.', 'multi-store-sync-for-woocommerce')]);
+                return;
             }
 
             if (empty($orphans)) {
                 wp_send_json_error([
                     'message' => __('No orphan products specified.', 'multi-store-sync-for-woocommerce'),
                 ]);
+                return;
             }
 
             // Deleting can mean 100+ sequential remote HTTP calls — run it as

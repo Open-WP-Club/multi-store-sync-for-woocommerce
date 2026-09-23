@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Custom table name is fixed; all filters are prepared and list ordering is validated against an allowlist.
 /**
  * Webhook Logger
  * Detailed logging for webhook events with 90-day retention
@@ -323,7 +324,7 @@ class WC_Multi_Store_Webhook_Logger {
      * @return string
      */
     public static function get_client_ip(): string {
-        $remote_addr = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '0.0.0.0';
 
         $trusted_proxies = apply_filters('wc_mss_trusted_proxies', []);
         if (empty($trusted_proxies) && defined('WC_MSS_TRUSTED_PROXIES')) {
@@ -340,7 +341,7 @@ class WC_Multi_Store_Webhook_Logger {
 
             foreach ($proxy_headers as $header) {
                 if (!empty($_SERVER[$header])) {
-                    $ip = $_SERVER[$header];
+                    $ip = sanitize_text_field(wp_unslash($_SERVER[$header]));
                     // Handle comma-separated IPs (X-Forwarded-For) — first is the client
                     if (str_contains($ip, ',')) {
                         $ip = trim(explode(',', $ip)[0]);

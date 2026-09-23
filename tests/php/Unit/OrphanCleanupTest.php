@@ -437,6 +437,21 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $this->assertTrue($error_sent);
     }
 
+    public function test_ajax_scan_orphans_rejects_non_scalar_store_url(): void
+    {
+        $_POST['store_url'] = ['https://store1.com'];
+
+        $error_data = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error_data) {
+            $error_data = $data;
+        });
+
+        (new WC_Multi_Store_Orphan_Cleanup())->ajax_scan_orphans();
+
+        $this->assertSame('Invalid store URL.', $error_data['message']);
+        unset($_POST['store_url']);
+    }
+
     public function test_ajax_cleanup_orphans_success(): void
     {
         Functions\when('wp_remote_request')->justReturn([
@@ -477,6 +492,23 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $this->assertNotNull($error_data);
         $this->assertStringContainsString('No orphan products', $error_data['message']);
 
+        unset($_POST['orphans']);
+    }
+
+    public function test_ajax_cleanup_orphans_rejects_invalid_record_shape(): void
+    {
+        $_POST['orphans'] = json_encode([
+            ['store_url' => ['https://store1.com'], 'product_id' => 10],
+        ]);
+
+        $error_data = null;
+        Functions\when('wp_send_json_error')->alias(function ($data) use (&$error_data) {
+            $error_data = $data;
+        });
+
+        (new WC_Multi_Store_Orphan_Cleanup())->ajax_cleanup_orphans();
+
+        $this->assertSame('Invalid orphan data format.', $error_data['message']);
         unset($_POST['orphans']);
     }
 

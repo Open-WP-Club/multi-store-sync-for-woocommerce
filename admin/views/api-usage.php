@@ -13,9 +13,11 @@ if (!defined('ABSPATH')) {
 // Get stores
 $stores = WC_Multi_Store_Settings::get_active_stores();
 
-// Get date range from request
-$days = isset($_GET['days']) ? absint($_GET['days']) : 30;
-$store_filter = isset($_GET['store_url']) ? sanitize_text_field($_GET['store_url']) : '';
+// Read-only GET filters; they only select dashboard data and do not change state.
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only dashboard filter.
+$days = isset($_GET['days']) ? absint(wp_unslash($_GET['days'])) : 30;
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only dashboard filter.
+$store_filter = isset($_GET['store_url']) ? sanitize_text_field(wp_unslash($_GET['store_url'])) : '';
 
 $args = [
     'start_date' => date('Y-m-d', strtotime("-{$days} days")),

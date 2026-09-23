@@ -186,7 +186,8 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      * Output queue section
      */
     private function output_queue(): void {
-        $queue_status_filter = sanitize_text_field($_GET['queue_status'] ?? 'all');
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only queue filter.
+        $queue_status_filter = isset($_GET['queue_status']) ? sanitize_text_field(wp_unslash($_GET['queue_status'])) : 'all';
         $queue_stats = WC_Multi_Store_Queue_Table::get_stats();
         $queue_items = WC_Multi_Store_Queue_Table::get_recent_items(50, $queue_status_filter);
 
@@ -235,9 +236,12 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function output_api_usage(): void {
         // Handle export CSV
-        if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
+        // Export is nonce-verified below and does not change state.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce-verified CSV download route.
+        $action = isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '';
+        if ($action === 'export_csv') {
             check_admin_referer('wc_mss_export_api_usage');
-            $days = isset($_GET['days']) ? absint($_GET['days']) : 30;
+            $days = isset($_GET['days']) ? absint(wp_unslash($_GET['days'])) : 30;
             $args = [
                 'start_date' => date('Y-m-d', strtotime("-{$days} days")),
                 'end_date' => date('Y-m-d'),
@@ -338,6 +342,10 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         include WC_MSS_PLUGIN_DIR . 'admin/views/weekly-verification.php';
     }
 
+    // PHPCS cannot follow output()'s match arms into these private handlers.
+    // Each state-changing form is gated there by its action-specific check_admin_referer().
+    // phpcs:disable WordPress.Security.NonceVerification.Missing
+
     /**
      * Defense-in-depth: every form handler must verify the capability itself,
      * not rely solely on WooCommerce menu-level gating of `wc-settings`.
@@ -357,21 +365,24 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function handle_add_store(): void {
         $this->require_manage_capability();
-        $store_url = esc_url_raw(wp_unslash($_POST['store_url'] ?? ''));
-        $consumer_key = sanitize_text_field($_POST['consumer_key']);
-        $consumer_secret = sanitize_text_field($_POST['consumer_secret']);
-        $status = sanitize_text_field($_POST['status']);
-        $wp_username = sanitize_text_field($_POST['wp_username'] ?? '');
-        $wp_app_password = sanitize_text_field($_POST['wp_app_password'] ?? '');
+        $post = wp_unslash($_POST);
+        $post_string = static fn(string $key): string => isset($post[$key]) && is_string($post[$key]) ? $post[$key] : '';
+        $store_url = esc_url_raw($post_string('store_url'));
+        $consumer_key = sanitize_text_field($post_string('consumer_key'));
+        $consumer_secret = sanitize_text_field($post_string('consumer_secret'));
+        $status = sanitize_key($post_string('status'));
+        $status = in_array($status, ['active', 'inactive'], true) ? $status : 'inactive';
+        $wp_username = sanitize_text_field($post_string('wp_username'));
+        $wp_app_password = sanitize_text_field($post_string('wp_app_password'));
 
         // Get exclusion filters
-        $exclude_categories = array_map('absint', $_POST['exclude_categories'] ?? []);
-        $exclude_tags = array_map('absint', $_POST['exclude_tags'] ?? []);
+        $exclude_categories = array_map('absint', array_filter(isset($post['exclude_categories']) && is_array($post['exclude_categories']) ? $post['exclude_categories'] : [], 'is_string'));
+        $exclude_tags = array_map('absint', array_filter(isset($post['exclude_tags']) && is_array($post['exclude_tags']) ? $post['exclude_tags'] : [], 'is_string'));
 
         // Cache purge
-        $cache_purge_url    = esc_url_raw(wp_unslash($_POST['cache_purge_url'] ?? ''));
-        $cache_purge_method = in_array($_POST['cache_purge_method'] ?? 'GET', ['GET', 'POST'], true)
-            ? ($_POST['cache_purge_method'] ?? 'GET')
+        $cache_purge_url    = esc_url_raw($post_string('cache_purge_url'));
+        $cache_purge_method = in_array($post_string('cache_purge_method'), ['GET', 'POST'], true)
+            ? $post_string('cache_purge_method')
             : 'GET';
 
         if (empty($store_url) || empty($consumer_key) || empty($consumer_secret)) {
@@ -410,9 +421,10 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function handle_delete_store(): void {
         $this->require_manage_capability();
-        $store_url = sanitize_text_field($_POST['store_url']);
+        $post = wp_unslash($_POST);
+        $store_url = isset($post['store_url']) && is_string($post['store_url']) ? esc_url_raw($post['store_url']) : '';
 
-        if (WC_Multi_Store_Settings::delete_store($store_url)) {
+        if ($store_url !== '' && WC_Multi_Store_Settings::delete_store($store_url)) {
             WC_Admin_Settings::add_message(__('Store deleted successfully.', 'multi-store-sync-for-woocommerce'));
         }
     }
@@ -422,22 +434,25 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function handle_update_store(): void {
         $this->require_manage_capability();
-        $original_url = esc_url_raw(wp_unslash($_POST['original_store_url'] ?? ''));
-        $store_url = esc_url_raw(wp_unslash($_POST['store_url'] ?? ''));
-        $consumer_key = sanitize_text_field($_POST['consumer_key']);
-        $consumer_secret = sanitize_text_field($_POST['consumer_secret']);
-        $status = sanitize_text_field($_POST['status']);
-        $wp_username = sanitize_text_field($_POST['wp_username'] ?? '');
-        $wp_app_password = sanitize_text_field($_POST['wp_app_password'] ?? '');
+        $post = wp_unslash($_POST);
+        $post_string = static fn(string $key): string => isset($post[$key]) && is_string($post[$key]) ? $post[$key] : '';
+        $original_url = esc_url_raw($post_string('original_store_url'));
+        $store_url = esc_url_raw($post_string('store_url'));
+        $consumer_key = sanitize_text_field($post_string('consumer_key'));
+        $consumer_secret = sanitize_text_field($post_string('consumer_secret'));
+        $status = sanitize_key($post_string('status'));
+        $status = in_array($status, ['active', 'inactive'], true) ? $status : 'inactive';
+        $wp_username = sanitize_text_field($post_string('wp_username'));
+        $wp_app_password = sanitize_text_field($post_string('wp_app_password'));
 
         // Get exclusion filters
-        $exclude_categories = array_map('absint', $_POST['exclude_categories'] ?? []);
-        $exclude_tags = array_map('absint', $_POST['exclude_tags'] ?? []);
+        $exclude_categories = array_map('absint', array_filter(isset($post['exclude_categories']) && is_array($post['exclude_categories']) ? $post['exclude_categories'] : [], 'is_string'));
+        $exclude_tags = array_map('absint', array_filter(isset($post['exclude_tags']) && is_array($post['exclude_tags']) ? $post['exclude_tags'] : [], 'is_string'));
 
         // Cache purge
-        $cache_purge_url    = esc_url_raw(wp_unslash($_POST['cache_purge_url'] ?? ''));
-        $cache_purge_method = in_array($_POST['cache_purge_method'] ?? 'GET', ['GET', 'POST'], true)
-            ? ($_POST['cache_purge_method'] ?? 'GET')
+        $cache_purge_url    = esc_url_raw($post_string('cache_purge_url'));
+        $cache_purge_method = in_array($post_string('cache_purge_method'), ['GET', 'POST'], true)
+            ? $post_string('cache_purge_method')
             : 'GET';
 
         // Get existing store data to preserve other fields (and the saved credentials).
@@ -497,91 +512,120 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function handle_save_settings(): void {
         $this->require_manage_capability();
+        $post = wp_unslash($_POST);
 
         // Captured before update_all() overwrites it — used below to warn
         // when category/tag matching rules change under an already-synced store.
         $previous_settings = WC_Multi_Store_Settings::get_settings(false);
+        $select_value = static function (string $field, array $allowed, string $default) use ($post): string {
+            if (!isset($post[$field]) || !is_string($post[$field])) {
+                return $default;
+            }
+
+            $value = sanitize_key($post[$field]);
+            return in_array($value, $allowed, true) ? $value : $default;
+        };
 
         $settings = [
-            'enabled' => isset($_POST['enabled']),
-            'sync_type_default' => sanitize_text_field($_POST['sync_type_default']),
-            'auth_method' => sanitize_text_field($_POST['auth_method']),
-            'match_products_by' => sanitize_text_field($_POST['match_products_by']),
-            'category_match_mode' => sanitize_text_field($_POST['category_match_mode'] ?? 'full_path'),
-            'category_match_by' => sanitize_text_field($_POST['category_match_by'] ?? 'slug'),
-            'category_auto_create' => isset($_POST['category_auto_create']),
-            'stock_sync_enabled' => isset($_POST['stock_sync_enabled']),
-            'auto_create_missing_products' => isset($_POST['auto_create_missing_products']),
-            'auto_sync_new_products' => isset($_POST['auto_sync_new_products']),
-            'auto_sync_deletions' => isset($_POST['auto_sync_deletions']),
-            'deletion_mode' => sanitize_text_field($_POST['deletion_mode'] ?? 'trash'),
-            'auto_sync_restorations' => isset($_POST['auto_sync_restorations']),
-            'auto_sync_status' => isset($_POST['auto_sync_status']),
-            'image_proxy_enabled' => isset($_POST['image_proxy_enabled']),
-            'delete_orphan_variations' => isset($_POST['delete_orphan_variations']),
-            'cleanup_on_uninstall' => isset($_POST['cleanup_on_uninstall']),
-            'circuit_breaker_threshold' => max(1, min(100, intval($_POST['circuit_breaker_threshold'] ?? 10))),
-            'circuit_breaker_duration'  => max(60, min(86400, intval($_POST['circuit_breaker_duration'] ?? 1800))),
+            'enabled' => isset($post['enabled']),
+            'sync_type_default' => $select_value('sync_type_default', ['full_product', 'price_quantity_categories', 'price_quantity', 'quantity'], 'full_product'),
+            'auth_method' => $select_value(
+                'auth_method',
+                [WC_Multi_Store_API_Client::AUTH_METHOD_BASIC, WC_Multi_Store_API_Client::AUTH_METHOD_QUERY_STRING],
+                WC_Multi_Store_API_Client::AUTH_METHOD_BASIC
+            ),
+            'match_products_by' => $select_value('match_products_by', ['sku', 'slug'], 'sku'),
+            'category_match_mode' => $select_value('category_match_mode', ['full_path', 'leaf_only'], 'full_path'),
+            'category_match_by' => $select_value('category_match_by', ['slug', 'name'], 'slug'),
+            'category_auto_create' => isset($post['category_auto_create']),
+            'stock_sync_enabled' => isset($post['stock_sync_enabled']),
+            'auto_create_missing_products' => isset($post['auto_create_missing_products']),
+            'auto_sync_new_products' => isset($post['auto_sync_new_products']),
+            'auto_sync_deletions' => isset($post['auto_sync_deletions']),
+            'deletion_mode' => $select_value('deletion_mode', ['trash', 'force'], 'trash'),
+            'auto_sync_restorations' => isset($post['auto_sync_restorations']),
+            'auto_sync_status' => isset($post['auto_sync_status']),
+            'image_proxy_enabled' => isset($post['image_proxy_enabled']),
+            'delete_orphan_variations' => isset($post['delete_orphan_variations']),
+            'cleanup_on_uninstall' => isset($post['cleanup_on_uninstall']),
+            'circuit_breaker_threshold' => max(1, min(100, intval($post['circuit_breaker_threshold'] ?? 10))),
+            'circuit_breaker_duration'  => max(60, min(86400, intval($post['circuit_breaker_duration'] ?? 1800))),
         ];
 
         // Save webhook settings
         $existing_webhook_settings = get_option('wc_multi_store_sync_webhook_settings', []);
         $existing_webhook_settings = is_array($existing_webhook_settings) ? $existing_webhook_settings : [];
-        $submitted_webhook_secret = sanitize_text_field(wp_unslash($_POST['webhook_secret'] ?? ''));
+        $submitted_webhook_secret = isset($post['webhook_secret']) ? sanitize_text_field($post['webhook_secret']) : '';
         $webhook_secret = $submitted_webhook_secret !== ''
             ? $submitted_webhook_secret
             : ($existing_webhook_settings['webhook_secret'] ?? '');
+        $valid_webhook_trigger_statuses = ['pending', 'processing', 'on-hold', 'completed'];
+        $submitted_trigger_statuses = isset($post['trigger_statuses']) && is_array($post['trigger_statuses'])
+            ? $post['trigger_statuses']
+            : [];
+        $trigger_statuses = [];
+        foreach ($submitted_trigger_statuses as $submitted_status) {
+            if (!is_string($submitted_status)) {
+                continue;
+            }
+
+            $status = sanitize_key($submitted_status);
+            if (in_array($status, $valid_webhook_trigger_statuses, true)) {
+                $trigger_statuses[] = $status;
+            }
+        }
+
         $webhook_settings = [
-            'enabled' => isset($_POST['webhook_enabled']),
+            'enabled' => isset($post['webhook_enabled']),
             'webhook_secret' => $webhook_secret,
-            'trigger_statuses' => array_map('sanitize_text_field', $_POST['trigger_statuses'] ?? []),
-            'allow_negative_stock' => isset($_POST['allow_negative_stock']),
-            'auto_verify' => isset($_POST['auto_verify']),
-            'webhook_log_retention_days' => max(30, min(180, intval($_POST['webhook_log_retention_days'] ?? 90))),
+            'trigger_statuses' => array_values(array_unique($trigger_statuses)),
+            'allow_negative_stock' => isset($post['allow_negative_stock']),
+            'auto_verify' => isset($post['auto_verify']),
+            'webhook_log_retention_days' => max(30, min(180, intval($post['webhook_log_retention_days'] ?? 90))),
         ];
 
         update_option('wc_multi_store_sync_webhook_settings', $webhook_settings);
 
         // Save batch size and scheduled sync settings
         $scheduled_settings = get_option('wc_multi_store_sync_scheduled', []);
-        if (isset($_POST['batch_size_peak'])) {
-            $scheduled_settings['batch_size_peak'] = max(1, min(500, intval($_POST['batch_size_peak'])));
+        if (isset($post['batch_size_peak'])) {
+            $scheduled_settings['batch_size_peak'] = max(1, min(500, intval($post['batch_size_peak'])));
         }
-        if (isset($_POST['batch_size_offpeak'])) {
-            $scheduled_settings['batch_size_offpeak'] = max(1, min(500, intval($_POST['batch_size_offpeak'])));
+        if (isset($post['batch_size_offpeak'])) {
+            $scheduled_settings['batch_size_offpeak'] = max(1, min(500, intval($post['batch_size_offpeak'])));
         }
         // Scheduled sync settings
-        $scheduled_settings['scheduled_sync_enabled'] = isset($_POST['scheduled_sync_enabled']) && $_POST['scheduled_sync_enabled'] === '1';
-        if (isset($_POST['scheduled_sync_interval'])) {
+        $scheduled_settings['scheduled_sync_enabled'] = isset($post['scheduled_sync_enabled']) && $post['scheduled_sync_enabled'] === '1';
+        if (isset($post['scheduled_sync_interval'])) {
             $valid_intervals = ['10min', '30min', 'hourly', 'daily'];
-            $scheduled_settings['scheduled_sync_interval'] = in_array($_POST['scheduled_sync_interval'], $valid_intervals)
-                ? $_POST['scheduled_sync_interval']
+            $scheduled_settings['scheduled_sync_interval'] = in_array($post['scheduled_sync_interval'], $valid_intervals, true)
+                ? $post['scheduled_sync_interval']
                 : '10min';
         }
-        if (isset($_POST['sync_all_products'])) {
-            $scheduled_settings['sync_all_products'] = ($_POST['sync_all_products'] === '1');
+        if (isset($post['sync_all_products'])) {
+            $scheduled_settings['sync_all_products'] = ($post['sync_all_products'] === '1');
         }
-        if (isset($_POST['sync_modified_hours'])) {
-            $scheduled_settings['sync_modified_hours'] = max(1, min(168, intval($_POST['sync_modified_hours'])));
+        if (isset($post['sync_modified_hours'])) {
+            $scheduled_settings['sync_modified_hours'] = max(1, min(168, intval($post['sync_modified_hours'])));
         }
 
         // Scheduled sync specific settings
-        if (isset($_POST['scheduled_sync_type'])) {
+        if (isset($post['scheduled_sync_type'])) {
             $valid_types = ['use_default', 'full_product', 'price_quantity_categories', 'price_quantity', 'quantity'];
-            $scheduled_settings['scheduled_sync_type'] = in_array($_POST['scheduled_sync_type'], $valid_types)
-                ? sanitize_text_field($_POST['scheduled_sync_type'])
+            $scheduled_settings['scheduled_sync_type'] = in_array($post['scheduled_sync_type'], $valid_types, true)
+                ? sanitize_text_field($post['scheduled_sync_type'])
                 : 'use_default';
         }
-        if (isset($_POST['scheduled_stock_sync'])) {
+        if (isset($post['scheduled_stock_sync'])) {
             $valid_options = ['use_default', 'enabled', 'disabled'];
-            $scheduled_settings['scheduled_stock_sync'] = in_array($_POST['scheduled_stock_sync'], $valid_options)
-                ? sanitize_text_field($_POST['scheduled_stock_sync'])
+            $scheduled_settings['scheduled_stock_sync'] = in_array($post['scheduled_stock_sync'], $valid_options, true)
+                ? sanitize_text_field($post['scheduled_stock_sync'])
                 : 'use_default';
         }
-        if (isset($_POST['scheduled_category_auto_create'])) {
+        if (isset($post['scheduled_category_auto_create'])) {
             $valid_options = ['use_default', 'enabled', 'disabled'];
-            $scheduled_settings['scheduled_category_auto_create'] = in_array($_POST['scheduled_category_auto_create'], $valid_options)
-                ? sanitize_text_field($_POST['scheduled_category_auto_create'])
+            $scheduled_settings['scheduled_category_auto_create'] = in_array($post['scheduled_category_auto_create'], $valid_options, true)
+                ? sanitize_text_field($post['scheduled_category_auto_create'])
                 : 'use_default';
         }
 
@@ -590,14 +634,14 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         // Save email notification settings
         $current_email_settings = WC_Multi_Store_Email_Notifications::get_settings();
         $email_settings = [
-            'enabled'               => isset($_POST['email_notifications_enabled']),
-            'recipient_email'       => sanitize_email($_POST['email_recipient'] ?? $current_email_settings['recipient_email']),
-            'failed_sync_enabled'   => isset($_POST['email_failed_sync_enabled']),
-            'api_error_enabled'     => isset($_POST['email_api_error_enabled']),
-            'low_stock_enabled'     => isset($_POST['email_low_stock_enabled']),
-            'daily_summary_enabled' => isset($_POST['email_daily_summary_enabled']),
-            'low_stock_threshold'   => max(0, intval($_POST['email_low_stock_threshold'] ?? $current_email_settings['low_stock_threshold'])),
-            'daily_summary_time'    => sanitize_text_field($_POST['email_daily_summary_time'] ?? $current_email_settings['daily_summary_time']),
+            'enabled'               => isset($post['email_notifications_enabled']),
+            'recipient_email'       => isset($post['email_recipient']) ? sanitize_email($post['email_recipient']) : $current_email_settings['recipient_email'],
+            'failed_sync_enabled'   => isset($post['email_failed_sync_enabled']),
+            'api_error_enabled'     => isset($post['email_api_error_enabled']),
+            'low_stock_enabled'     => isset($post['email_low_stock_enabled']),
+            'daily_summary_enabled' => isset($post['email_daily_summary_enabled']),
+            'low_stock_threshold'   => max(0, intval($post['email_low_stock_threshold'] ?? $current_email_settings['low_stock_threshold'])),
+            'daily_summary_time'    => isset($post['email_daily_summary_time']) ? sanitize_text_field($post['email_daily_summary_time']) : $current_email_settings['daily_summary_time'],
         ];
         if (empty($email_settings['recipient_email'])) {
             $email_settings['recipient_email'] = $current_email_settings['recipient_email'];
@@ -637,32 +681,33 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
      */
     private function handle_save_weekly_verification(): void {
         $this->require_manage_capability();
+        $post = wp_unslash($_POST);
         $valid_sync_types = ['use_default', 'full_product', 'price_quantity_categories', 'price_quantity', 'quantity'];
         $valid_options = ['use_default', 'enabled', 'disabled'];
 
         $settings = [
-            'enabled' => isset($_POST['verification_enabled']),
-            'schedule' => sanitize_text_field($_POST['verification_schedule']),
-            'day_of_week' => intval($_POST['verification_day'] ?? 1),
-            'time_of_day' => sanitize_text_field($_POST['verification_time']),
-            'check_stock' => isset($_POST['check_stock']),
-            'check_prices' => isset($_POST['check_prices']),
-            'product_limit' => intval($_POST['product_limit'] ?? 0),
-            'batch_size' => max(1, min(100, intval($_POST['batch_size'] ?? 20))),
-            'sample_mode' => sanitize_text_field($_POST['sample_mode']),
-            'auto_correct' => isset($_POST['auto_correct']),
-            'auto_correct_limit' => max(0, min(10000, intval($_POST['auto_correct_limit'] ?? 500))),
-            'email_enabled' => isset($_POST['email_enabled']),
-            'email_recipients' => sanitize_text_field($_POST['email_recipients']),
+            'enabled' => isset($post['verification_enabled']),
+            'schedule' => isset($post['verification_schedule']) ? sanitize_text_field($post['verification_schedule']) : 'weekly',
+            'day_of_week' => intval($post['verification_day'] ?? 1),
+            'time_of_day' => isset($post['verification_time']) ? sanitize_text_field($post['verification_time']) : '02:00',
+            'check_stock' => isset($post['check_stock']),
+            'check_prices' => isset($post['check_prices']),
+            'product_limit' => intval($post['product_limit'] ?? 0),
+            'batch_size' => max(1, min(100, intval($post['batch_size'] ?? 20))),
+            'sample_mode' => isset($post['sample_mode']) ? sanitize_text_field($post['sample_mode']) : 'all',
+            'auto_correct' => isset($post['auto_correct']),
+            'auto_correct_limit' => max(0, min(10000, intval($post['auto_correct_limit'] ?? 500))),
+            'email_enabled' => isset($post['email_enabled']),
+            'email_recipients' => isset($post['email_recipients']) ? sanitize_text_field($post['email_recipients']) : '',
             // Auto-correct sync settings
-            'weekly_sync_type' => isset($_POST['weekly_sync_type']) && in_array($_POST['weekly_sync_type'], $valid_sync_types)
-                ? sanitize_text_field($_POST['weekly_sync_type'])
+            'weekly_sync_type' => isset($post['weekly_sync_type']) && in_array($post['weekly_sync_type'], $valid_sync_types, true)
+                ? sanitize_text_field($post['weekly_sync_type'])
                 : 'use_default',
-            'weekly_stock_sync' => isset($_POST['weekly_stock_sync']) && in_array($_POST['weekly_stock_sync'], $valid_options)
-                ? sanitize_text_field($_POST['weekly_stock_sync'])
+            'weekly_stock_sync' => isset($post['weekly_stock_sync']) && in_array($post['weekly_stock_sync'], $valid_options, true)
+                ? sanitize_text_field($post['weekly_stock_sync'])
                 : 'use_default',
-            'weekly_category_auto_create' => isset($_POST['weekly_category_auto_create']) && in_array($_POST['weekly_category_auto_create'], $valid_options)
-                ? sanitize_text_field($_POST['weekly_category_auto_create'])
+            'weekly_category_auto_create' => isset($post['weekly_category_auto_create']) && in_array($post['weekly_category_auto_create'], $valid_options, true)
+                ? sanitize_text_field($post['weekly_category_auto_create'])
                 : 'use_default',
         ];
 
@@ -814,6 +859,8 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         }
     }
 
+    // phpcs:enable WordPress.Security.NonceVerification.Missing
+
     /**
      * Enqueue admin scripts and styles
      *
@@ -826,7 +873,9 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         }
 
         // Check if we're on our tab
-        if (!isset($_GET['tab']) || $_GET['tab'] !== 'multi_store_sync') {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin-screen context check.
+        $tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : '';
+        if ($tab !== 'multi_store_sync') {
             return;
         }
 
@@ -847,7 +896,8 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         $script_deps = ['wc-mss-conflict-utils'];
 
-        $chart_section = sanitize_text_field($_GET['section'] ?? '');
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin-screen context check.
+        $chart_section = isset($_GET['section']) ? sanitize_text_field(wp_unslash($_GET['section'])) : '';
         if (in_array($chart_section, ['api-usage', ''], true)) {
             wp_enqueue_script(
                 'wc-mss-chartjs',
@@ -891,11 +941,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         ]);
 
         // Add section-specific data
-        $section = sanitize_text_field($_GET['section'] ?? '');
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin-screen context check.
+        $section = isset($_GET['section']) ? sanitize_text_field(wp_unslash($_GET['section'])) : '';
 
         // Chart data for API usage page
         if ($section === 'api-usage' && class_exists('WC_Multi_Store_API_Usage_Tracker')) {
-            $days = isset($_GET['days']) ? absint($_GET['days']) : 30;
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only chart range selector.
+            $days = isset($_GET['days']) ? absint(wp_unslash($_GET['days'])) : 30;
             $args = [
                 'start_date' => date('Y-m-d', strtotime("-{$days} days")),
                 'end_date' => date('Y-m-d'),
@@ -1078,9 +1130,9 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             wp_send_json_error('Unauthorized');
         }
 
-        $store_url = sanitize_text_field($_POST['store_url']);
-        $consumer_key = sanitize_text_field($_POST['consumer_key']);
-        $consumer_secret = sanitize_text_field($_POST['consumer_secret']);
+        $store_url = isset($_POST['store_url']) && is_string($_POST['store_url']) ? esc_url_raw(wp_unslash($_POST['store_url'])) : '';
+        $consumer_key = isset($_POST['consumer_key']) && is_string($_POST['consumer_key']) ? sanitize_text_field(wp_unslash($_POST['consumer_key'])) : '';
+        $consumer_secret = isset($_POST['consumer_secret']) && is_string($_POST['consumer_secret']) ? sanitize_text_field(wp_unslash($_POST['consumer_secret'])) : '';
 
         if (empty($store_url) || !WC_Multi_Store_Settings::is_safe_remote_url($store_url)) {
             wp_send_json_error(__('Store URL is not allowed.', 'multi-store-sync-for-woocommerce'));
@@ -1241,7 +1293,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             return;
         }
 
-        $delete_type = sanitize_text_field($_POST['delete_type'] ?? '');
+        $delete_type = isset($_POST['delete_type']) ? sanitize_text_field(wp_unslash($_POST['delete_type'])) : '';
 
         if (empty($delete_type)) {
             wp_send_json_error(['message' => __('Invalid deletion type', 'multi-store-sync-for-woocommerce')]);
@@ -1270,13 +1322,13 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
             case 'older_than':
                 // Delete records older than X days
-                $days = absint($_POST['days'] ?? 30);
+                $days = isset($_POST['days']) ? absint(wp_unslash($_POST['days'])) : 30;
                 $deleted = WC_Multi_Store_Sync_History::cleanup_old_records($days);
                 break;
 
             case 'by_store':
                 // Delete records for specific store
-                $store_url = sanitize_text_field($_POST['store_url'] ?? '');
+                $store_url = isset($_POST['store_url']) ? esc_url_raw(wp_unslash($_POST['store_url'])) : '';
                 if (!empty($store_url)) {
                     $deleted = WC_Multi_Store_Sync_History::delete_by_store($store_url);
                 }

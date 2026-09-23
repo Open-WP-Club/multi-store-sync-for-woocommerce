@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Core table names are supplied by $wpdb; dynamic category field is selected from a fixed whitelist.
 /**
  * Admin AJAX Handlers
  *
@@ -140,6 +141,69 @@ class WC_Multi_Store_Admin_Ajax {
         }
     }
 
+    /**
+     * Normalize the read-only webhook-log filters shared by listing and export.
+     * Invalid optional filters are ignored rather than broadening them into
+     * arbitrary database query values.
+     *
+     * @param array<string, mixed> $post Already unslashed request payload.
+     * @param bool                 $with_pagination Whether to include pagination arguments.
+     * @return array<string, int|string|null>
+     */
+    private static function get_webhook_log_filters(array $post, bool $with_pagination = false): array {
+        $valid_log_types = array_map(
+            static fn(WC_Multi_Store_Webhook_Log_Type $type): string => $type->value,
+            WC_Multi_Store_Webhook_Log_Type::cases()
+        );
+
+        $log_type = isset($post['log_type']) && is_string($post['log_type'])
+            ? sanitize_key($post['log_type'])
+            : '';
+        $status = isset($post['status']) && is_string($post['status'])
+            ? sanitize_key($post['status'])
+            : '';
+        $date_filter = static function (string $key) use ($post): ?string {
+            if (!isset($post[$key]) || !is_string($post[$key])) {
+                return null;
+            }
+
+            $date = sanitize_text_field($post[$key]);
+            $parsed_date = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+            return $parsed_date !== false && $parsed_date->format('Y-m-d') === $date ? $date : null;
+        };
+
+        $args = [
+            'log_type'    => in_array($log_type, $valid_log_types, true) ? $log_type : null,
+            'store_url'   => isset($post['store_url']) && is_string($post['store_url']) ? esc_url_raw($post['store_url']) : null,
+            'product_sku' => isset($post['product_sku']) && is_string($post['product_sku']) ? sanitize_text_field($post['product_sku']) : null,
+            'status'      => in_array($status, ['success', 'failed'], true) ? $status : null,
+            'date_from'   => $date_filter('date_from'),
+            'date_to'     => $date_filter('date_to'),
+        ];
+
+        if ($with_pagination) {
+            $per_page = isset($post['per_page']) && is_string($post['per_page']) ? absint($post['per_page']) : 50;
+            $page     = isset($post['page']) && is_string($post['page']) ? absint($post['page']) : 1;
+
+            $args['per_page'] = max(1, min(100, $per_page));
+            $args['page']     = max(1, min(10000, $page));
+        }
+
+        return $args;
+    }
+
+    /**
+     * Read a bounded positive day count from an already unslashed AJAX payload.
+     *
+     * @param array<string, mixed> $post Request payload.
+     */
+    private static function get_webhook_log_days(array $post): int {
+        $days = isset($post['days']) && is_string($post['days']) ? absint($post['days']) : 30;
+
+        return max(1, min(365, $days));
+    }
+
     // -------------------------------------------------------------------------
     // Orphan / History
     // -------------------------------------------------------------------------
@@ -212,15 +276,21 @@ class WC_Multi_Store_Admin_Ajax {
             'delete_history',
             __('An error occurred while deleting history', 'multi-store-sync-for-woocommerce'),
             function () {
-            $delete_type = sanitize_text_field($_POST['delete_type'] ?? '');
+            check_ajax_referer('wc_mss_admin', 'nonce');
+            $delete_type = isset($_POST['delete_type']) && is_string($_POST['delete_type']) ? sanitize_key(wp_unslash($_POST['delete_type'])) : '';
 
-            if (empty($delete_type)) {
+            if ($delete_type === '') {
                 wp_send_json_error(['message' => __('Invalid deletion type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
+            if (!in_array($delete_type, ['all', 'errors', 'successful', 'older_than', 'by_store'], true)) {
+                wp_send_json_error(['message' => __('Unknown deletion type', 'multi-store-sync-for-woocommerce')]);
+                return;
+            }
 
-            $days      = absint($_POST['days'] ?? 30);
-            $store_url = sanitize_text_field($_POST['store_url'] ?? '');
+            $days      = isset($_POST['days']) && is_string($_POST['days']) ? absint(wp_unslash($_POST['days'])) : 30;
+            $days      = max(1, min(365, $days));
+            $store_url = isset($_POST['store_url']) && is_string($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
 
             $deleted = match ($delete_type) {
                 'all'        => WC_Multi_Store_Sync_History::clear_all() ? -1 : 0,
@@ -357,16 +427,8 @@ class WC_Multi_Store_Admin_Ajax {
             'get_webhook_logs',
             __('An error occurred while fetching webhook logs', 'multi-store-sync-for-woocommerce'),
             function () {
-            $args = [
-                'per_page'    => isset($_POST['per_page'])    ? absint($_POST['per_page'])                        : 50,
-                'page'        => isset($_POST['page'])        ? absint($_POST['page'])                            : 1,
-                'log_type'    => isset($_POST['log_type'])    ? sanitize_text_field($_POST['log_type'])           : null,
-                'store_url'   => isset($_POST['store_url'])   ? sanitize_text_field($_POST['store_url'])          : null,
-                'product_sku' => isset($_POST['product_sku']) ? sanitize_text_field($_POST['product_sku'])        : null,
-                'status'      => isset($_POST['status'])      ? sanitize_text_field($_POST['status'])             : null,
-                'date_from'   => isset($_POST['date_from'])   ? sanitize_text_field($_POST['date_from'])          : null,
-                'date_to'     => isset($_POST['date_to'])     ? sanitize_text_field($_POST['date_to'])            : null,
-            ];
+            check_ajax_referer('wc_mss_admin', 'nonce');
+            $args = self::get_webhook_log_filters(wp_unslash($_POST), true);
 
             $result = WC_Multi_Store_Webhook_Logger::get_logs($args);
 
@@ -389,7 +451,8 @@ class WC_Multi_Store_Admin_Ajax {
             'get_webhook_log_detail',
             __('An error occurred while fetching log detail', 'multi-store-sync-for-woocommerce'),
             function () {
-            $log_id = isset($_POST['log_id']) ? absint($_POST['log_id']) : 0;
+            check_ajax_referer('wc_mss_admin', 'nonce');
+            $log_id = isset($_POST['log_id']) && is_string($_POST['log_id']) ? absint(wp_unslash($_POST['log_id'])) : 0;
 
             if (!$log_id) {
                 wp_send_json_error(['message' => __('Invalid log ID', 'multi-store-sync-for-woocommerce')]);
@@ -420,12 +483,9 @@ class WC_Multi_Store_Admin_Ajax {
             'export_webhook_logs',
             __('An error occurred while exporting logs', 'multi-store-sync-for-woocommerce'),
             function () {
-            $args = [
-                'log_type'  => isset($_POST['log_type'])  ? sanitize_text_field($_POST['log_type'])  : null,
-                'store_url' => isset($_POST['store_url']) ? sanitize_text_field($_POST['store_url']) : null,
-                'date_from' => isset($_POST['date_from']) ? sanitize_text_field($_POST['date_from']) : null,
-                'date_to'   => isset($_POST['date_to'])   ? sanitize_text_field($_POST['date_to'])   : null,
-            ];
+            check_ajax_referer('wc_mss_admin', 'nonce');
+            $args = self::get_webhook_log_filters(wp_unslash($_POST));
+            unset($args['product_sku'], $args['status']);
 
             $csv      = WC_Multi_Store_Webhook_Logger::export_csv($args);
             $filename = 'webhook-logs-' . date('Y-m-d-His') . '.csv';
@@ -447,7 +507,8 @@ class WC_Multi_Store_Admin_Ajax {
             'get_webhook_stats',
             __('An error occurred while fetching stats', 'multi-store-sync-for-woocommerce'),
             function () {
-                $days  = isset($_POST['days']) ? absint($_POST['days']) : 30;
+                check_ajax_referer('wc_mss_admin', 'nonce');
+                $days  = self::get_webhook_log_days(wp_unslash($_POST));
                 $stats = WC_Multi_Store_Webhook_Logger::get_stats($days);
                 wp_send_json_success($stats);
             }
@@ -463,17 +524,22 @@ class WC_Multi_Store_Admin_Ajax {
             'delete_webhook_logs',
             __('An error occurred while deleting logs', 'multi-store-sync-for-woocommerce'),
             function () {
-            $delete_type = isset($_POST['delete_type']) ? sanitize_text_field($_POST['delete_type']) : '';
+            check_ajax_referer('wc_mss_admin', 'nonce');
+            $delete_type = isset($_POST['delete_type']) && is_string($_POST['delete_type']) ? sanitize_key(wp_unslash($_POST['delete_type'])) : '';
 
-            if (empty($delete_type)) {
+            if (!in_array($delete_type, ['all', 'errors', 'success', 'older_than', 'by_type'], true)) {
                 wp_send_json_error(['message' => __('Invalid deletion type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
 
-            $days     = isset($_POST['days'])     ? absint($_POST['days'])                          : 30;
-            $log_type = isset($_POST['log_type']) ? sanitize_text_field($_POST['log_type'])         : '';
+            $days     = self::get_webhook_log_days(wp_unslash($_POST));
+            $log_type = isset($_POST['log_type']) && is_string($_POST['log_type']) ? sanitize_key(wp_unslash($_POST['log_type'])) : '';
 
-            if ($delete_type === 'by_type' && empty($log_type)) {
+            $valid_log_types = array_map(
+                static fn(WC_Multi_Store_Webhook_Log_Type $type): string => $type->value,
+                WC_Multi_Store_Webhook_Log_Type::cases()
+            );
+            if ($delete_type === 'by_type' && !in_array($log_type, $valid_log_types, true)) {
                 wp_send_json_error(['message' => __('Invalid log type', 'multi-store-sync-for-woocommerce')]);
                 return;
             }
@@ -619,15 +685,19 @@ class WC_Multi_Store_Admin_Ajax {
     }
 
     public function ajax_force_sync_by_sku(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request()) {
             return;
         }
 
-        $raw_skus = isset($_POST['skus']) ? (array) $_POST['skus'] : [];
+        $post = wp_unslash($_POST);
+        $raw_skus = isset($post['skus']) && is_array($post['skus']) ? $post['skus'] : [];
+        $raw_skus = array_map('sanitize_text_field', $raw_skus);
+        $legacy_sku = isset($_POST['sku']) ? trim(sanitize_text_field(wp_unslash($_POST['sku']))) : '';
 
         // fallback: legacy single 'sku' param
-        if (empty($raw_skus) && !empty($_POST['sku'])) {
-            $raw_skus = [sanitize_text_field(trim($_POST['sku']))];
+        if (empty($raw_skus) && $legacy_sku !== '') {
+            $raw_skus = [$legacy_sku];
         }
 
         $skus = array_values(array_filter(array_map(
@@ -765,7 +835,8 @@ class WC_Multi_Store_Admin_Ajax {
             'force_sync_by_category',
             __('An error occurred while queuing the category for sync', 'multi-store-sync-for-woocommerce'),
             function () {
-            $category_id = isset($_POST['category_id']) ? absint($_POST['category_id']) : 0;
+            check_ajax_referer('wc_mss_admin', 'nonce');
+            $category_id = isset($_POST['category_id']) ? absint(wp_unslash($_POST['category_id'])) : 0;
 
             if (!$category_id) {
                 wp_send_json_error(['message' => __('A category is required', 'multi-store-sync-for-woocommerce')]);
@@ -888,11 +959,12 @@ class WC_Multi_Store_Admin_Ajax {
      * JS calls this once per store and accumulates results with a progress bar.
      */
     public function ajax_scan_categories(): void {
+        check_ajax_referer('wc_mss_scan_categories', 'nonce');
         if (!self::verify_admin_request('wc_mss_scan_categories', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
-        $store_url = isset($_POST['store_url']) ? sanitize_text_field($_POST['store_url']) : '';
+        $store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
 
         if (!$store_url) {
             wp_send_json_error(['message' => __('store_url is required for per-store scanning.', 'multi-store-sync-for-woocommerce')]);
@@ -940,12 +1012,13 @@ class WC_Multi_Store_Admin_Ajax {
      * category/tag/attribute mapping UIs' "map to" dropdowns.
      */
     public function ajax_get_remote_terms(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
-        $store_url = isset($_POST['store_url']) ? sanitize_text_field($_POST['store_url']) : '';
-        $taxonomy  = isset($_POST['taxonomy']) ? sanitize_text_field($_POST['taxonomy']) : 'category';
+        $store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
+        $taxonomy  = isset($_POST['taxonomy']) ? sanitize_text_field(wp_unslash($_POST['taxonomy'])) : 'category';
 
         if (!$store_url) {
             wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
@@ -1090,13 +1163,18 @@ class WC_Multi_Store_Admin_Ajax {
     // ── Category sync ─────────────────────────────────────────────────────────
 
     public function ajax_sync_by_category(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request()) {
             return;
         }
 
-        $category_id      = absint($_POST['category_id'] ?? 0);
-        $sync_type        = sanitize_text_field($_POST['sync_type'] ?? 'full_product');
+        $category_id      = isset($_POST['category_id']) && is_string($_POST['category_id']) ? absint(wp_unslash($_POST['category_id'])) : 0;
+        $sync_type        = isset($_POST['sync_type']) && is_string($_POST['sync_type']) ? sanitize_key(wp_unslash($_POST['sync_type'])) : 'full_product';
         $include_children = !empty($_POST['include_children']);
+
+        if (!in_array($sync_type, ['full_product', 'price_quantity_categories', 'price_quantity', 'quantity'], true)) {
+            $sync_type = 'full_product';
+        }
 
         if (!$category_id) {
             wp_send_json_error(['message' => __('Invalid category', 'multi-store-sync-for-woocommerce')]);
@@ -1164,11 +1242,12 @@ class WC_Multi_Store_Admin_Ajax {
     // ── Queue per-item retry ──────────────────────────────────────────────────
 
     public function ajax_queue_retry_item(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request()) {
             return;
         }
 
-        $item_id = isset($_POST['item_id']) ? absint($_POST['item_id']) : 0;
+        $item_id = isset($_POST['item_id']) ? absint(wp_unslash($_POST['item_id'])) : 0;
 
         if (!$item_id) {
             wp_send_json_error(['message' => __('Invalid item ID', 'multi-store-sync-for-woocommerce')]);
@@ -1190,11 +1269,12 @@ class WC_Multi_Store_Admin_Ajax {
      * the smart-skip for unchanged data is bypassed and all fields are sent.
      */
     public function ajax_force_sync_product(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request()) {
             return;
         }
 
-        $product_id = isset($_POST['product_id']) ? absint($_POST['product_id']) : 0;
+        $product_id = isset($_POST['product_id']) ? absint(wp_unslash($_POST['product_id'])) : 0;
 
         if (!$product_id) {
             wp_send_json_error(['message' => __('Invalid product ID', 'multi-store-sync-for-woocommerce')]);

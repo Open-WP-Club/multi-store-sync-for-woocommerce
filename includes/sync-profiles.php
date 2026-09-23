@@ -325,9 +325,9 @@ class WC_Multi_Store_Sync_Profiles {
             return;
         }
 
-        $profile_id = sanitize_text_field($_POST['profile_id'] ?? '');
-        $name = sanitize_text_field($_POST['name'] ?? '');
-        $description = sanitize_textarea_field($_POST['description'] ?? '');
+        $profile_id = isset($_POST['profile_id']) && is_string($_POST['profile_id']) ? sanitize_text_field(wp_unslash($_POST['profile_id'])) : '';
+        $name = isset($_POST['name']) && is_string($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
+        $description = isset($_POST['description']) && is_string($_POST['description']) ? sanitize_textarea_field(wp_unslash($_POST['description'])) : '';
 
         if (empty($name)) {
             wp_send_json_error(['message' => __('Profile name is required', 'multi-store-sync-for-woocommerce')]);
@@ -354,8 +354,8 @@ class WC_Multi_Store_Sync_Profiles {
             return;
         }
 
-        $profile_id = sanitize_text_field($_POST['profile_id'] ?? '');
-        $preset_key = sanitize_text_field($_POST['preset_key'] ?? '');
+        $profile_id = isset($_POST['profile_id']) && is_string($_POST['profile_id']) ? sanitize_text_field(wp_unslash($_POST['profile_id'])) : '';
+        $preset_key = isset($_POST['preset_key']) && is_string($_POST['preset_key']) ? sanitize_key(wp_unslash($_POST['preset_key'])) : '';
 
         if ($preset_key) {
             $success = self::apply_preset($preset_key);
@@ -381,7 +381,7 @@ class WC_Multi_Store_Sync_Profiles {
             return;
         }
 
-        $profile_id = sanitize_text_field($_POST['profile_id'] ?? '');
+        $profile_id = isset($_POST['profile_id']) && is_string($_POST['profile_id']) ? sanitize_text_field(wp_unslash($_POST['profile_id'])) : '';
 
         if (self::delete($profile_id)) {
             wp_send_json_success(['message' => __('Profile deleted', 'multi-store-sync-for-woocommerce')]);

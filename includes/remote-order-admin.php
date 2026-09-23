@@ -72,7 +72,10 @@ class WC_Multi_Store_Remote_Order_Admin {
      * Handle admin actions (delete, sync, etc.)
      */
     public function handle_actions(): void {
-        if (!isset($_GET['page']) || $_GET['page'] !== 'wc-multi-store-remote-orders') {
+        // The page selector only routes this handler and cannot change state.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin-page selector.
+        $page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
+        if ($page !== 'wc-multi-store-remote-orders') {
             return;
         }
 
@@ -80,10 +83,15 @@ class WC_Multi_Store_Remote_Order_Admin {
             return;
         }
 
-        $action = sanitize_text_field($_GET['action']);
+        // Delete branches below verify their action-specific nonce before changing state; "view" is read-only.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Route selector; mutation branches verify a nonce before deletion.
+        $action = sanitize_text_field(wp_unslash($_GET['action']));
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- ID is only acted on after the action-specific nonce verification below.
+        $order_id_input = isset($_GET['order_id']) ? map_deep(wp_unslash($_GET['order_id']), 'absint') : null;
 
         // Handle bulk delete — check is_array FIRST to avoid the single-delete branch catching arrays
-        if ($action === 'delete' && isset($_GET['order_id']) && is_array($_GET['order_id'])) {
+        if ($action === 'delete' && is_array($order_id_input)) {
             check_admin_referer('bulk-remote_orders');
 
             if (!current_user_can('manage_woocommerce')) {
@@ -91,13 +99,13 @@ class WC_Multi_Store_Remote_Order_Admin {
             }
 
             $deleted = 0;
-            foreach ($_GET['order_id'] as $order_id) {
+            foreach ($order_id_input as $order_id) {
                 if (WC_Multi_Store_Remote_Order_Table::delete(absint($order_id))) {
                     $deleted++;
                 }
             }
 
-            wp_redirect(add_query_arg([
+            wp_safe_redirect(add_query_arg([
                 'page'    => 'wc-multi-store-remote-orders',
                 'deleted' => $deleted,
             ], admin_url('admin.php')));
@@ -105,9 +113,9 @@ class WC_Multi_Store_Remote_Order_Admin {
         }
 
         // Handle single delete (scalar order_id)
-        if ($action === 'delete' && isset($_GET['order_id']) && !is_array($_GET['order_id'])) {
-            $order_id = absint($_GET['order_id']);
-            $nonce = $_GET['_wpnonce'] ?? '';
+        if ($action === 'delete' && $order_id_input !== null && !is_array($order_id_input)) {
+            $order_id = $order_id_input;
+            $nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
 
             if (!wp_verify_nonce($nonce, 'delete_remote_order_' . $order_id)) {
                 wp_die(esc_html__('Security check failed', 'multi-store-sync-for-woocommerce'));
@@ -118,7 +126,7 @@ class WC_Multi_Store_Remote_Order_Admin {
             }
 
             if (WC_Multi_Store_Remote_Order_Table::delete($order_id)) {
-                wp_redirect(add_query_arg([
+                wp_safe_redirect(add_query_arg([
                     'page'    => 'wc-multi-store-remote-orders',
                     'deleted' => '1',
                 ], admin_url('admin.php')));
@@ -132,9 +140,11 @@ class WC_Multi_Store_Remote_Order_Admin {
      */
     public function render_orders_page(): void {
         // Check for action parameter
-        $action = sanitize_text_field($_GET['action'] ?? '');
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only view route selector.
+        $action = isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '';
 
         // Show order details if viewing a specific order
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only order-details route.
         if ($action === 'view' && isset($_GET['order_id'])) {
             $this->render_order_details();
             return;
@@ -149,8 +159,10 @@ class WC_Multi_Store_Remote_Order_Admin {
      */
     private function render_orders_list(): void {
         // Show success message
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
         if (isset($_GET['deleted'])) {
-            $deleted = absint($_GET['deleted']);
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
+            $deleted = absint(wp_unslash($_GET['deleted']));
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
@@ -203,7 +215,8 @@ class WC_Multi_Store_Remote_Order_Admin {
      * Render order details
      */
     private function render_order_details(): void {
-        $order_id = absint($_GET['order_id']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only order-details selector.
+        $order_id = isset($_GET['order_id']) ? absint(wp_unslash($_GET['order_id'])) : 0;
         $order = WC_Multi_Store_Remote_Order_Table::get($order_id);
 
         if (!$order) {

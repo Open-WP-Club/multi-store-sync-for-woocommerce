@@ -38,6 +38,7 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         Functions\when('check_ajax_referer')->justReturn(true);
         Functions\when('current_user_can')->justReturn(true);
         Functions\when('esc_html')->alias(fn($v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'));
+        Functions\when('esc_url_raw')->alias(fn($url) => filter_var($url, FILTER_VALIDATE_URL) ? $url : '');
         Functions\when('_n')->alias(fn($s, $p, $n) => $n === 1 ? $s : $p);
         Functions\when('absint')->alias(fn($v) => abs((int) $v));
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
@@ -105,6 +106,21 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
             ->newInstanceWithoutConstructor();
     }
 
+    /** @return array<string, int|string|null> */
+    private function getWebhookLogFilters(array $post, bool $with_pagination = false): array
+    {
+        $method = new ReflectionMethod(WC_Multi_Store_Admin_Ajax::class, 'get_webhook_log_filters');
+
+        return $method->invoke(null, $post, $with_pagination);
+    }
+
+    private function getWebhookLogDays(array $post): int
+    {
+        $method = new ReflectionMethod(WC_Multi_Store_Admin_Ajax::class, 'get_webhook_log_days');
+
+        return $method->invoke(null, $post);
+    }
+
     private function captureJsonResponse(): array
     {
         $captured = ['success' => null, 'data' => null];
@@ -162,6 +178,61 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         $wpdb->shouldReceive('query')->andReturn($query_return);
         $wpdb->shouldReceive('insert')->andReturn(1);
         $wpdb->insert_id = 1;
+    }
+
+    public function test_webhook_log_filters_reject_invalid_values_and_bound_pagination(): void
+    {
+        $post = [
+            'log_type'    => 'not-a-log-type',
+            'store_url'   => ['https://example.test'],
+            'product_sku' => ['SKU-1'],
+            'status'      => 'pending',
+            'date_from'   => '2024-02-30',
+            'date_to'     => 'not-a-date',
+            'per_page'    => '999',
+            'page'        => '0',
+        ];
+
+        $this->assertSame([
+            'log_type'    => null,
+            'store_url'   => null,
+            'product_sku' => null,
+            'status'      => null,
+            'date_from'   => null,
+            'date_to'     => null,
+            'per_page'    => 100,
+            'page'        => 1,
+        ], $this->getWebhookLogFilters($post, true));
+    }
+
+    public function test_webhook_log_filters_accept_supported_values_and_bound_days(): void
+    {
+        $post = [
+            'log_type'    => 'order_received',
+            'store_url'   => 'https://store.example.test',
+            'product_sku' => 'SKU-1',
+            'status'      => 'failed',
+            'date_from'   => '2024-02-29',
+            'date_to'     => '2024-03-01',
+            'per_page'    => '20',
+            'page'        => '3',
+            'days'        => '9999',
+        ];
+
+        $this->assertSame([
+            'log_type'    => 'order_received',
+            'store_url'   => 'https://store.example.test',
+            'product_sku' => 'SKU-1',
+            'status'      => 'failed',
+            'date_from'   => '2024-02-29',
+            'date_to'     => '2024-03-01',
+            'per_page'    => 20,
+            'page'        => 3,
+        ], $this->getWebhookLogFilters($post, true));
+        $this->assertSame(365, $this->getWebhookLogDays($post));
+
+        $post['days'] = ['30'];
+        $this->assertSame(30, $this->getWebhookLogDays($post));
     }
 
     /** Build a mock WC_Product */

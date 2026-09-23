@@ -170,13 +170,14 @@ class WC_Multi_Store_Config_Manager {
             return;
         }
 
-        if (empty($_POST['config'])) {
+        if (!isset($_POST['config']) || !is_string($_POST['config']) || $_POST['config'] === '') {
             wp_send_json_error(['message' => __('No configuration data provided.', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- config import intentionally accepts JSON; it is unslashed, decoded, and type-validated before privileged import.
         $config = json_decode(wp_unslash($_POST['config']), true);
-        if ($config === null) {
+        if (!is_array($config)) {
             wp_send_json_error(['message' => __('Invalid JSON data.', 'multi-store-sync-for-woocommerce')]);
             return;
         }

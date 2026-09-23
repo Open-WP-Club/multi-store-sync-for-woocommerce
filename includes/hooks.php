@@ -131,8 +131,19 @@ class WC_Multi_Store_Hooks {
      * @return bool
      */
     private static function is_bulk_edit_request(): bool {
+        // WordPress core has already nonce-validated the native bulk-edit request before this save hook runs.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only bulk-edit context check behind WordPress core's save flow.
+        $has_bulk_edit = isset($_REQUEST['bulk_edit']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only bulk-edit context check behind WordPress core's save flow.
+        $bulk_edit = '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only bulk-edit context check behind WordPress core's save flow.
+        if ($has_bulk_edit && is_scalar($_REQUEST['bulk_edit'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only bulk-edit context check behind WordPress core's save flow.
+            $bulk_edit = sanitize_text_field(wp_unslash($_REQUEST['bulk_edit']));
+        }
+
         return (defined('DOING_BULK_EDIT') && DOING_BULK_EDIT)
-            || !empty($_REQUEST['bulk_edit']);
+            || $bulk_edit !== '';
     }
 
     /**

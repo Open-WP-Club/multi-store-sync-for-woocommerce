@@ -17,6 +17,9 @@ if (!defined('ABSPATH')) {
  */
 class WC_Multi_Store_API_Client {
 
+    public const AUTH_METHOD_BASIC = 'basic_auth';
+    public const AUTH_METHOD_QUERY_STRING = 'query_string';
+
     /** Maximum image payload held in memory during proxy uploads (20 MiB). */
     const int MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 

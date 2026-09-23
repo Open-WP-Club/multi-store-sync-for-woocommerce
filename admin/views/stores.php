@@ -26,13 +26,15 @@ $tags = get_terms([
 // Get total product count
 $total_products = wp_count_posts('product')->publish;
 
-// Check if editing a store
-$editing_store_url = isset($_GET['edit_store']) ? sanitize_text_field($_GET['edit_store']) : '';
+// Read-only GET route selectors; form submissions are nonce-checked in the settings dispatcher.
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only edit-form selector.
+$editing_store_url = isset($_GET['edit_store']) ? sanitize_text_field(wp_unslash($_GET['edit_store'])) : '';
 $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $stores[$editing_store_url] : null;
 ?>
 
 <div class="wrap wc-mss-stores">
     <h1 class="wp-heading-inline"><?php esc_html_e('Manage Stores', 'multi-store-sync-for-woocommerce'); ?></h1>
+    <?php // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only add-form selector. ?>
     <?php if (!$editing_store && !isset($_GET['add_new'])): ?>
     <a href="<?php echo esc_url(add_query_arg('add_new', '1')); ?>" class="page-title-action"><?php esc_html_e('Add New Store', 'multi-store-sync-for-woocommerce'); ?></a>
     <?php endif; ?>
@@ -109,6 +111,7 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
 
     <?php
     // Show Add New Store form only when explicitly requested via URL param
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only add-form selector.
     $show_add_form = isset($_GET['add_new']) && !$editing_store;
     ?>
 

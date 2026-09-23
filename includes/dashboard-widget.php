@@ -141,7 +141,7 @@ class WC_Multi_Store_Dashboard_Widget {
             return;
         }
 
-        $days = max(1, min(365, (int) ($_POST['days'] ?? 7)));
+        $days = isset($_POST['days']) ? max(1, min(365, absint(wp_unslash($_POST['days'])))) : 7;
         $stats = WC_Multi_Store_Sync_History::get_statistics(['days' => $days]);
 
         // Format daily stats for chart

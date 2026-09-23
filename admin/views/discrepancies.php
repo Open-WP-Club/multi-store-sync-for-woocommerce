@@ -13,8 +13,17 @@ if (!defined('ABSPATH')) {
 if (isset($_POST['action']) && isset($_POST['discrepancy_id'])) {
     check_admin_referer('wc_mss_discrepancy_action');
 
-    $discrepancy_id = absint($_POST['discrepancy_id']);
-    $action = sanitize_text_field($_POST['action']);
+    if (!current_user_can('manage_woocommerce')) {
+        wp_die(esc_html__('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'));
+    }
+
+    $discrepancy_id = is_string($_POST['discrepancy_id']) ? absint(wp_unslash($_POST['discrepancy_id'])) : 0;
+    $action = is_string($_POST['action']) ? sanitize_key(wp_unslash($_POST['action'])) : '';
+
+    if ($discrepancy_id === 0) {
+        echo '<div class="notice notice-error"><p>' . esc_html__('Invalid discrepancy ID.', 'multi-store-sync-for-woocommerce') . '</p></div>';
+        $action = '';
+    }
 
     switch ($action) {
         case 'mark_resolved':
@@ -42,15 +51,23 @@ if (isset($_POST['action']) && isset($_POST['discrepancy_id'])) {
 
 // Handle bulk cleanup
 if (isset($_POST['cleanup_old']) && check_admin_referer('wc_mss_cleanup_discrepancies')) {
-    $days = isset($_POST['cleanup_days']) ? absint($_POST['cleanup_days']) : 30;
+    if (!current_user_can('manage_woocommerce')) {
+        wp_die(esc_html__('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'));
+    }
+
+    $days = isset($_POST['cleanup_days']) && is_string($_POST['cleanup_days']) ? absint(wp_unslash($_POST['cleanup_days'])) : 30;
+    $days = max(1, min(365, $days));
     $deleted = WC_Multi_Store_Stock_Verifier::cleanup_old_discrepancies($days);
     /* translators: %d: number of deleted discrepancies. */
     echo '<div class="notice notice-success"><p>' . sprintf(esc_html__('Cleaned up %d old discrepancies.', 'multi-store-sync-for-woocommerce'), absint($deleted)) . '</p></div>';
 }
 
 // Get filter parameters
-$status_filter = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'pending';
-$store_filter = isset($_GET['store']) ? sanitize_text_field($_GET['store']) : '';
+$status_filter = isset($_GET['status']) && is_string($_GET['status']) ? sanitize_key(wp_unslash($_GET['status'])) : 'pending';
+if (!in_array($status_filter, ['pending', 'resolving', 'resolved', 'ignored', 'all'], true)) {
+    $status_filter = 'pending';
+}
+$store_filter = isset($_GET['store']) && is_string($_GET['store']) ? sanitize_text_field(wp_unslash($_GET['store'])) : '';
 
 // Get discrepancies
 $args = [

@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Table name is fixed; filter values are prepared, sort fields are sanitized, and pagination values are prepared below.
 /**
  * Stock Verifier
  * Verifies stock levels on remote stores and tracks discrepancies
@@ -235,7 +236,11 @@ class WC_Multi_Store_Stock_Verifier {
         $limit = absint($args['limit']);
         $offset = absint($args['offset']);
 
-        $query = "SELECT * FROM {$table_name} WHERE {$where_clause} ORDER BY {$orderby} LIMIT {$limit} OFFSET {$offset}";
+        $query = $wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE {$where_clause} ORDER BY {$orderby} LIMIT %d OFFSET %d",
+            $limit,
+            $offset
+        );
 
         return $wpdb->get_results($query, ARRAY_A);
     }

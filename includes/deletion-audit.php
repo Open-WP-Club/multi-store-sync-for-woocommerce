@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Custom table name is fixed; all filter values use prepared placeholders and ordering is whitelisted.
 /**
  * Deletion Audit Log Class
  * Enhanced logging specifically for product deletions

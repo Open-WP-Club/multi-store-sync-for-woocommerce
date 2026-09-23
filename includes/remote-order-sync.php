@@ -338,14 +338,31 @@ class WC_Multi_Store_Remote_Order_Sync {
         $args = [];
 
         if (isset($_GET['days'])) {
-            $days = absint($_GET['days']);
+            $days = absint(wp_unslash($_GET['days']));
             // Bounds check: limit between 1-365 days to prevent unreasonable queries
             $days = max(1, min(365, $days));
             $args['after'] = date('Y-m-d\TH:i:s', strtotime("-{$days} days"));
         }
 
-        if (isset($_GET['status'])) {
-            $args['status'] = sanitize_text_field($_GET['status']);
+        if (isset($_GET['status']) && is_string($_GET['status'])) {
+            $status = sanitize_key(wp_unslash($_GET['status']));
+            $valid_statuses = ['any'];
+
+            if (function_exists('wc_get_order_statuses')) {
+                foreach (array_keys(wc_get_order_statuses()) as $registered_status) {
+                    $valid_statuses[] = str_starts_with($registered_status, 'wc-')
+                        ? substr($registered_status, 3)
+                        : $registered_status;
+                }
+            } else {
+                $valid_statuses = array_merge($valid_statuses, [
+                    'pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed', 'trash',
+                ]);
+            }
+
+            if (in_array($status, $valid_statuses, true)) {
+                $args['status'] = $status;
+            }
         }
 
         // Run sync
@@ -368,7 +385,7 @@ class WC_Multi_Store_Remote_Order_Sync {
             }
         }
 
-        wp_redirect(add_query_arg([
+        wp_safe_redirect(add_query_arg([
             'page' => 'wc-multi-store-remote-orders',
             'synced' => $total_synced,
             'updated' => $total_updated,

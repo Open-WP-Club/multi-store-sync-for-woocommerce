@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Sync-history table name is a fixed plugin table; date parameters are prepared.
 /**
  * WooCommerce Multi-Store Email Notifications
  *

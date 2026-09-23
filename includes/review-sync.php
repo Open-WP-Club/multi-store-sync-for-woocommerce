@@ -341,11 +341,12 @@ class WC_Multi_Store_Review_Sync {
      * AJAX handler: Toggle review sync on/off
      */
     public static function ajax_toggle(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
-        $enabled = !empty($_POST['enabled']);
+        $enabled = isset($_POST['enabled']) && is_string($_POST['enabled']) && '1' === sanitize_text_field(wp_unslash($_POST['enabled']));
         $settings = self::get_settings();
         $settings['enabled'] = $enabled;
         update_option('wc_mss_review_sync_settings', $settings);

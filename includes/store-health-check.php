@@ -369,7 +369,7 @@ class WC_Multi_Store_Health_Check {
             return;
         }
 
-        $store_url = isset($_POST['store_url']) ? esc_url_raw($_POST['store_url']) : '';
+        $store_url = isset($_POST['store_url']) && is_string($_POST['store_url']) ? esc_url_raw(wp_unslash($_POST['store_url'])) : '';
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => 'Store URL is required']);
@@ -430,10 +430,10 @@ class WC_Multi_Store_Health_Check {
             return;
         }
 
-        $store_url        = isset($_POST['store_url'])      ? esc_url_raw($_POST['store_url'])           : '';
-        $wp_username      = isset($_POST['wp_username'])    ? sanitize_text_field($_POST['wp_username']) : '';
-        $wp_password      = isset($_POST['wp_app_password']) ? sanitize_text_field($_POST['wp_app_password']) : '';
-        $use_saved        = !empty($_POST['use_saved_password']);
+        $store_url        = isset($_POST['store_url']) && is_string($_POST['store_url']) ? esc_url_raw(wp_unslash($_POST['store_url'])) : '';
+        $wp_username      = isset($_POST['wp_username']) && is_string($_POST['wp_username']) ? sanitize_text_field(wp_unslash($_POST['wp_username'])) : '';
+        $wp_password      = isset($_POST['wp_app_password']) && is_string($_POST['wp_app_password']) ? sanitize_text_field(wp_unslash($_POST['wp_app_password'])) : '';
+        $use_saved        = isset($_POST['use_saved_password']) && is_string($_POST['use_saved_password']) && '1' === sanitize_text_field(wp_unslash($_POST['use_saved_password']));
 
         // Saved-credentials path: only allow reusing the stored password if the
         // URL is one we actually have on file. Without this an attacker who

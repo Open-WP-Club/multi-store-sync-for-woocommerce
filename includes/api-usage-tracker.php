@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Table name is fixed and all runtime filter values use $wpdb->prepare().
 /**
  * WooCommerce Multi-Store API Usage Tracker
  *
@@ -336,7 +337,7 @@ class WC_Multi_Store_API_Usage_Tracker {
 
         $where_clause = implode(' AND ', $where);
 
-        $sql = "SELECT
+        $sql = $wpdb->prepare("SELECT
                 endpoint,
                 method,
                 COUNT(*) as total_requests,
@@ -347,7 +348,7 @@ class WC_Multi_Store_API_Usage_Tracker {
             WHERE {$where_clause}
             GROUP BY endpoint, method
             ORDER BY total_requests DESC
-            LIMIT " . intval($args['limit']);
+            LIMIT %d", absint($args['limit']));
 
         return $wpdb->get_results($sql, ARRAY_A);
     }

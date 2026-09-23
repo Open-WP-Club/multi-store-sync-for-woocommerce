@@ -215,7 +215,7 @@ class WC_Multi_Store_Webhook_Receiver {
         $store_url = $request->get_param('store_url');
 
         // Validate required data
-        if (empty($order_data)) {
+        if (!is_array($order_data) || empty($order_data)) {
             WC_Multi_Store_Logger::write('Webhook rejected: Empty order data', 'error');
             WC_Multi_Store_Webhook_Logger::log_validation_error(
                 'Empty order data',
@@ -228,7 +228,7 @@ class WC_Multi_Store_Webhook_Receiver {
             );
         }
 
-        if (empty($store_url)) {
+        if (!is_string($store_url) || $store_url === '') {
             WC_Multi_Store_Logger::write('Webhook rejected: Missing store_url parameter', 'error');
             WC_Multi_Store_Webhook_Logger::log_validation_error(
                 'Missing store_url parameter',
@@ -270,9 +270,25 @@ class WC_Multi_Store_Webhook_Receiver {
         }
 
         // Extract order ID and status
-        $order_id = absint($order_data['id'] ?? 0);
-        $order_status = sanitize_text_field($order_data['status'] ?? '');
+        $order_id = isset($order_data['id']) && is_scalar($order_data['id']) ? absint($order_data['id']) : 0;
+        $order_status = isset($order_data['status']) && is_string($order_data['status'])
+            ? sanitize_text_field($order_data['status'])
+            : '';
         $line_items = $order_data['line_items'] ?? [];
+
+        if ($order_id <= 0 || $order_status === '' || !is_array($line_items)) {
+            WC_Multi_Store_Logger::write('Webhook rejected: Invalid order payload', 'error');
+            WC_Multi_Store_Webhook_Logger::log_validation_error(
+                'Order ID, status, and line_items array are required',
+                $store_url,
+                $order_data
+            );
+            return new WP_Error(
+                'invalid_order_data',
+                __('Invalid order payload.', 'multi-store-sync-for-woocommerce'),
+                ['status' => 400]
+            );
+        }
 
         // Check if this order status should trigger stock sync
         $trigger_statuses = $webhook_settings['trigger_statuses'] ?? ['processing', 'completed'];
@@ -514,7 +530,9 @@ class WC_Multi_Store_Webhook_Receiver {
             // Use conditional UPDATE to prevent race conditions — only deduct
             // if sufficient stock exists. Check rows_affected to detect races.
             $table = $wpdb->postmeta;
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb core postmeta table name, not user input.
             $rows = $wpdb->query($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb core postmeta table name, not user input.
                 "UPDATE {$table}
                  SET meta_value = CAST(meta_value AS SIGNED) - %d
                  WHERE post_id = %d AND meta_key = '_stock'

@@ -1,4 +1,8 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 // Constants normally defined by wc-multi-store-sync.php at runtime — declared
 // here so PHPStan can resolve them without executing the plugin bootstrap.
 

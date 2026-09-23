@@ -45,6 +45,7 @@ class WC_Multi_Store_Category_Sync {
                 'posts_per_page' => $per_page,
                 'paged'          => $page,
                 'no_found_rows'  => true,
+                // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Required to find products assigned to the selected categories for synchronization.
                 'tax_query'      => [[
                     'taxonomy' => 'product_cat',
                     'field'    => 'term_id',

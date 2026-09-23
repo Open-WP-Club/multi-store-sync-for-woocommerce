@@ -604,6 +604,7 @@ class StockVerifierEdgeCaseTest extends WC_Multi_Store_TestCase
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(static fn (string $query): string => $query);
         $wpdb->shouldReceive('get_results')->andReturn([
             ['id' => 1, 'status' => 'pending'],
             ['id' => 2, 'status' => 'resolved'],

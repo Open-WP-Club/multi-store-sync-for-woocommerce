@@ -10,11 +10,15 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Get filter parameters - check both direct and urldecoded values
-$filter_store = isset($_GET['filter_store']) ? sanitize_text_field(urldecode($_GET['filter_store'])) : '';
-$filter_status = isset($_GET['filter_status']) ? sanitize_text_field($_GET['filter_status']) : '';
-$filter_days = isset($_GET['filter_days']) ? absint($_GET['filter_days']) : 7;
-$page_num = isset($_GET['paged']) ? absint($_GET['paged']) : 1;
+// Read-only GET filters; they only select history/statistics data and do not change state.
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only history filter.
+$filter_store = isset($_GET['filter_store']) ? sanitize_text_field(wp_unslash($_GET['filter_store'])) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only history filter.
+$filter_status = isset($_GET['filter_status']) ? sanitize_text_field(wp_unslash($_GET['filter_status'])) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only history filter.
+$filter_days = isset($_GET['filter_days']) ? absint(wp_unslash($_GET['filter_days'])) : 7;
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only history pagination.
+$page_num = isset($_GET['paged']) ? absint(wp_unslash($_GET['paged'])) : 1;
 $per_page = 50;
 
 // Get history

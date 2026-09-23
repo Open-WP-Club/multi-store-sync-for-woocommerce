@@ -1,4 +1,6 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name and $dlq_table are $wpdb->prefix plus fixed plugin table constants, never request data.
+// phpcs:disable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- get_recent_items() interpolates only its fixed ORDER BY/LIMIT SQL literal; user values remain prepared.
 /**
  * Queue Table Manager
  * Manages database table for sync queue

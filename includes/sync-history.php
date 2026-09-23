@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Custom table name is fixed; dynamic filters are individually prepared and ordering is whitelisted.
 /**
  * WooCommerce Multi-Store Sync History
  *

@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table name is derived solely from $wpdb->prefix and a fixed constant.
 /**
  * WooCommerce Multi-Store Remote Order List Table
  *
@@ -324,11 +325,13 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
      */
     #[\Override]
     public function prepare_items(): void {
-        // Get parameters
+        // Read-only list-table sorting and filters; this GET form cannot change orders.
         $per_page = $this->get_items_per_page('remote_orders_per_page', 20);
         $current_page = $this->get_pagenum();
-        $orderby = sanitize_text_field($_GET['orderby'] ?? 'date_created');
-        $order = sanitize_text_field($_GET['order'] ?? 'DESC');
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table sort selector.
+        $orderby = isset($_GET['orderby']) ? sanitize_text_field(wp_unslash($_GET['orderby'])) : 'date_created';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table sort selector.
+        $order = isset($_GET['order']) ? sanitize_text_field(wp_unslash($_GET['order'])) : 'DESC';
 
         // Build query args
         $args = [
@@ -339,24 +342,34 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
         ];
 
         // Apply filters
-        if (!empty($_GET['store_url'])) {
-            $args['store_url'] = sanitize_text_field($_GET['store_url']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter.
+        $store_url = isset($_GET['store_url']) ? esc_url_raw(wp_unslash($_GET['store_url'])) : '';
+        if ($store_url !== '') {
+            $args['store_url'] = $store_url;
         }
 
-        if (!empty($_GET['status'])) {
-            $args['status'] = sanitize_text_field($_GET['status']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter.
+        $status = isset($_GET['status']) ? sanitize_text_field(wp_unslash($_GET['status'])) : '';
+        if ($status !== '') {
+            $args['status'] = $status;
         }
 
-        if (!empty($_GET['customer_email'])) {
-            $args['customer_email'] = sanitize_email($_GET['customer_email']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter.
+        $customer_email = isset($_GET['customer_email']) ? sanitize_email(wp_unslash($_GET['customer_email'])) : '';
+        if ($customer_email !== '') {
+            $args['customer_email'] = $customer_email;
         }
 
-        if (!empty($_GET['date_from'])) {
-            $args['date_from'] = sanitize_text_field($_GET['date_from']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter.
+        $date_from = isset($_GET['date_from']) ? sanitize_text_field(wp_unslash($_GET['date_from'])) : '';
+        if ($date_from !== '') {
+            $args['date_from'] = $date_from;
         }
 
-        if (!empty($_GET['date_to'])) {
-            $args['date_to'] = sanitize_text_field($_GET['date_to']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter.
+        $date_to = isset($_GET['date_to']) ? sanitize_text_field(wp_unslash($_GET['date_to'])) : '';
+        if ($date_to !== '') {
+            $args['date_to'] = $date_to;
         }
 
         // Get orders
@@ -401,7 +414,8 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
                 <select name="store_url" id="filter-by-store">
                     <option value=""><?php esc_html_e('All stores', 'multi-store-sync-for-woocommerce'); ?></option>
                     <?php
-                    $current_store = $_GET['store_url'] ?? '';
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter display.
+                $current_store = isset($_GET['store_url']) ? esc_url_raw(wp_unslash($_GET['store_url'])) : '';
                     foreach ($stores as $store) {
                         printf(
                             '<option value="%s"%s>%s</option>',
@@ -430,7 +444,8 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
                     'failed'     => __('Failed', 'multi-store-sync-for-woocommerce'),
                 ];
 
-                $current_status = $_GET['status'] ?? '';
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter display.
+                $current_status = isset($_GET['status']) ? sanitize_text_field(wp_unslash($_GET['status'])) : '';
                 foreach ($statuses as $status_key => $status_label) {
                     printf(
                         '<option value="%s"%s>%s</option>',
@@ -479,7 +494,8 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
 
         ?>
         <form id="<?php echo esc_attr($singular); ?>-filter" method="get">
-            <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
+            <?php // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table route field. ?>
+            <input type="hidden" name="page" value="<?php echo esc_attr(isset($_REQUEST['page']) ? sanitize_text_field(wp_unslash($_REQUEST['page'])) : ''); ?>" />
             <?php
             $this->search_box(__('Search orders', 'multi-store-sync-for-woocommerce'), 'order');
             $this->views();

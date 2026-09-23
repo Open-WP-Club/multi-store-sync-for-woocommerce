@@ -321,12 +321,16 @@ class WC_Multi_Store_Queue_Manager {
             return [];
         }
 
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The list contains only generated %d tokens; IDs are passed separately to prepare() and $wpdb->posts is a core table.
         $placeholders = implode(',', array_fill(0, count($product_ids), '%d'));
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- %d list is generated from trusted integer product IDs; $wpdb->posts is a core table name.
         $rows = $wpdb->get_results($wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- generated %d list from trusted integer product IDs; $wpdb->posts is a core table.
             "SELECT ID, post_parent FROM {$wpdb->posts}
              WHERE ID IN ({$placeholders}) AND post_type = 'product_variation'",
             ...$product_ids
         ));
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 
         $map = [];
         foreach ((array) $rows as $row) {
@@ -354,13 +358,17 @@ class WC_Multi_Store_Queue_Manager {
             return $map;
         }
 
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The list contains only generated %d tokens; IDs are passed separately to prepare() and $wpdb core table names are fixed.
         $placeholders = implode(',', array_fill(0, count($product_ids), '%d'));
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- %d list is generated from trusted integer product IDs; $wpdb core table names are not user input.
         $rows = $wpdb->get_results($wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- generated %d list from trusted integer product IDs; $wpdb core table names are not user input.
             "SELECT tr.object_id, tt.term_id, tt.taxonomy FROM {$wpdb->term_relationships} tr
             INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             WHERE tr.object_id IN ({$placeholders}) AND tt.taxonomy IN ('product_cat', 'product_tag')",
             ...$product_ids
         ));
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 
         foreach ((array) $rows as $row) {
             $object_id = (int) $row->object_id;
@@ -1127,10 +1135,13 @@ class WC_Multi_Store_Queue_Manager {
         global $wpdb;
         $table_name = $wpdb->prefix . WC_Multi_Store_Queue_Table::TABLE_NAME;
 
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is $wpdb->prefix plus a fixed plugin table constant; only product_id is a prepared value.
         $count = $wpdb->get_var($wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- fixed custom queue table name, not user input.
             "SELECT COUNT(*) FROM {$table_name} WHERE product_id = %d AND status = 'pending'",
             $product_id
         ));
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
         return $count > 0;
     }

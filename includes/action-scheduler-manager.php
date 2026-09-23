@@ -317,7 +317,9 @@ class WC_Multi_Store_Action_Scheduler_Manager {
         $deleted = 0;
         foreach (array_chunk($ids, 500) as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- generated %d list from database IDs; $wpdb->options is a core table name.
             $rows         = $wpdb->query($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- generated %d list from database IDs; $wpdb->options is a core table.
                 "DELETE FROM {$wpdb->options} WHERE option_id IN ($placeholders)",
                 $chunk
             ));

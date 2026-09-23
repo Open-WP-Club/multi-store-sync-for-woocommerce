@@ -197,7 +197,7 @@ class WC_Multi_Store_Product_Edit {
     public function save_store_deletion_settings(int $post_id): void {
         // Check nonce
         if (!isset($_POST['wc_mss_store_deletion_nonce']) ||
-            !wp_verify_nonce($_POST['wc_mss_store_deletion_nonce'], 'wc_mss_store_deletion_nonce')) {
+            !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['wc_mss_store_deletion_nonce'])), 'wc_mss_store_deletion_nonce')) {
             return;
         }
 
@@ -259,8 +259,11 @@ class WC_Multi_Store_Product_Edit {
             return;
         }
 
-        $product_id = absint($_POST['product_id'] ?? 0);
-        $sync_type = sanitize_text_field($_POST['sync_type'] ?? 'full_product');
+        $product_id = isset($_POST['product_id']) && is_string($_POST['product_id']) ? absint(wp_unslash($_POST['product_id'])) : 0;
+        $sync_type = isset($_POST['sync_type']) && is_string($_POST['sync_type']) ? sanitize_key(wp_unslash($_POST['sync_type'])) : 'full_product';
+        if (!in_array($sync_type, ['full_product', 'price_quantity_categories', 'price_quantity', 'quantity'], true)) {
+            $sync_type = 'full_product';
+        }
 
         if (!$product_id) {
             wp_send_json_error([
@@ -336,8 +339,11 @@ class WC_Multi_Store_Product_Edit {
             ]);
         }
 
-        $product_id = absint($_POST['product_id'] ?? 0);
-        $sync_type = sanitize_text_field($_POST['sync_type'] ?? 'full_product');
+        $product_id = isset($_POST['product_id']) && is_string($_POST['product_id']) ? absint(wp_unslash($_POST['product_id'])) : 0;
+        $sync_type = isset($_POST['sync_type']) && is_string($_POST['sync_type']) ? sanitize_key(wp_unslash($_POST['sync_type'])) : 'full_product';
+        if (!in_array($sync_type, ['full_product', 'price_quantity_categories', 'price_quantity', 'quantity'], true)) {
+            $sync_type = 'full_product';
+        }
 
         if (!$product_id) {
             wp_send_json_error([

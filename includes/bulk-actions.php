@@ -60,7 +60,7 @@ class WC_Multi_Store_Bulk_Actions {
         }
 
         // Verify nonce — WP Products list table uses 'bulk-posts' action
-        if (!isset($_REQUEST['_wpnonce']) || !wp_verify_nonce($_REQUEST['_wpnonce'], 'bulk-posts')) {
+        if (!isset($_REQUEST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'])), 'bulk-posts')) {
             return $redirect_to;
         }
 
@@ -166,8 +166,11 @@ class WC_Multi_Store_Bulk_Actions {
      * @return void
      */
     public function bulk_action_notices(): void {
+        // Redirect notice values are presentation-only; the action itself was nonce-checked upstream.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
         if (isset($_REQUEST['mss_synced'])) {
-            $synced = intval($_REQUEST['mss_synced']);
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
+            $synced = intval(wp_unslash($_REQUEST['mss_synced']));
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
@@ -178,8 +181,10 @@ class WC_Multi_Store_Bulk_Actions {
             );
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
         if (isset($_REQUEST['mss_queued'])) {
-            $queued = intval($_REQUEST['mss_queued']);
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
+            $queued = intval(wp_unslash($_REQUEST['mss_queued']));
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(
@@ -190,8 +195,10 @@ class WC_Multi_Store_Bulk_Actions {
             );
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
         if (isset($_REQUEST['mss_bulk_deleted'])) {
-            $deleted = intval($_REQUEST['mss_bulk_deleted']);
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
+            $deleted = intval(wp_unslash($_REQUEST['mss_bulk_deleted']));
             printf(
                 '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
                 sprintf(

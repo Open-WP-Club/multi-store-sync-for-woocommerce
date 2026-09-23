@@ -438,6 +438,7 @@ class WC_Multi_Store_Settings {
         }
 
         if (count($tax_query) > 1) {
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Required to exclude configured product categories and tags from the count.
             $args['tax_query'] = $tax_query;
         }
 

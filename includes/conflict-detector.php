@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table names are fixed; filters use placeholders and pagination values are prepared.
 /**
  * Conflict Detector
  * Detects changes made manually on remote stores before overwriting them
@@ -361,28 +362,35 @@ class WC_Multi_Store_Conflict_Detector {
         global $wpdb;
 
         $table = $wpdb->prefix . self::LOG_TABLE;
-        $where = [];
-        $args  = [];
-
-        if (!$include_resolved) {
-            $where[] = 'resolved = 0';
-        }
         if ($store_url !== '') {
-            $where[] = 'store_url = %s';
-            $args[]  = $store_url;
+            if ($include_resolved) {
+                $rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM {$table} WHERE store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                    $store_url,
+                    $limit,
+                    $offset
+                ), ARRAY_A);
+            } else {
+                $rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM {$table} WHERE resolved = 0 AND store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                    $store_url,
+                    $limit,
+                    $offset
+                ), ARRAY_A);
+            }
+        } elseif ($include_resolved) {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table} ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                $limit,
+                $offset
+            ), ARRAY_A);
+        } else {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table} WHERE resolved = 0 ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                $limit,
+                $offset
+            ), ARRAY_A);
         }
-
-        $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
-        $args[]    = $limit;
-        $args[]    = $offset;
-
-        $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM {$table} {$where_sql} ORDER BY detected_at DESC LIMIT %d OFFSET %d",
-                ...$args
-            ),
-            ARRAY_A
-        );
 
         return array_map(static function (array $row): array {
             $row['changed_fields'] = json_decode($row['changed_fields'], true) ?? [];
@@ -502,10 +510,15 @@ class WC_Multi_Store_Conflict_Detector {
             return;
         }
 
-        $store_url        = sanitize_text_field($_GET['store_url'] ?? '');
-        $limit             = absint($_GET['limit'] ?? 50);
-        $offset            = absint($_GET['offset'] ?? 0);
-        $include_resolved = sanitize_text_field($_GET['status'] ?? 'unresolved') !== 'unresolved';
+        // verify_admin_request() above checks the AJAX nonce and manage_woocommerce capability.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX filters behind the shared auth guard.
+        $store_url        = isset($_GET['store_url']) ? esc_url_raw(wp_unslash($_GET['store_url'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX filters behind the shared auth guard.
+        $limit             = isset($_GET['limit']) ? absint(wp_unslash($_GET['limit'])) : 50;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX filters behind the shared auth guard.
+        $offset            = isset($_GET['offset']) ? absint(wp_unslash($_GET['offset'])) : 0;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX filters behind the shared auth guard.
+        $include_resolved = (isset($_GET['status']) ? sanitize_text_field(wp_unslash($_GET['status'])) : 'unresolved') !== 'unresolved';
 
         $conflicts = self::get_conflicts($store_url, $limit, $offset, $include_resolved);
 
@@ -540,12 +553,13 @@ class WC_Multi_Store_Conflict_Detector {
      * AJAX handler: Resolve a conflict
      */
     public static function ajax_resolve_conflict(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
-        $id         = absint($_POST['id'] ?? 0);
-        $resolution = sanitize_text_field($_POST['resolution'] ?? 'overwrite');
+        $id         = isset($_POST['id']) ? absint(wp_unslash($_POST['id'])) : 0;
+        $resolution = isset($_POST['resolution']) ? sanitize_text_field(wp_unslash($_POST['resolution'])) : 'overwrite';
 
         if (!in_array($resolution, ['overwrite', 'keep_remote', 'merge'], true)) {
             wp_send_json_error(['message' => __('Invalid resolution type', 'multi-store-sync-for-woocommerce')]);
@@ -563,12 +577,18 @@ class WC_Multi_Store_Conflict_Detector {
      * AJAX handler: Resolve all conflicts
      */
     public static function ajax_resolve_all(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
-        $store_url  = sanitize_text_field($_POST['store_url'] ?? '');
-        $resolution = sanitize_text_field($_POST['resolution'] ?? 'overwrite');
+        $store_url  = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
+        $resolution = isset($_POST['resolution']) ? sanitize_text_field(wp_unslash($_POST['resolution'])) : 'overwrite';
+
+        if (!in_array($resolution, ['overwrite', 'keep_remote', 'merge'], true)) {
+            wp_send_json_error(['message' => __('Invalid resolution type', 'multi-store-sync-for-woocommerce')]);
+            return;
+        }
 
         $resolved = self::resolve_all($store_url, $resolution);
 
@@ -583,11 +603,12 @@ class WC_Multi_Store_Conflict_Detector {
      * AJAX handler: Toggle conflict detection on/off
      */
     public static function ajax_toggle(): void {
+        check_ajax_referer('wc_mss_admin', 'nonce');
         if (!self::verify_admin_request('wc_mss_admin', __('Unauthorized', 'multi-store-sync-for-woocommerce'))) {
             return;
         }
 
-        $enabled = !empty($_POST['enabled']);
+        $enabled = isset($_POST['enabled']) && is_string($_POST['enabled']) && '1' === sanitize_text_field(wp_unslash($_POST['enabled']));
         self::update_settings(['enabled' => $enabled]);
 
         wp_send_json_success([

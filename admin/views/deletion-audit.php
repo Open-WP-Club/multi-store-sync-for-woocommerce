@@ -9,10 +9,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Get filters from request
-$status_filter = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : '';
-$type_filter = isset($_GET['type']) ? sanitize_text_field($_GET['type']) : '';
-$page_num = isset($_GET['paged']) ? absint($_GET['paged']) : 1;
+// Read-only GET filters; they only select audit-log rows and do not change state.
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only audit-log filter.
+$status_filter = isset($_GET['status']) ? sanitize_text_field(wp_unslash($_GET['status'])) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only audit-log filter.
+$type_filter = isset($_GET['type']) ? sanitize_text_field(wp_unslash($_GET['type'])) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only audit-log pagination.
+$page_num = isset($_GET['paged']) ? absint(wp_unslash($_GET['paged'])) : 1;
 $per_page = 50;
 
 // Build query args

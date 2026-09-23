@@ -323,20 +323,31 @@ class WC_Multi_Store_Category_Mapper {
             return;
         }
 
-        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
-        $mappings_raw = $_POST['mappings'] ?? [];
-        $mapping_type = sanitize_text_field($_POST['mapping_type'] ?? 'category');
+        $store_url = isset($_POST['store_url']) && is_string($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
+        $mappings_raw = isset($_POST['mappings']) && is_array($_POST['mappings'])
+            ? map_deep(wp_unslash($_POST['mappings']), 'sanitize_text_field')
+            : [];
+        $mapping_type = isset($_POST['mapping_type']) && is_string($_POST['mapping_type'])
+            ? sanitize_key(wp_unslash($_POST['mapping_type']))
+            : 'category';
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
             return;
         }
 
+        if (!in_array($mapping_type, ['category', 'tag'], true)) {
+            wp_send_json_error(['message' => __('Invalid mapping type', 'multi-store-sync-for-woocommerce')]);
+            return;
+        }
+
         $mappings = [];
-        if (is_array($mappings_raw)) {
-            foreach ($mappings_raw as $local_slug => $remote_slug) {
-                $mappings[sanitize_text_field($local_slug)] = sanitize_text_field($remote_slug);
+        foreach ($mappings_raw as $local_slug => $remote_slug) {
+            if (!is_string($local_slug) || !is_string($remote_slug)) {
+                continue;
             }
+
+            $mappings[sanitize_text_field($local_slug)] = sanitize_text_field($remote_slug);
         }
 
         if ($mapping_type === 'tag') {
@@ -368,7 +379,7 @@ class WC_Multi_Store_Category_Mapper {
             return;
         }
 
-        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
+        $store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);

@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table name is fixed; filters are prepared and ordering is sanitized.
 /**
  * Dead Letter Queue
  *
@@ -425,10 +426,14 @@ class WC_Multi_Store_Dead_Letter_Queue {
             return;
         }
 
+        $status = isset($_POST['status']) && is_string($_POST['status']) ? sanitize_key(wp_unslash($_POST['status'])) : 'dead';
+        if (!in_array($status, ['dead', 'resolved', 'retried'], true)) {
+            $status = 'dead';
+        }
         $args = [
-            'limit' => (int) ($_POST['limit'] ?? 50),
-            'offset' => (int) ($_POST['offset'] ?? 0),
-            'status' => sanitize_text_field($_POST['status'] ?? 'dead'),
+            'limit' => isset($_POST['limit']) && is_string($_POST['limit']) ? min(100, max(1, absint(wp_unslash($_POST['limit'])))) : 50,
+            'offset' => isset($_POST['offset']) && is_string($_POST['offset']) ? absint(wp_unslash($_POST['offset'])) : 0,
+            'status' => $status,
         ];
 
         $items = self::get_items($args);
@@ -452,7 +457,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
             return;
         }
 
-        $id = (int) ($_POST['item_id'] ?? 0);
+        $id = isset($_POST['item_id']) && is_string($_POST['item_id']) ? absint(wp_unslash($_POST['item_id'])) : 0;
         if (!$id) {
             wp_send_json_error(['message' => __('Invalid item ID.', 'multi-store-sync-for-woocommerce')]);
             return;
@@ -498,7 +503,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
             return;
         }
 
-        $id = (int) ($_POST['item_id'] ?? 0);
+        $id = isset($_POST['item_id']) && is_string($_POST['item_id']) ? absint(wp_unslash($_POST['item_id'])) : 0;
         if (!$id) {
             wp_send_json_error(['message' => __('Invalid item ID.', 'multi-store-sync-for-woocommerce')]);
             return;

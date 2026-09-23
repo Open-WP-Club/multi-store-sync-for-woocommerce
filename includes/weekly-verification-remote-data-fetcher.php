@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic IN() placeholder lists contain only generated %d markers; all values are passed to prepare().
 /**
  * Weekly Verification Remote Data Fetcher
  * Remote API fetching, batching/caching, and product-selection for the weekly
@@ -235,19 +236,23 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
 
         $placeholders = implode(',', array_fill(0, count($product_ids), '%d'));
 
+        // phpcs:disable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $placeholders contains only generated %d tokens for the supplied ID list; the IDs are passed separately to prepare() and both tables are WordPress core tables.
         if ($match_by === 'sku') {
             $rows = $wpdb->get_results($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholder list is generated from one %d per supplied product ID and all IDs are passed to prepare().
                 "SELECT post_id, meta_value FROM {$wpdb->postmeta}
                  WHERE meta_key = '_sku' AND meta_value <> '' AND post_id IN ({$placeholders})",
                 ...$product_ids
             ));
         } else {
             $rows = $wpdb->get_results($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholder list is generated from one %d per supplied product ID and all IDs are passed to prepare().
                 "SELECT ID AS post_id, post_name AS meta_value FROM {$wpdb->posts}
                  WHERE post_name <> '' AND ID IN ({$placeholders})",
                 ...$product_ids
             ));
         }
+        // phpcs:enable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 
         $map = [];
         foreach ((array) $rows as $row) {
@@ -397,6 +402,7 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
 
         // Add tax_query if we have exclusions
         if (!empty($tax_query)) {
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Required to apply configured product-category exclusions during verification.
             $args['tax_query'] = $tax_query;
         }
 

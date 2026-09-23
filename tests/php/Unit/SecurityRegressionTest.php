@@ -402,6 +402,7 @@ class SecurityRegressionTest extends WC_Multi_Store_TestCase
         $capturedQuery = null;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(static fn (string $query): string => $query);
         $wpdb->shouldReceive('get_results')->andReturnUsing(function ($q) use (&$capturedQuery) {
             $capturedQuery = $q;
             return [];
@@ -423,6 +424,7 @@ class SecurityRegressionTest extends WC_Multi_Store_TestCase
         $capturedQuery = null;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(static fn (string $query): string => $query);
         $wpdb->shouldReceive('get_results')->andReturnUsing(function ($q) use (&$capturedQuery) {
             $capturedQuery = $q;
             return [];
@@ -442,6 +444,7 @@ class SecurityRegressionTest extends WC_Multi_Store_TestCase
         $capturedQuery = null;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(static fn (string $query): string => $query);
         $wpdb->shouldReceive('get_results')->andReturnUsing(function ($q) use (&$capturedQuery) {
             $capturedQuery = $q;
             return [];

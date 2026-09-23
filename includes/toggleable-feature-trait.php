@@ -83,7 +83,7 @@ trait WC_Multi_Store_Toggleable_Feature {
             return;
         }
 
-        $enabled = !empty($_POST['enabled']);
+        $enabled = isset($_POST['enabled']) && is_string($_POST['enabled']) && '1' === sanitize_text_field(wp_unslash($_POST['enabled']));
         static::update_settings(['enabled' => $enabled]);
 
         wp_send_json_success([

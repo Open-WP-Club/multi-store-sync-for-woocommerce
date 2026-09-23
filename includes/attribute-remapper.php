@@ -357,8 +357,10 @@ class WC_Multi_Store_Attribute_Remapper {
             return;
         }
 
-        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
-        $mapping_type = sanitize_text_field($_POST['mapping_type'] ?? 'names');
+        $store_url = isset($_POST['store_url']) && is_string($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
+        $mapping_type = isset($_POST['mapping_type']) && is_string($_POST['mapping_type'])
+            ? sanitize_key(wp_unslash($_POST['mapping_type']))
+            : 'names';
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);
@@ -366,12 +368,16 @@ class WC_Multi_Store_Attribute_Remapper {
         }
 
         if ($mapping_type === 'names') {
-            $raw = $_POST['name_mappings'] ?? [];
+            $raw = isset($_POST['name_mappings']) && is_array($_POST['name_mappings'])
+                ? map_deep(wp_unslash($_POST['name_mappings']), 'sanitize_text_field')
+                : [];
             $mappings = [];
-            if (is_array($raw)) {
-                foreach ($raw as $from => $to) {
-                    $mappings[sanitize_text_field($from)] = sanitize_text_field($to);
+            foreach ($raw as $from => $to) {
+                if (!is_string($from) || !is_string($to)) {
+                    continue;
                 }
+
+                $mappings[sanitize_text_field($from)] = sanitize_text_field($to);
             }
             self::set_name_mappings($store_url, $mappings);
 
@@ -383,13 +389,22 @@ class WC_Multi_Store_Attribute_Remapper {
                 ),
             ]);
         } elseif ($mapping_type === 'values') {
-            $attribute_name = sanitize_text_field($_POST['attribute_name'] ?? '');
-            $raw = $_POST['value_mappings'] ?? [];
+            $attribute_name = isset($_POST['attribute_name']) && is_string($_POST['attribute_name']) ? sanitize_text_field(wp_unslash($_POST['attribute_name'])) : '';
+            if ($attribute_name === '') {
+                wp_send_json_error(['message' => __('Attribute name is required', 'multi-store-sync-for-woocommerce')]);
+                return;
+            }
+
+            $raw = isset($_POST['value_mappings']) && is_array($_POST['value_mappings'])
+                ? map_deep(wp_unslash($_POST['value_mappings']), 'sanitize_text_field')
+                : [];
             $mappings = [];
-            if (is_array($raw)) {
-                foreach ($raw as $from => $to) {
-                    $mappings[sanitize_text_field($from)] = sanitize_text_field($to);
+            foreach ($raw as $from => $to) {
+                if (!is_string($from) || !is_string($to)) {
+                    continue;
                 }
+
+                $mappings[sanitize_text_field($from)] = sanitize_text_field($to);
             }
             self::set_value_mappings($store_url, $attribute_name, $mappings);
 
@@ -417,7 +432,7 @@ class WC_Multi_Store_Attribute_Remapper {
             return;
         }
 
-        $store_url = sanitize_text_field($_POST['store_url'] ?? '');
+        $store_url = isset($_POST['store_url']) ? sanitize_text_field(wp_unslash($_POST['store_url'])) : '';
 
         if (empty($store_url)) {
             wp_send_json_error(['message' => __('Store URL is required', 'multi-store-sync-for-woocommerce')]);

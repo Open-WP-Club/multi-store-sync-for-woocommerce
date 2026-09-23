@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Sync-history table name is a fixed plugin table; retention period is prepared.
 /**
  * WooCommerce Multi-Store Logger
  *
