@@ -818,6 +818,7 @@ class WC_Multi_Store_Queue_Manager {
             // Mark as processing
             WC_Multi_Store_Queue_Table::mark_processing($item_id);
 
+            $result = null;
             try {
                 // Get store config from pre-loaded stores
                 if (!isset($stores[$store_url])) {
@@ -833,7 +834,11 @@ class WC_Multi_Store_Queue_Manager {
                 $transient_key = null; // Track transient for cleanup on success only
 
                 // Handle special sync types
-                if ($sync_type === 'conflict_resolution') {
+                if ($sync_type === 'stock_correction') {
+                    $result = WC_Multi_Store_Stock_Verifier::process_correction(
+                        (int) ($stored_extra['discrepancy_id'] ?? 0), (int) $product_id, $store_url, $store_config, $sync_engine
+                    );
+                } elseif ($sync_type === 'conflict_resolution') {
                     $result = WC_Multi_Store_Conflict_Detector::process_resolution(
                         (int) ($stored_extra['conflict_id'] ?? 0),
                         (string) ($stored_extra['resolution'] ?? ''),
@@ -1073,6 +1078,7 @@ class WC_Multi_Store_Queue_Manager {
                 $processed++;
 
             } catch (\Throwable $e) {
+                $result = null;
                 WC_Multi_Store_Queue_Table::mark_failed($item_id, $e->getMessage());
                 $error_count++;
                 $processed++;
@@ -1091,6 +1097,10 @@ class WC_Multi_Store_Queue_Manager {
                     $e->getFile(),
                     $e->getLine()
                 ), 'error');
+            } finally {
+                if ($sync_type === 'stock_correction' && empty($result['success'])) {
+                    WC_Multi_Store_Stock_Verifier::reset_correction((int) ($stored_extra['discrepancy_id'] ?? 0));
+                }
             }
 
             // Free memory

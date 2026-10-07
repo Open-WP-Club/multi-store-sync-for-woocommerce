@@ -263,7 +263,11 @@ class WC_Multi_Store_Dead_Letter_Queue {
             $item['store_url'],
             $item['sync_type'],
             WC_Multi_Store_Queue_Manager::PRIORITY_NORMAL,
-            $item['sync_type'] === 'conflict_resolution' ? 'conflict_resolution_' . (int) ($extra_data['conflict_id'] ?? 0) : 'dlq_retry',
+            match ($item['sync_type']) {
+                'conflict_resolution' => 'conflict_resolution_' . (int) ($extra_data['conflict_id'] ?? 0),
+                'stock_correction' => 'stock_discrepancy_' . (int) ($extra_data['discrepancy_id'] ?? 0),
+                default => 'dlq_retry',
+            },
             null,
             $item['product_sku'],
             $extra_data

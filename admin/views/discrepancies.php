@@ -43,7 +43,7 @@ if (isset($_POST['action']) && isset($_POST['discrepancy_id'])) {
             if (is_wp_error($result)) {
                 echo '<div class="notice notice-error"><p>' . esc_html($result->get_error_message()) . '</p></div>';
             } else {
-                echo '<div class="notice notice-success"><p>' . esc_html__('Auto-correction queued. Stock will be synced shortly.', 'multi-store-sync-for-woocommerce') . '</p></div>';
+                echo '<div class="notice notice-success"><p>' . esc_html__('Correction queued for this store. It will be marked resolved after remote stock verification; failures appear in Queue / Dead Letter Queue.', 'multi-store-sync-for-woocommerce') . '</p></div>';
             }
             break;
     }
@@ -212,7 +212,7 @@ $stores = get_option('wc_multi_store_sync_stores', []);
                             </span>
                         </td>
                         <td>
-                            <?php if ($discrepancy['status'] === 'pending'): ?>
+                            <?php if (in_array($discrepancy['status'], ['pending', 'resolving'], true)): ?>
                                 <form method="post" style="display: inline;">
                                     <?php wp_nonce_field('wc_mss_discrepancy_action'); ?>
                                     <input type="hidden" name="discrepancy_id" value="<?php echo esc_attr($discrepancy['id']); ?>" />

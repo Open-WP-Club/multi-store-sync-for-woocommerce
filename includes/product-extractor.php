@@ -390,33 +390,15 @@ class WC_Multi_Store_Product_Extractor {
      */
     public function format_images(WC_Product $product): array {
         $images = [];
-
-        // Main image
-        $image_id = $product->get_image_id();
-        if ($image_id) {
-            $image_url = wp_get_attachment_url($image_id);
-            if ($image_url) {
-                $images[] = [
-                    'src' => $image_url,
-                    'position' => 0,
-                ];
+        $ids = array_filter(array_merge([$product->get_image_id()], $product->get_gallery_image_ids()));
+        foreach ($ids as $id) {
+            $url = wp_get_attachment_url($id);
+            if (!$url) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Sync handler catches this and the admin view escapes the stored message.
+                throw new \RuntimeException(sprintf('Image attachment %d has no usable URL', $id));
             }
+            $images[] = ['src' => $url, 'position' => count($images)];
         }
-
-        // Gallery images
-        $gallery_ids = $product->get_gallery_image_ids();
-        $position = 1;
-        foreach ($gallery_ids as $gallery_id) {
-            $image_url = wp_get_attachment_url($gallery_id);
-            if ($image_url) {
-                $images[] = [
-                    'src' => $image_url,
-                    'position' => $position,
-                ];
-                $position++;
-            }
-        }
-
         return $images;
     }
 
@@ -849,9 +831,11 @@ class WC_Multi_Store_Product_Extractor {
         $image_id = $variation->get_image_id();
         if ($image_id) {
             $image_url = wp_get_attachment_url($image_id);
-            if ($image_url) {
-                $data['image'] = ['src' => $image_url];
+            if (!$image_url) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Sync handler catches this and the admin view escapes the stored message.
+                throw new \RuntimeException(sprintf('Variation image attachment %d has no usable URL', $image_id));
             }
+            $data['image'] = ['src' => $image_url];
         }
 
         return $data;

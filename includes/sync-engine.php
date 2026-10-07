@@ -268,42 +268,6 @@ class WC_Multi_Store_Sync_Engine {
     }
 
     /**
-     * Check if an error message indicates an image download failure
-     *
-     * Detects image-related errors from remote WooCommerce stores, which may
-     * be translated. Matches on HTTP status text (Forbidden/Not Found) and
-     * common URL patterns that indicate image access issues.
-     *
-     * @param string $message Error message
-     * @return bool True if the error is image-related
-     */
-    private function is_image_download_error(string $message): bool {
-        // HTTP status texts are typically not translated
-        $image_error_patterns = [
-            'Forbidden',           // HTTP 403 status text
-            '403',                 // HTTP status code
-            'Not Acceptable',      // HTTP 406 (CDN blocks)
-        ];
-
-        // Check if error mentions image-related URL patterns
-        $has_image_url = str_contains($message, 'wp-content/uploads/')
-            || str_contains($message, '/image/')
-            || (bool) preg_match('/\.(jpg|jpeg|png|gif|webp|avif)/i', $message);
-
-        if (!$has_image_url) {
-            return false;
-        }
-
-        foreach ($image_error_patterns as $pattern) {
-            if (stripos($message, $pattern) !== false) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Upload product images to remote store via API and return data with remote IDs
      *
      * Reads image files from local disk, base64-encodes them, and sends to the
@@ -313,83 +277,26 @@ class WC_Multi_Store_Sync_Engine {
      * @param WC_Multi_Store_API_Client $api API client
      * @param WC_Product $product Product object (for logging)
      * @param array $images Original images array with 'src' and 'position'
-     * @return array Modified images array with 'id' for uploaded images, 'src' for failures
+     * @return array|WP_Error Remote image IDs, or an error if any image could not be transferred
      */
-    private function upload_images_via_api(WC_Multi_Store_API_Client $api, WC_Product $product, array $images): array {
+    private function upload_images_via_api(WC_Multi_Store_API_Client $api, WC_Product $product, array $images): array|\WP_Error {
         $uploaded = [];
-        $failed_count = 0;
-        $all_ids = array_merge(
-            [$product->get_image_id()],
-            $product->get_gallery_image_ids()
-        );
-
+        $all_ids = array_values(array_filter(array_merge([$product->get_image_id()], $product->get_gallery_image_ids())));
         foreach ($images as $index => $image) {
             $attachment_id = $all_ids[$index] ?? 0;
-            if (!$attachment_id) {
-                // No local attachment ID — skip this image entirely when proxy is enabled
-                // Sending a src URL would cause the remote store to download it, which may
-                // fail silently and leave orphaned media attachments in the remote library
-                $this->logger->warning(sprintf(
-                    'No local attachment ID for image index %d of product %s — skipping (proxy enabled)',
-                    $index,
-                    $product->get_sku()
-                ));
-                $failed_count++;
-                continue;
-            }
-
-            $image_data = WC_Multi_Store_Image_Proxy::get_image_data($attachment_id);
+            $image_data = $attachment_id ? WC_Multi_Store_Image_Proxy::get_image_data($attachment_id) : null;
             if (!$image_data) {
-                $this->logger->warning(sprintf(
-                    'Could not read local image %d for product %s — skipping (proxy enabled)',
-                    $attachment_id,
-                    $product->get_sku()
-                ));
-                $failed_count++;
-                continue;
+                return new \WP_Error('image_read_failed', sprintf('Could not read image %d for product %s', $attachment_id, $product->get_sku()));
             }
-
             $result = $api->upload_image($image_data);
-
             if (is_wp_error($result)) {
-                $this->logger->warning(sprintf(
-                    'Image upload failed for product %s (attachment %d): %s — skipping (proxy enabled, not falling back to URL to avoid orphaned remote media)',
-                    $product->get_sku(),
-                    $attachment_id,
-                    $result->get_error_message()
-                ));
-                $failed_count++;
-                continue;
+                return new \WP_Error('image_upload_failed', sprintf('Image %d upload failed: %s', $attachment_id, $result->get_error_message()));
             }
-
-            // Use remote attachment ID — WooCommerce won't need to download anything
-            $uploaded[] = [
-                'id' => $result['id'],
-                'position' => $image['position'] ?? $index,
-            ];
+            if (empty($result['id'])) {
+                return new \WP_Error('image_upload_failed', sprintf('Image %d upload returned no attachment ID', $attachment_id));
+            }
+            $uploaded[] = ['id' => $result['id'], 'position' => $image['position'] ?? $index];
         }
-
-        $uploaded_count = count($uploaded);
-        $total = count($images);
-
-        if ($uploaded_count > 0) {
-            $this->logger->debug(sprintf(
-                'Uploaded %d/%d images via API for product %s',
-                $uploaded_count,
-                $total,
-                $product->get_sku()
-            ));
-        }
-
-        if ($failed_count > 0) {
-            $this->logger->warning(sprintf(
-                '%d/%d images could not be uploaded for product %s — those images will not be updated on the remote store',
-                $failed_count,
-                $total,
-                $product->get_sku()
-            ));
-        }
-
         return $uploaded;
     }
 
@@ -419,7 +326,7 @@ class WC_Multi_Store_Sync_Engine {
      * @param string $sync_type Sync type
      * @return int Number of additional API calls made
      */
-    private function perform_post_sync_operations(WC_Product $product, int $remote_product_id, WC_Multi_Store_API_Client $api, string $store_url, array $store_config, string $sync_type, array $preserved_fields = []): int {
+    private function perform_post_sync_operations(WC_Product $product, int $remote_product_id, WC_Multi_Store_API_Client $api, string $store_url, array $store_config, string $sync_type, ?int $expected_stock = null): int {
         $api_calls = 0;
 
         // Sync variations if variable product. Light sync types (quantity/
@@ -453,10 +360,9 @@ class WC_Multi_Store_Sync_Engine {
 
         // Schedule stock verification if enabled and stock was synced
         $webhook_settings = WC_Multi_Store_Settings::get_webhook_settings();
-        if (!array_intersect($preserved_fields, ['stock_quantity', 'stock_status']) && !empty($webhook_settings['auto_verify']) && in_array($sync_type, ['full_product', 'price_quantity', 'quantity'])) {
+        if ($expected_stock !== null && !empty($webhook_settings['auto_verify']) && in_array($sync_type, ['full_product', 'price_quantity', 'quantity'])) {
             // Only verify if product manages stock
             if ($product->managing_stock()) {
-                $expected_stock = $product->get_stock_quantity();
                 WC_Multi_Store_Stock_Verifier::schedule_verification($product->get_id(), $store_url, $expected_stock);
             }
         }
@@ -634,8 +540,13 @@ class WC_Multi_Store_Sync_Engine {
         }
 
         // Build and apply rules to product data
-        $product_data = $this->build_product_data($product, $sync_type);
-        $product_data = $this->apply_store_rules($product_data, $product, $store_config);
+        try {
+            $product_data = $this->build_product_data($product, $sync_type);
+            $product_data = $this->apply_store_rules($product_data, $product, $store_config);
+        } catch (\RuntimeException $e) {
+            $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'error', $e->getMessage(), null, $start_time, $start_memory, $api_calls);
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
         foreach ($preserved_fields as $field) {
             unset($product_data[$field]);
         }
@@ -690,10 +601,10 @@ class WC_Multi_Store_Sync_Engine {
             // Skip images if unchanged (full_product only).
             // Never skip when:
             //   (a) product has no images — empty array must reach remote to clear its images, or
-            //   (b) remote product has no images but local does — remote lost its image, must restore.
+            //   (b) remote image count differs — restore a missing or partial gallery.
             if ($sync_type === 'full_product' && !empty($product_data['images'])) {
-                $remote_has_no_images = empty($remote_product['images']);
-                if (!$remote_has_no_images && !$this->extractor->have_images_changed($product, $store_url)) {
+                $remote_image_count_matches = count($remote_product['images'] ?? []) === count($product_data['images']);
+                if ($remote_image_count_matches && !$this->extractor->have_images_changed($product, $store_url)) {
                     unset($product_data['images']);
                     $skipped[] = 'images';
                 }
@@ -766,21 +677,15 @@ class WC_Multi_Store_Sync_Engine {
             $product_data = $this->filter_categories_if_no_auto_create($product_data, $api, $settings);
         }
 
-        // Upload images via API if enabled (bypasses CDN/firewall)
+        // Never send a partial gallery: it would replace the remote gallery and hide the upload failure.
         if (!empty($product_data['images']) && WC_Multi_Store_Image_Proxy::is_enabled()) {
-            $original_image_count = count($product_data['images']);
-            $product_data['images'] = $this->upload_images_via_api($api, $product, $product_data['images']);
-            $api_calls += count($product_data['images']);
-
-            // If all uploads failed (returned empty), remove images key entirely to avoid
-            // sending images:[] which would delete existing remote product images
-            if (empty($product_data['images']) && $original_image_count > 0) {
-                unset($product_data['images']);
-                $this->logger->warning(sprintf(
-                    'All image uploads failed for product %s — images key removed to preserve existing remote images',
-                    $product->get_sku()
-                ));
+            $images = $this->upload_images_via_api($api, $product, $product_data['images']);
+            if (is_wp_error($images)) {
+                $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'error', $images->get_error_message(), null, $start_time, $start_memory, $api_calls);
+                return ['success' => false, 'message' => $images->get_error_message()];
             }
+            $product_data['images'] = $images;
+            $api_calls += count($images);
         }
 
         // Record sync to remote store (for centralized master tracking)
@@ -815,31 +720,9 @@ class WC_Multi_Store_Sync_Engine {
                 ];
             }
 
-            // If the error is image-related (403/Forbidden), retry without images
-            // The remote store may be unable to download images due to firewall/CDN protection
-            if (isset($product_data['images']) && $this->is_image_download_error($operation_result['message'])) {
-                $this->logger->warning(sprintf(
-                    'Product sync for %s failed due to image download error. Retrying without images. Error: %s',
-                    $product->get_sku(),
-                    $operation_result['message']
-                ));
-
-                unset($product_data['images']);
-                $retry_result = $this->create_or_update_remote_product($api, $product, $remote_product, $product_data, $sync_type, $sync_source);
-                $api_calls++;
-
-                if ($retry_result['success']) {
-                    $operation_result = $retry_result;
-                    $this->logger->info(sprintf(
-                        'Product %s synced successfully without images (images skipped due to download error)',
-                        $product->get_sku()
-                    ));
-                }
-                // If retry also failed, fall through to the normal error handling below
-            }
         }
 
-        // Handle persistent errors (after image retry)
+        // Report every failed update, including image download errors.
         if (!$operation_result['success']) {
             $this->logger->warning('Product sync failed: ' . $product->get_sku() . ' - ' . $operation_result['message']);
             $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'error', $operation_result['message'], null, $start_time, $start_memory, $api_calls);
@@ -855,15 +738,16 @@ class WC_Multi_Store_Sync_Engine {
         $remote_product_id = $operation_result['result']['id'];
         $message = $operation_result['message'];
 
-        // Detect image attachment failures: we sent images but the remote product has none
-        // This happens when the remote WooCommerce fails to download image URLs silently
-        if (!empty($product_data['images']) && isset($operation_result['result']['images'])) {
-            $remote_images_after = $operation_result['result']['images'] ?? [];
-            if (empty($remote_images_after)) {
-                $this->logger->warning(sprintf(
-                    'Images were sent for %s but remote product has no images after sync — remote store may have failed to download image URLs',
-                    $product->get_sku()
-                ));
+        if (!empty($product_data['images'])) {
+            $remote_images = $operation_result['result']['images'] ?? [];
+            $expected_ids = array_filter(array_column($product_data['images'], 'id'));
+            if (count($remote_images) !== count($product_data['images']) || array_diff($expected_ids, array_column($remote_images, 'id'))) {
+                $message = sprintf('Image sync incomplete: sent %d image(s), remote product returned %d; uploaded IDs must also match', count($product_data['images']), count($remote_images));
+                // The product may already have been created. Keep its identity so a retry cannot create a duplicate.
+                WC_Multi_Store_Remote_Product_Manager::save_remote_product_id($product->get_id(), $store_url, $remote_product_id);
+                WC_Multi_Store_Cache_Manager::delete_remote_product($store_url, $search_value, $match_by);
+                $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'error', $message, $remote_product_id, $start_time, $start_memory, $api_calls);
+                return ['success' => false, 'message' => $message];
             }
         }
 
@@ -901,7 +785,7 @@ class WC_Multi_Store_Sync_Engine {
             WC_Multi_Store_Remote_Product_Manager::save_remote_product_id($product->get_id(), $store_url, $remote_product_id);
 
             // Perform post-sync operations (variations, custom fields, stock verification)
-            $additional_api_calls = $this->perform_post_sync_operations($product, $remote_product_id, $api, $store_url, $store_config, $sync_type, $preserved_fields);
+            $additional_api_calls = $this->perform_post_sync_operations($product, $remote_product_id, $api, $store_url, $store_config, $sync_type, isset($product_data['stock_quantity']) ? (int) $product_data['stock_quantity'] : null);
             $api_calls += $additional_api_calls;
 
             // Save sync hashes for smart comparison on next sync
@@ -949,6 +833,7 @@ class WC_Multi_Store_Sync_Engine {
             'success' => true,
             'action' => $action,
             'remote_id' => $remote_product_id,
+            'expected_stock' => isset($product_data['stock_quantity']) ? (int) $product_data['stock_quantity'] : null,
         ];
     }
 

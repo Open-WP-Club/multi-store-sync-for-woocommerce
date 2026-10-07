@@ -354,31 +354,87 @@ class WC_Multi_Store_Stock_Verifier {
             return new WP_Error('product_not_found', 'Product not found');
         }
 
-        // Queue product for immediate sync
-        WC_MSS()->queue_manager->add_product(
-            $discrepancy['product_id'],
-            'discrepancy_correction',
-            WC_Multi_Store_Queue_Manager::PRIORITY_CRITICAL
+        if (!in_array($discrepancy['status'] ?? 'pending', ['pending', 'resolving'], true)) {
+            return new WP_Error('closed', 'Discrepancy is already resolved or ignored');
+        }
+        $store_url = null;
+        foreach (WC_Multi_Store_Settings::get_active_stores() as $url => $config) {
+            if (untrailingslashit($url) === untrailingslashit($discrepancy['store_url'])) {
+                $store_url = $url;
+                break;
+            }
+        }
+        if ($store_url === null) {
+            return new WP_Error('store_not_found', 'Active store not found in configuration');
+        }
+
+        $queued = WC_Multi_Store_Queue_Table::add(
+            (int) $discrepancy['product_id'], $store_url, 'stock_correction',
+            WC_Multi_Store_Queue_Manager::PRIORITY_CRITICAL,
+            'stock_discrepancy_' . $discrepancy_id, null, $product->get_sku(),
+            ['discrepancy_id' => $discrepancy_id]
         );
+        if ($queued === false) {
+            return new WP_Error('queue_failed', 'Stock correction could not be queued');
+        }
 
-        WC_Multi_Store_Logger::write(sprintf(
-            'Auto-correction queued for discrepancy #%d: Product #%d (SKU: %s) to %s',
-            $discrepancy_id,
-            $discrepancy['product_id'],
-            $discrepancy['sku'],
-            $discrepancy['store_url']
-        ));
-
-        // Mark as resolving
-        $wpdb->update(
-            $table_name,
-            ['status' => 'resolving'],
-            ['id' => $discrepancy_id],
-            ['%s'],
-            ['%d']
-        );
-
+        // Do not reopen a discrepancy if the worker has already completed it.
+        $updated = $wpdb->update($table_name, ['status' => 'resolving'],
+            ['id' => $discrepancy_id, 'status' => 'pending'], ['%s'], ['%d', '%s']);
+        if ($updated === false) {
+            return new WP_Error('status_failed', 'Correction was queued, but its status could not be saved');
+        }
         return true;
+    }
+
+    /** Sync only the affected store, then verify the stock actually received. */
+    public static function process_correction(int $id, int $product_id, string $store_url, array $store_config, WC_Multi_Store_Sync_Engine $engine): array {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wc_multi_store_stock_discrepancies';
+        $discrepancy = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id), ARRAY_A);
+        if (!$discrepancy || (int) $discrepancy['product_id'] !== $product_id
+            || untrailingslashit($discrepancy['store_url']) !== untrailingslashit($store_url)) {
+            return ['success' => false, 'message' => 'Stock discrepancy does not match the queue target'];
+        }
+        if (in_array($discrepancy['status'], ['resolved', 'ignored'], true)) {
+            return ['success' => true, 'message' => 'Stock discrepancy already closed'];
+        }
+        $product = wc_get_product($product_id);
+        if (!$product || $product->is_type('variation') || !$product->managing_stock() || $product->get_status() !== 'publish') {
+            return ['success' => false, 'message' => 'Correction requires a published parent product with managed stock'];
+        }
+        if (($store_config['status'] ?? '') !== 'active' || WC_Multi_Store_Product_Exclusion_Filter::should_exclude($product, $store_config)) {
+            return ['success' => false, 'message' => 'Stock correction store is inactive or product is excluded'];
+        }
+
+        $result = $engine->sync_product_to_store($product, $store_url, $store_config, 'quantity', 'discrepancy_correction');
+        if (empty($result['success']) || !empty($result['skipped'])) {
+            return ['success' => false, 'message' => $result['message'] ?? 'Stock correction did not run'];
+        }
+        if (!isset($result['expected_stock'], $result['remote_id'])) {
+            return ['success' => false, 'message' => 'Sync did not send a stock quantity'];
+        }
+        $remote = WC_Multi_Store_API_Client::for_store($store_url, $store_config)->get_product((int) $result['remote_id']);
+        if (is_wp_error($remote)) {
+            return ['success' => false, 'message' => 'Stock verification failed: ' . $remote->get_error_message()];
+        }
+        if ((int) ($remote['id'] ?? 0) !== (int) $result['remote_id'] || empty($remote['manage_stock'])
+            || !isset($remote['stock_quantity']) || (int) $remote['stock_quantity'] !== $result['expected_stock']) {
+            return ['success' => false, 'message' => 'Remote stock still differs after correction'];
+        }
+        $updated = $wpdb->update($table,
+            ['status' => 'resolved', 'resolved_at' => current_time('mysql')],
+            ['id' => $id, 'status' => $discrepancy['status']], ['%s', '%s'], ['%d', '%s']);
+        return $updated !== 1
+            ? ['success' => false, 'message' => 'Verified stock, but could not save discrepancy status']
+            : ['success' => true, 'message' => 'Stock correction verified'];
+    }
+
+    /** Keep failed corrections available for retry, including missing store configurations. */
+    public static function reset_correction(int $id): void {
+        global $wpdb;
+        $wpdb->update($wpdb->prefix . 'wc_multi_store_stock_discrepancies', ['status' => 'pending'],
+            ['id' => $id, 'status' => 'resolving'], ['%s'], ['%d', '%s']);
     }
 
     /**

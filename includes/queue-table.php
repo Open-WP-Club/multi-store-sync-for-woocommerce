@@ -97,10 +97,11 @@ class WC_Multi_Store_Queue_Table {
 
         try {
 
-        // A conflict decision must never replace (or be replaced by) a normal sync.
-        $operation_filter = $sync_type === 'conflict_resolution'
-            ? $wpdb->prepare(" AND sync_type = 'conflict_resolution' AND source = %s", $source)
-            : " AND sync_type <> 'conflict_resolution'";
+        // Corrections and conflict decisions must keep their identity across enqueue and retry.
+        $is_resolution = in_array($sync_type, ['conflict_resolution', 'stock_correction'], true);
+        $operation_filter = $is_resolution
+            ? $wpdb->prepare(" AND sync_type = %s AND source = %s", $sync_type, $source)
+            : " AND sync_type NOT IN ('conflict_resolution', 'stock_correction')";
 
         // Check if already queued (pending or processing)
         // Include 'processing' to prevent duplicates when items are stuck processing
@@ -114,7 +115,7 @@ class WC_Multi_Store_Queue_Table {
             $existing_id = $existing['id'];
             $existing_status = $existing['status'];
 
-            if ($sync_type === 'conflict_resolution') {
+            if ($is_resolution) {
                 return (int) $existing_id;
             }
 

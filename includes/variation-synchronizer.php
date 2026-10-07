@@ -106,16 +106,21 @@ class WC_Multi_Store_Variation_Synchronizer {
             // Upload variation image via API if enabled (bypasses CDN/firewall)
             if (!empty($variation_data['image']['src']) && WC_Multi_Store_Image_Proxy::is_enabled()) {
                 $image_id = $variation->get_image_id();
-                if ($image_id) {
-                    $image_payload = WC_Multi_Store_Image_Proxy::get_image_data($image_id);
-                    if ($image_payload) {
-                        $upload_result = $api->upload_image($image_payload);
-                        if (!is_wp_error($upload_result) && !empty($upload_result['id'])) {
-                            $variation_data['image'] = ['id' => $upload_result['id']];
-                            $api_calls++;
-                        }
-                    }
+                $image_payload = $image_id ? WC_Multi_Store_Image_Proxy::get_image_data($image_id) : null;
+                if (!$image_payload) {
+                    // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Sync handler catches this and the admin view escapes the stored message.
+                    throw new \RuntimeException(sprintf('Could not read variation image %d', $image_id));
                 }
+                $upload_result = $api->upload_image($image_payload);
+                $api_calls++;
+                if (is_wp_error($upload_result)) {
+                    // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Sync handler catches this and the admin view escapes the stored message.
+                    throw new \RuntimeException('Variation image upload failed: ' . $upload_result->get_error_message());
+                }
+                if (empty($upload_result['id'])) {
+                    throw new \RuntimeException('Variation image upload returned no attachment ID');
+                }
+                $variation_data['image'] = ['id' => $upload_result['id']];
             }
 
             // Apply per-store pricing rules if configured
@@ -207,6 +212,16 @@ class WC_Multi_Store_Variation_Synchronizer {
 
                 // Check for partial failures in successful batch response
                 $this->log_batch_partial_failures($batch_result, $remote_parent_id);
+                foreach (['create', 'update'] as $operation) {
+                    foreach ($batch_data[$operation] ?? [] as $index => $sent) {
+                        if (!empty($sent['image'])) {
+                            $received = $batch_result[$operation][$index]['image']['id'] ?? 0;
+                            if (!$received || (!empty($sent['image']['id']) && (int) $received !== (int) $sent['image']['id'])) {
+                                throw new \RuntimeException('Variation image was not attached by the remote store');
+                            }
+                        }
+                    }
+                }
             }
         }
 
