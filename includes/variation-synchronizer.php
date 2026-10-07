@@ -65,15 +65,18 @@ class WC_Multi_Store_Variation_Synchronizer {
             }
         }
 
+        if (is_wp_error($remote_variations)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught by the sync/queue handler, stored as text, escaped by the admin views.
+            throw new \RuntimeException('Could not load remote variations: ' . $remote_variations->get_error_message());
+        }
+
         // Build the SKU lookup map from this sync's remote data. Remote variations
         // are already cached by Cache_Manager; retaining a static map here can make
         // a later sync use stale data after the remote-variation cache is cleared.
         $remote_variations_by_sku = [];
-        if (!is_wp_error($remote_variations) && is_array($remote_variations)) {
-            foreach ($remote_variations as $remote_var) {
-                if (!empty($remote_var['sku'])) {
-                    $remote_variations_by_sku[$remote_var['sku']] = $remote_var;
-                }
+        foreach ($remote_variations as $remote_var) {
+            if (!empty($remote_var['sku'])) {
+                $remote_variations_by_sku[$remote_var['sku']] = $remote_var;
             }
         }
 
@@ -151,7 +154,7 @@ class WC_Multi_Store_Variation_Synchronizer {
         // Only delete variations that HAVE a SKU which doesn't exist locally
         // Variations without SKU are skipped - we can't reliably match them
         $delete_orphan_variations = WC_Multi_Store_Settings::get('delete_orphan_variations', false);
-        if ($delete_orphan_variations && !is_wp_error($remote_variations) && is_array($remote_variations)) {
+        if ($delete_orphan_variations) {
             foreach ($remote_variations as $remote_var) {
                 $remote_sku = $remote_var['sku'] ?? '';
 
@@ -189,13 +192,17 @@ class WC_Multi_Store_Variation_Synchronizer {
 
             $chunks = $this->chunk_batch_operations($batch_creates, $batch_updates, $batch_deletes, 100);
 
+            // A partially successful batch changes the remote state even if a later item fails.
+            if ($store_url !== '') {
+                WC_Multi_Store_Cache_Manager::set_remote_variations($store_url, $remote_parent_id, null);
+            }
             foreach ($chunks as $batch_data) {
                 $batch_result = $api->batch_product_variations($remote_parent_id, $batch_data);
                 $api_calls++;
 
                 if (is_wp_error($batch_result)) {
-                    WC_Multi_Store_Logger::write('Batch variation sync failed: ' . $batch_result->get_error_message(), 'error');
-                    continue;
+                    // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught by the sync/queue handler, stored as text, escaped by the admin views.
+                    throw new \RuntimeException('Batch variation sync failed: ' . $batch_result->get_error_message());
                 }
 
                 // Check for partial failures in successful batch response
@@ -294,17 +301,17 @@ class WC_Multi_Store_Variation_Synchronizer {
                     $error_code = $item['error']['code'] ?? 'unknown';
                     $sku = $item['sku'] ?? ($item['id'] ?? '?');
 
-                    WC_Multi_Store_Logger::write(
-                        sprintf(
-                            'Batch variation %s failed for parent %d (SKU/ID: %s): [%s] %s',
-                            $operation,
-                            $remote_parent_id,
-                            $sku,
-                            $error_code,
-                            $error_msg
-                        ),
-                        'error'
+                    $message = sprintf(
+                        'Batch variation %s failed for parent %d (SKU/ID: %s): [%s] %s',
+                        $operation,
+                        $remote_parent_id,
+                        $sku,
+                        $error_code,
+                        $error_msg
                     );
+                    WC_Multi_Store_Logger::write($message, 'error');
+                    // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught by the sync/queue handler, stored as text, escaped by the admin views.
+                    throw new \RuntimeException($message);
                 }
             }
         }

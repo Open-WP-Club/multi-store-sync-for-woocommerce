@@ -833,7 +833,16 @@ class WC_Multi_Store_Queue_Manager {
                 $transient_key = null; // Track transient for cleanup on success only
 
                 // Handle special sync types
-                if ($sync_type === 'delete_product') {
+                if ($sync_type === 'conflict_resolution') {
+                    $result = WC_Multi_Store_Conflict_Detector::process_resolution(
+                        (int) ($stored_extra['conflict_id'] ?? 0),
+                        (string) ($stored_extra['resolution'] ?? ''),
+                        (int) $product_id,
+                        $store_url,
+                        $store_config,
+                        $sync_engine
+                    );
+                } elseif ($sync_type === 'delete_product') {
                     $product_sku = $stored_sku;
                     $transient_key = 'wc_mss_delete_' . $product_id . '_' . md5($store_url);
 

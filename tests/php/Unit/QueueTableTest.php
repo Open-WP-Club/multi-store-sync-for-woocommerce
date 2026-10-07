@@ -751,4 +751,33 @@ class QueueTableTest extends WC_Multi_Store_TestCase
 
         $this->assertEquals(10, $result);
     }
+    public function test_conflict_queue_deduplicates_pending_and_processing_decisions(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('get_var')->times(4)->andReturn(1);
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_row')->twice()->with(\Mockery::on(fn($sql) => str_contains($sql, "AND sync_type = 'conflict_resolution' AND source = %s")), ARRAY_A)
+            ->andReturn(['id' => 99, 'status' => 'pending'], ['id' => 99, 'status' => 'processing']);
+        $wpdb->shouldNotReceive('insert');
+        $wpdb->shouldNotReceive('update');
+        foreach (['overwrite', 'merge'] as $resolution) {
+            $this->assertSame(99, WC_Multi_Store_Queue_Table::add(42, 'https://store.com', 'conflict_resolution', 2, 'conflict_resolution_7', null, null, ['conflict_id' => 7, 'resolution' => $resolution]));
+        }
+    }
+
+    public function test_normal_sync_never_merges_into_a_conflict_decision(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 100;
+        $this->expectEnqueueLock($wpdb);
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_row')->once()->with(\Mockery::on(fn($sql) => str_contains($sql, "AND sync_type <> 'conflict_resolution'")), ARRAY_A)->andReturn(null);
+        $wpdb->shouldReceive('insert')->once()->andReturn(1);
+        $this->assertSame(100, WC_Multi_Store_Queue_Table::add(42, 'https://store.com'));
+    }
+
 }

@@ -223,12 +223,12 @@ class WC_Multi_Store_Conflict_Detector {
     /**
      * Store the hash of a remote product after a successful sync
      */
-    public static function store_hash(int $local_product_id, string $store_url, array $remote_product): void {
+    public static function store_hash(int $local_product_id, string $store_url, array $remote_product): bool {
         global $wpdb;
 
         $table = $wpdb->prefix . self::HASHES_TABLE;
 
-        $wpdb->query($wpdb->prepare(
+        return $wpdb->query($wpdb->prepare(
             "INSERT INTO {$table}
                 (local_product_id, store_url_hash, store_url, hash, snapshot, updated_at)
              VALUES (%d, %s, %s, %s, %s, %s)
@@ -243,7 +243,7 @@ class WC_Multi_Store_Conflict_Detector {
             self::calculate_hash($remote_product),
             wp_json_encode(self::extract_tracked_fields($remote_product)),
             current_time('mysql', true)
-        ));
+        )) !== false;
     }
 
     /**
@@ -317,7 +317,7 @@ class WC_Multi_Store_Conflict_Detector {
     /**
      * Identify which fields changed on the remote product
      */
-    private static function identify_changed_fields(array $remote_product, int $local_product_id, string $store_url): array {
+    public static function identify_changed_fields(array $remote_product, int $local_product_id, string $store_url): array {
         $snapshot = self::get_stored_snapshot($local_product_id, $store_url);
         if (!$snapshot) {
             return ['unknown'];
@@ -367,17 +367,19 @@ class WC_Multi_Store_Conflict_Detector {
         global $wpdb;
 
         $table = $wpdb->prefix . self::LOG_TABLE;
+        $queue = $wpdb->prefix . WC_Multi_Store_Queue_Table::TABLE_NAME;
+        $columns = "{$table}.*, (SELECT status FROM {$queue} WHERE source = CONCAT('conflict_resolution_', {$table}.id) AND sync_type = 'conflict_resolution' ORDER BY id DESC LIMIT 1) AS queue_status";
         if ($store_url !== '') {
             if ($include_resolved) {
                 $rows = $wpdb->get_results($wpdb->prepare(
-                    "SELECT * FROM {$table} WHERE store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                    "SELECT {$columns} FROM {$table} WHERE store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                     $store_url,
                     $limit,
                     $offset
                 ), ARRAY_A);
             } else {
                 $rows = $wpdb->get_results($wpdb->prepare(
-                    "SELECT * FROM {$table} WHERE resolved = 0 AND store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                    "SELECT {$columns} FROM {$table} WHERE resolved = 0 AND store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                     $store_url,
                     $limit,
                     $offset
@@ -385,13 +387,13 @@ class WC_Multi_Store_Conflict_Detector {
             }
         } elseif ($include_resolved) {
             $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM {$table} ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                "SELECT {$columns} FROM {$table} ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                 $limit,
                 $offset
             ), ARRAY_A);
         } else {
             $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM {$table} WHERE resolved = 0 ORDER BY detected_at DESC LIMIT %d OFFSET %d",
+                "SELECT {$columns} FROM {$table} WHERE resolved = 0 ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                 $limit,
                 $offset
             ), ARRAY_A);
@@ -404,59 +406,97 @@ class WC_Multi_Store_Conflict_Detector {
         }, $rows ?: []);
     }
 
-    /**
-     * Resolve a conflict by its row ID
-     *
-     * @param int    $id         Conflict log row ID
-     * @param string $resolution 'overwrite' | 'keep_remote' | 'merge'
-     */
+    /** Queue a resolution; only the worker may mark the conflict resolved. */
     public static function resolve_conflict(int $id, string $resolution): bool {
         global $wpdb;
 
-        $updated = $wpdb->update(
-            $wpdb->prefix . self::LOG_TABLE,
-            [
-                'resolved'    => 1,
-                'resolution'  => $resolution,
-                'resolved_at' => current_time('mysql'),
-            ],
-            ['id' => $id, 'resolved' => 0],
-            ['%d', '%s', '%s'],
-            ['%d', '%d']
-        );
+        if (!in_array($resolution, ['overwrite', 'keep_remote', 'merge'], true)) {
+            return false;
+        }
+        $table = $wpdb->prefix . self::LOG_TABLE;
+        $conflict = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d AND resolved = 0",
+            $id
+        ), ARRAY_A);
+        if (!$conflict) {
+            return false;
+        }
 
-        return $updated !== false && $updated > 0;
+        return WC_Multi_Store_Queue_Table::add(
+            (int) $conflict['local_product_id'],
+            $conflict['store_url'],
+            'conflict_resolution',
+            WC_Multi_Store_Queue_Manager::PRIORITY_HIGH,
+            'conflict_resolution_' . $id,
+            null,
+            null,
+            ['conflict_id' => $id, 'resolution' => $resolution]
+        ) !== false;
     }
 
-    /**
-     * Resolve all unresolved conflicts, optionally filtered by store
-     */
+    /** Queue all unresolved conflicts, optionally filtered by store. */
     public static function resolve_all(string $store_url = '', string $resolution = 'overwrite'): int {
         global $wpdb;
 
         $table = $wpdb->prefix . self::LOG_TABLE;
-        $now   = current_time('mysql');
+        $ids = $store_url !== ''
+            ? $wpdb->get_col($wpdb->prepare("SELECT id FROM {$table} WHERE resolved = 0 AND store_url = %s", $store_url))
+            : $wpdb->get_col("SELECT id FROM {$table} WHERE resolved = 0");
+        $queued = 0;
+        // ponytail: enqueues in this request; batch scheduling if large conflict counts cause timeouts.
+        foreach ($ids as $id) {
+            if (self::resolve_conflict((int) $id, $resolution)) {
+                $queued++;
+            }
+        }
+        return $queued;
+    }
 
-        if ($store_url !== '') {
-            $updated = $wpdb->query($wpdb->prepare(
-                "UPDATE {$table}
-                 SET resolved = 1, resolution = %s, resolved_at = %s
-                 WHERE resolved = 0 AND store_url = %s",
-                $resolution,
-                $now,
-                $store_url
-            ));
-        } else {
-            $updated = $wpdb->query($wpdb->prepare(
-                "UPDATE {$table}
-                 SET resolved = 1, resolution = %s, resolved_at = %s
-                 WHERE resolved = 0",
-                $resolution,
-                $now
-            ));
+    /** Execute through the regular queue worker, including its retries and dead letters. */
+    public static function process_resolution(int $id, string $resolution, int $product_id, string $store_url, array $store_config, WC_Multi_Store_Sync_Engine $engine): array {
+        global $wpdb;
+
+        if (!in_array($resolution, ['overwrite', 'keep_remote', 'merge'], true)) {
+            return ['success' => false, 'message' => 'Invalid conflict resolution'];
+        }
+        $table = $wpdb->prefix . self::LOG_TABLE;
+        $conflict = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d",
+            $id
+        ), ARRAY_A);
+        if (!$conflict || (int) $conflict['local_product_id'] !== $product_id || $conflict['store_url'] !== $store_url) {
+            return ['success' => false, 'message' => 'Conflict not found or queue target does not match'];
+        }
+        if (!empty($conflict['resolved'])) {
+            return ['success' => true, 'message' => 'Conflict already resolved'];
+        }
+        $product = wc_get_product($product_id);
+        if (!$product || $product->is_type('variation')) {
+            return ['success' => false, 'message' => 'Conflict parent product not found'];
+        }
+        if (($store_config['status'] ?? '') !== 'active') {
+            return ['success' => false, 'message' => 'Conflict store is inactive'];
         }
 
-        return (int) $updated;
+        $result = $engine->sync_product_to_store($product, $store_url, $store_config, 'full_product', 'conflict_resolution', [
+            'resolution' => $resolution,
+            'remote_product_id' => (int) $conflict['remote_product_id'],
+            'changed_fields' => json_decode($conflict['changed_fields'], true) ?: [],
+        ]);
+        if (empty($result['success']) || !empty($result['skipped'])) {
+            return ['success' => false, 'message' => $result['message'] ?? 'Conflict resolution did not complete'];
+        }
+
+        $updated = $wpdb->update(
+            $wpdb->prefix . self::LOG_TABLE,
+            ['resolved' => 1, 'resolution' => $resolution, 'resolved_at' => current_time('mysql')],
+            ['id' => $id, 'resolved' => 0],
+            ['%d', '%s', '%s'],
+            ['%d', '%d']
+        );
+        return $updated !== 1
+            ? ['success' => false, 'message' => 'Could not save conflict resolution']
+            : $result;
     }
 
     /**
@@ -572,9 +612,9 @@ class WC_Multi_Store_Conflict_Detector {
         }
 
         if ($id > 0 && self::resolve_conflict($id, $resolution)) {
-            wp_send_json_success(['message' => __('Conflict resolved', 'multi-store-sync-for-woocommerce')]);
+            wp_send_json_success(['message' => __('Conflict resolution queued. It will be marked resolved after successful processing.', 'multi-store-sync-for-woocommerce')]);
         } else {
-            wp_send_json_error(['message' => __('Conflict not found', 'multi-store-sync-for-woocommerce')]);
+            wp_send_json_error(['message' => __('Conflict not found or could not be queued', 'multi-store-sync-for-woocommerce')]);
         }
     }
 
@@ -595,12 +635,12 @@ class WC_Multi_Store_Conflict_Detector {
             return;
         }
 
-        $resolved = self::resolve_all($store_url, $resolution);
+        $queued = self::resolve_all($store_url, $resolution);
 
         wp_send_json_success([
-            /* translators: %d: number of conflicts resolved. */
-            'message'  => sprintf(__('%d conflict(s) resolved', 'multi-store-sync-for-woocommerce'), $resolved),
-            'resolved' => $resolved,
+            /* translators: %d: number of conflicts queued. */
+            'message'  => sprintf(__('%d conflict resolution(s) queued; unresolved items remain visible until processing succeeds.', 'multi-store-sync-for-woocommerce'), $queued),
+            'queued' => $queued,
         ]);
     }
 

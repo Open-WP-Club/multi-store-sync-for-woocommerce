@@ -207,7 +207,7 @@ class WC_Multi_Store_Cache_Manager {
      *
      * @param string $store_url Store URL
      * @param int $remote_product_id Remote product ID
-     * @return array|null Cached variations or null
+     * @return array|false Cached variations or false if not cached
      */
     public static function get_remote_variations($store_url, $remote_product_id): array|false {
         $cache_key = self::build_cache_key('remote_variations', [
@@ -217,7 +217,7 @@ class WC_Multi_Store_Cache_Manager {
 
         $cached = get_transient($cache_key);
 
-        return $cached === null ? false : $cached;
+        return is_array($cached) ? $cached : false;
     }
 
     /**
@@ -225,7 +225,7 @@ class WC_Multi_Store_Cache_Manager {
      *
      * @param string $store_url Store URL
      * @param int $remote_product_id Remote product ID
-     * @param array $variations Variations data
+     * @param array|null $variations Variations data, or null to clear the cache
      * @return bool Success
      */
     public static function set_remote_variations($store_url, $remote_product_id, $variations): bool {
@@ -233,6 +233,10 @@ class WC_Multi_Store_Cache_Manager {
             $store_url,
             $remote_product_id,
         ]);
+
+        if ($variations === null) {
+            return delete_transient($cache_key);
+        }
 
         return set_transient($cache_key, $variations, self::REMOTE_PRODUCT_EXPIRATION);
     }

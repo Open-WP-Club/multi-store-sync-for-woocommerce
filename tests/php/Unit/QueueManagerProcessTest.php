@@ -82,7 +82,7 @@ class QueueManagerProcessTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
 
-        $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('prepare')->andReturn('')->byDefault();
         $wpdb->shouldReceive('query')->andReturn(0);
         $wpdb->shouldReceive('insert')->andReturn(1);
         $wpdb->shouldReceive('delete')->andReturn(1);
@@ -99,7 +99,7 @@ class QueueManagerProcessTest extends WC_Multi_Store_TestCase
             'completed'  => '0',
             'failed'     => '0',
             'total'      => '0',
-        ]);
+        ])->byDefault();
 
         // get_results: first call = get_next_batch (queue items), rest = empty
         $firstCall = true;
@@ -668,4 +668,28 @@ class QueueManagerProcessTest extends WC_Multi_Store_TestCase
 
         $this->assertEquals(1, $result['success']);
     }
+    public function test_process_queue_runs_conflict_resolution_before_completing_the_item(): void
+    {
+        $this->setupProcessQueueMocks([$this->makeQueueItem([
+            'sync_type' => 'conflict_resolution',
+            'source' => 'conflict_resolution_7',
+            'extra_data' => json_encode(['conflict_id' => 7, 'resolution' => 'overwrite']),
+        ])]);
+        global $wpdb;
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_row')->with(\Mockery::on(fn($sql) => str_contains($sql, 'wc_mss_conflict_log')), ARRAY_A)->andReturn([
+            'id' => 7, 'local_product_id' => 100, 'remote_product_id' => 555, 'store_url' => 'https://store1.com', 'resolved' => 0, 'changed_fields' => '["name"]',
+        ]);
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('is_type')->with('variation')->andReturn(false);
+        Functions\when('wc_get_product')->justReturn($product);
+        $this->mockSyncEngine->shouldReceive('sync_product_to_store')->once()->with(
+            $product, 'https://store1.com', \Mockery::type('array'), 'full_product', 'conflict_resolution',
+            ['resolution' => 'overwrite', 'remote_product_id' => 555, 'changed_fields' => ['name']]
+        )->andReturn(['success' => true]);
+        $result = WC_MSS()->queue_manager->process_queue(1);
+        $this->assertSame(1, $result['success']);
+        $this->assertSame(0, $result['errors']);
+    }
+
 }

@@ -1058,9 +1058,12 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     'keep_remote' => __('Keep Remote', 'multi-store-sync-for-woocommerce'),
                     'merge' => __('Merge', 'multi-store-sync-for-woocommerce'),
                     'resolving' => __('Resolving…', 'multi-store-sync-for-woocommerce'),
+                    'queued' => __('Queued', 'multi-store-sync-for-woocommerce'),
+                    'processing' => __('Processing', 'multi-store-sync-for-woocommerce'),
+                    'failed' => __('Failed — see Queue / Dead Letter Queue', 'multi-store-sync-for-woocommerce'),
                     'resolve_failed' => __('Failed to resolve conflict.', 'multi-store-sync-for-woocommerce'),
                     /* translators: %s: selected conflict resolution. */
-                    'confirm_resolve_all' => __('Resolve all unresolved conflicts shown below as "%s"?', 'multi-store-sync-for-woocommerce'),
+                    'confirm_resolve_all' => __('Queue all unresolved conflicts for the selected store filter as "%s"?', 'multi-store-sync-for-woocommerce'),
                     'resolve_all' => __('Resolve All', 'multi-store-sync-for-woocommerce'),
                     'product_not_found' => __('(Product not found)', 'multi-store-sync-for-woocommerce'),
                 ],

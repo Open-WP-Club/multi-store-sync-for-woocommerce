@@ -25,6 +25,10 @@ $stats = WC_Multi_Store_Conflict_Detector::get_stats();
         <?php esc_html_e('Products that were edited directly on a remote store since the last sync are flagged here before they get overwritten. This requires "Conflict Detection" to be enabled under Settings → Additional Sync Features.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
+    <p class="description">
+        <?php esc_html_e('Resolutions run through the sync queue. Overwrite sends local data; Keep Remote accepts the current remote version without changing the local product; Merge keeps remotely changed fields and syncs the rest. These decisions apply to this conflict; future syncs still follow the normal store rules. A conflict is marked resolved only after successful processing. Sync must be enabled for the queue to run.', 'multi-store-sync-for-woocommerce'); ?>
+    </p>
+
     <?php if (empty($conflict_settings['enabled'])): ?>
         <div class="notice notice-warning inline">
             <p>

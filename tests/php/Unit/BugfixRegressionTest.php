@@ -341,9 +341,9 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
             ],
         ];
 
-        // Should not throw - just logs the error
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid product ID.');
         $method->invoke($synchronizer, $batch_result, 999);
-        $this->assertTrue(true, 'Should handle partial failures without throwing');
     }
 
     /**
@@ -573,6 +573,7 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
     {
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
+        Functions\when('delete_transient')->justReturn(true);
 
         Functions\when('get_option')->alias(function ($key, $default = false) {
             if ($key === 'wc_multi_store_sync_settings') {

@@ -45,13 +45,14 @@
                 return '<span class="wc-mss-changed-field-tag">' + escapeHtml(f) + '</span>';
             }).join(' ');
 
+            var queued = c.queue_status === 'pending' || c.queue_status === 'processing';
             var statusHtml = c.resolved
                 ? '<span class="wc-mss-status-badge wc-mss-status-resolved">' + escapeHtml(i18n.resolved) + (c.resolution ? ' (' + escapeHtml(c.resolution) + ')' : '') + '</span>'
-                : '<span class="wc-mss-status-badge wc-mss-status-unresolved">' + escapeHtml(i18n.unresolved) + '</span>';
+                : '<span class="wc-mss-status-badge wc-mss-status-unresolved">' + escapeHtml(queued ? (c.queue_status === 'processing' ? i18n.processing : i18n.queued) : (c.queue_status === 'failed' ? i18n.failed : i18n.unresolved)) + '</span>';
 
             var safeId = escapeHtml(c.id);
             var actionsHtml = '';
-            if (!c.resolved) {
+            if (!c.resolved && !queued) {
                 actionsHtml = '<button type="button" class="button button-primary button-small wc-mss-resolve-conflict-btn" data-id="' + safeId + '" data-resolution="overwrite">' + escapeHtml(i18n.overwrite) + '</button> '
                     + '<button type="button" class="button button-small wc-mss-resolve-conflict-btn" data-id="' + safeId + '" data-resolution="keep_remote">' + escapeHtml(i18n.keep_remote) + '</button> '
                     + '<button type="button" class="button button-small wc-mss-resolve-conflict-btn" data-id="' + safeId + '" data-resolution="merge">' + escapeHtml(i18n.merge) + '</button>';

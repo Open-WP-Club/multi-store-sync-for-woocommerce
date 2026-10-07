@@ -513,133 +513,88 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
     // resolve_conflict
     // =========================================================================
 
-    public function test_resolve_conflict_returns_true_on_success(): void
+    private function mockResolutionQueue(?array $conflict = null, bool $insert_succeeds = true): \Mockery\MockInterface
     {
         global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 90;
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_var')->andReturn(1);
+        $wpdb->shouldReceive('get_row')->withArgs(fn($sql) => str_contains($sql, 'wc_mss_conflict_log'))->andReturn($conflict);
+        $wpdb->shouldReceive('get_row')->withArgs(fn($sql) => str_contains($sql, 'wc_mss_queue'))->andReturn(null);
+        $wpdb->shouldReceive('insert')->andReturn($insert_succeeds ? 1 : false)->byDefault();
+        $wpdb->shouldNotReceive('update'); // Enqueuing must never claim the conflict is resolved.
+        return $wpdb;
+    }
 
-        $wpdb->shouldReceive('update')
-            ->once()
-            ->andReturn(1);
-
-        $result = WC_Multi_Store_Conflict_Detector::resolve_conflict(7, 'overwrite');
-
-        $this->assertTrue($result);
+    public function test_resolve_conflict_queues_decision_without_marking_resolved(): void
+    {
+        $wpdb = $this->mockResolutionQueue(['local_product_id' => 42, 'store_url' => 'https://shop.example.com']);
+        $wpdb->shouldReceive('insert')->once()->with('wp_wc_mss_queue', \Mockery::on(function ($data) {
+            return $data['sync_type'] === 'conflict_resolution'
+                && $data['source'] === 'conflict_resolution_7'
+                && $data['status'] === 'pending'
+                && json_decode($data['extra_data'], true) === ['conflict_id' => 7, 'resolution' => 'merge'];
+        }), \Mockery::any())->andReturn(1);
+        $this->assertTrue(WC_Multi_Store_Conflict_Detector::resolve_conflict(7, 'merge'));
     }
 
     public function test_resolve_conflict_returns_false_if_not_found(): void
     {
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-
-        // 0 rows affected → conflict not found (already resolved or missing)
-        $wpdb->shouldReceive('update')
-            ->once()
-            ->andReturn(0);
-
-        $result = WC_Multi_Store_Conflict_Detector::resolve_conflict(999, 'overwrite');
-
-        $this->assertFalse($result);
+        $wpdb = $this->mockResolutionQueue();
+        $wpdb->shouldNotReceive('insert');
+        $this->assertFalse(WC_Multi_Store_Conflict_Detector::resolve_conflict(999, 'overwrite'));
     }
 
-    public function test_resolve_conflict_validates_resolved_0_condition(): void
+    public function test_resolve_conflict_reports_enqueue_failure(): void
     {
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-
-        $capturedWhere = null;
-        $wpdb->shouldReceive('update')
-            ->once()
-            ->withArgs(function ($table, $data, $where) use (&$capturedWhere) {
-                $capturedWhere = $where;
-                return true;
-            })
-            ->andReturn(1);
-
-        WC_Multi_Store_Conflict_Detector::resolve_conflict(42, 'keep_remote');
-
-        $this->assertIsArray($capturedWhere);
-        $this->assertArrayHasKey('resolved', $capturedWhere);
-        $this->assertSame(0, $capturedWhere['resolved']);
-        $this->assertArrayHasKey('id', $capturedWhere);
-        $this->assertSame(42, $capturedWhere['id']);
+        $this->mockResolutionQueue(['local_product_id' => 42, 'store_url' => 'https://shop.example.com'], false);
+        $this->assertFalse(WC_Multi_Store_Conflict_Detector::resolve_conflict(7, 'keep_remote'));
     }
 
-    // =========================================================================
-    // resolve_all
-    // =========================================================================
-
-    public function test_resolve_all_without_store_url_runs_global_update(): void
+    public function test_resolve_all_queues_each_conflict_and_counts_successes(): void
     {
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-
-        $capturedSql = null;
-        $wpdb->shouldReceive('prepare')
-            ->andReturnUsing(function ($sql, ...$args) use (&$capturedSql) {
-                $capturedSql = $sql;
-                return $sql;
-            });
-
-        $wpdb->shouldReceive('query')
-            ->once()
-            ->andReturn(8);
-
-        $result = WC_Multi_Store_Conflict_Detector::resolve_all('', 'overwrite');
-
-        // Global update must NOT filter by store_url
-        $this->assertStringNotContainsString('store_url', (string) $capturedSql);
-        $this->assertSame(8, $result);
+        $wpdb = $this->mockResolutionQueue(['local_product_id' => 42, 'store_url' => 'https://shop.example.com']);
+        $wpdb->shouldReceive('get_col')->once()->with(\Mockery::on(fn($sql) => str_contains($sql, 'resolved = 0') && !str_contains($sql, 'store_url')))->andReturn([7, 8]);
+        $wpdb->shouldReceive('insert')->twice()->andReturn(1, false);
+        $this->assertSame(1, WC_Multi_Store_Conflict_Detector::resolve_all());
     }
 
-    public function test_resolve_all_with_store_url_filters_by_store(): void
+    public function test_resolve_all_filters_by_store(): void
     {
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-
-        $capturedSql = null;
-        $wpdb->shouldReceive('prepare')
-            ->andReturnUsing(function ($sql, ...$args) use (&$capturedSql) {
-                $capturedSql = $sql;
-                return $sql;
-            });
-
-        $wpdb->shouldReceive('query')
-            ->once()
-            ->andReturn(3);
-
-        WC_Multi_Store_Conflict_Detector::resolve_all('https://shop.example.com', 'overwrite');
-
-        $this->assertStringContainsString('store_url', (string) $capturedSql);
+        $wpdb = $this->mockResolutionQueue();
+        $wpdb->shouldReceive('get_col')->once()->with(\Mockery::on(fn($sql) => str_contains($sql, 'AND store_url = %s')))->andReturn([]);
+        $this->assertSame(0, WC_Multi_Store_Conflict_Detector::resolve_all('https://shop.example.com'));
     }
 
-    public function test_resolve_all_returns_row_count(): void
+    public function test_worker_only_marks_resolved_after_success_and_is_idempotent(): void
     {
         global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-
-        $wpdb->shouldReceive('prepare')
-            ->andReturnUsing(fn($sql, ...$args) => $sql);
-
-        $wpdb->shouldReceive('query')
-            ->once()
-            ->andReturn(5);
-
-        $result = WC_Multi_Store_Conflict_Detector::resolve_all();
-
-        $this->assertSame(5, $result);
+        $conflict = ['id' => 7, 'local_product_id' => 42, 'remote_product_id' => 123, 'store_url' => 'https://shop.example.com', 'changed_fields' => '["name"]', 'resolved' => 0];
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_row')->andReturnUsing(function () use (&$conflict) { return $conflict; });
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('is_type')->with('variation')->andReturn(false);
+        Functions\when('wc_get_product')->justReturn($product);
+        $engine = \Mockery::mock('WC_Multi_Store_Sync_Engine');
+        $engine->shouldReceive('sync_product_to_store')->times(3)->with($product, $conflict['store_url'], ['status' => 'active'], 'full_product', 'conflict_resolution', [
+            'resolution' => 'merge', 'remote_product_id' => 123, 'changed_fields' => ['name'],
+        ])->andReturn(
+            ['success' => false, 'message' => 'API failed'],
+            ['success' => true, 'skipped' => true, 'message' => 'Skipped'],
+            ['success' => true]
+        );
+        $wpdb->shouldReceive('update')->once()->with('wp_wc_mss_conflict_log', \Mockery::on(fn($data) => $data['resolved'] === 1 && $data['resolution'] === 'merge'), ['id' => 7, 'resolved' => 0], \Mockery::any(), \Mockery::any())->andReturnUsing(function () use (&$conflict) {
+            $conflict['resolved'] = 1;
+            return 1;
+        });
+        foreach ([false, false, true, true] as $expected) {
+            $result = WC_Multi_Store_Conflict_Detector::process_resolution(7, 'merge', 42, $conflict['store_url'], ['status' => 'active'], $engine);
+            $this->assertSame($expected, $result['success']);
+        }
     }
 
     // =========================================================================
@@ -950,11 +905,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         Functions\when('current_user_can')->justReturn(true);
         Functions\when('absint')->alias(fn($v) => abs((int) $v));
 
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-        $wpdb->shouldReceive('update')->once()->andReturn(1);
+        $this->mockResolutionQueue(['local_product_id' => 42, 'store_url' => 'https://shop.example.com']);
 
         $_POST = ['id' => '7', 'resolution' => 'keep_remote'];
 
@@ -966,7 +917,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Conflict_Detector::ajax_resolve_conflict();
         $_POST = [];
 
-        $this->assertSame('Conflict resolved', $sent['message']);
+        $this->assertStringContainsString('queued', $sent['message']);
     }
 
     public function test_ajax_resolve_conflict_rejects_invalid_resolution(): void
@@ -995,11 +946,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         Functions\when('current_user_can')->justReturn(true);
         Functions\when('absint')->alias(fn($v) => abs((int) $v));
 
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-        $wpdb->shouldReceive('update')->once()->andReturn(0);
+        $this->mockResolutionQueue();
 
         $_POST = ['id' => '999', 'resolution' => 'overwrite'];
 
@@ -1011,7 +958,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Conflict_Detector::ajax_resolve_conflict();
         $_POST = [];
 
-        $this->assertSame('Conflict not found', $error['message']);
+        $this->assertSame('Conflict not found or could not be queued', $error['message']);
     }
 
     // =========================================================================
@@ -1038,12 +985,8 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         Functions\when('check_ajax_referer')->justReturn(true);
         Functions\when('current_user_can')->justReturn(true);
 
-        global $wpdb;
-        $wpdb             = \Mockery::mock('wpdb');
-        $wpdb->prefix     = 'wp_';
-        $wpdb->last_error = '';
-        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
-        $wpdb->shouldReceive('query')->once()->andReturn(4);
+        $wpdb = $this->mockResolutionQueue(['local_product_id' => 42, 'store_url' => 'https://shop.example.com']);
+        $wpdb->shouldReceive('get_col')->once()->andReturn([1, 2, 3, 4]);
 
         $_POST = ['store_url' => 'https://shop.example.com', 'resolution' => 'overwrite'];
 
@@ -1055,7 +998,7 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Conflict_Detector::ajax_resolve_all();
         $_POST = [];
 
-        $this->assertSame(4, $sent['resolved']);
+        $this->assertSame(4, $sent['queued']);
         $this->assertStringContainsString('4', $sent['message']);
     }
 
@@ -1270,4 +1213,44 @@ class ConflictDetectorTest extends WC_Multi_Store_TestCase
         $this->assertArrayHasKey('store_url_hash', $capturedWhere);
         $this->assertSame(md5('https://remote.store'), $capturedWhere['store_url_hash']);
     }
+    public function test_worker_rejects_wrong_target_and_inactive_store_without_syncing(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_row')->andReturn([
+            'local_product_id' => 42, 'remote_product_id' => 123, 'store_url' => 'https://store.com', 'resolved' => 0,
+        ]);
+        $wpdb->shouldNotReceive('update');
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('is_type')->with('variation')->andReturn(false);
+        Functions\when('wc_get_product')->justReturn($product);
+        $engine = \Mockery::mock('WC_Multi_Store_Sync_Engine');
+        $engine->shouldNotReceive('sync_product_to_store');
+        foreach ([[99, 'https://store.com', 'active'], [42, 'https://wrong.com', 'active'], [42, 'https://store.com', 'inactive']] as [$id, $url, $status]) {
+            $this->assertFalse(WC_Multi_Store_Conflict_Detector::process_resolution(7, 'overwrite', $id, $url, ['status' => $status], $engine)['success']);
+        }
+    }
+
+    public function test_worker_reports_failure_when_resolution_cannot_be_saved(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
+        $wpdb->shouldReceive('get_row')->andReturn([
+            'local_product_id' => 42, 'remote_product_id' => 123, 'store_url' => 'https://store.com', 'resolved' => 0, 'changed_fields' => '[]',
+        ]);
+        $wpdb->shouldReceive('update')->once()->andReturn(false);
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('is_type')->with('variation')->andReturn(false);
+        Functions\when('wc_get_product')->justReturn($product);
+        $engine = \Mockery::mock('WC_Multi_Store_Sync_Engine');
+        $engine->shouldReceive('sync_product_to_store')->once()->andReturn(['success' => true]);
+        $result = WC_Multi_Store_Conflict_Detector::process_resolution(7, 'keep_remote', 42, 'https://store.com', ['status' => 'active'], $engine);
+        $this->assertFalse($result['success']);
+        $this->assertSame('Could not save conflict resolution', $result['message']);
+    }
+
 }

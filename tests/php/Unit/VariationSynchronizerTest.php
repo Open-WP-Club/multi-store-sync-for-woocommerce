@@ -323,4 +323,27 @@ class VariationSynchronizerTest extends WC_Multi_Store_TestCase
 
         $this->assertInstanceOf(WC_Multi_Store_Variation_Synchronizer::class, $sync);
     }
+    public function test_remote_variation_read_error_aborts_before_any_writes(): void
+    {
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('is_type')->with('variable')->andReturn(true);
+        $product->shouldReceive('get_children')->andReturn([1]);
+        $api = \Mockery::mock('WC_Multi_Store_API_Client');
+        $api->shouldReceive('get_product_variations')->once()->with(100)->andReturn(new WP_Error('offline', 'Remote offline'));
+        $api->shouldNotReceive('batch_product_variations');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Remote offline');
+        $this->synchronizer->sync_variations($product, 100, $api, 'https://store1.com');
+    }
+
+    public function test_partial_variation_error_cannot_report_success(): void
+    {
+        $method = new \ReflectionMethod(WC_Multi_Store_Variation_Synchronizer::class, 'log_batch_partial_failures');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Invalid variation');
+        $method->invoke($this->synchronizer, ['update' => [
+            ['id' => 1], ['id' => 2, 'error' => ['code' => 'invalid', 'message' => 'Invalid variation']],
+        ]], 100);
+    }
+
 }

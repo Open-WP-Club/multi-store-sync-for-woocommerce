@@ -112,8 +112,8 @@ if (!defined('ABSPATH')) {
                             ?>
                             <span style="<?php echo esc_attr($status_class); ?>"><?php echo esc_html(ucfirst($status_label)); ?></span>
                             <?php if ($item['status'] === 'failed' && !empty($item['last_error'])): ?>
-                                <br><small style="color: #dc3232;" title="<?php echo esc_attr($item['last_error']); ?>">
-                                    <?php echo esc_html(substr($item['last_error'], 0, 50)); ?><?php echo strlen($item['last_error']) > 50 ? '...' : ''; ?>
+                                <br><small style="color: #dc3232; overflow-wrap: anywhere; white-space: pre-wrap;">
+                                    <?php echo esc_html($item['last_error']); ?>
                                 </small>
                             <?php endif; ?>
                         </td>

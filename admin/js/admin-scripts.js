@@ -2343,7 +2343,8 @@
                         .then(function (res) { return res.json(); })
                         .then(function (response) {
                             if (response.success) {
-                                $row.fadeOut(300, function () { $(this).remove(); });
+                                showNotice(response.data.message, 'success');
+                                loadConflicts();
                             } else {
                                 showNotice((response.data && response.data.message) || i18n.resolve_failed, 'error');
                                 $row.find('button').prop('disabled', false);

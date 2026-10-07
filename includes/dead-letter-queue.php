@@ -114,7 +114,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
                 $product_id,
                 $queue_item['product_sku'] ?? 'N/A',
                 $store_url,
-                mb_substr($queue_item['last_error'] ?? 'Unknown', 0, 200)
+                $queue_item['last_error'] ?? 'Unknown'
             ));
 
             // Fire action for email notifications
@@ -263,7 +263,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
             $item['store_url'],
             $item['sync_type'],
             WC_Multi_Store_Queue_Manager::PRIORITY_NORMAL,
-            'dlq_retry',
+            $item['sync_type'] === 'conflict_resolution' ? 'conflict_resolution_' . (int) ($extra_data['conflict_id'] ?? 0) : 'dlq_retry',
             null,
             $item['product_sku'],
             $extra_data
@@ -386,7 +386,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
                 ARRAY_A
             ) ?: [],
             'by_error' => $wpdb->get_results(
-                "SELECT LEFT(last_error, 100) as error_summary, COUNT(*) as count FROM {$table_name} WHERE status = 'dead' GROUP BY error_summary ORDER BY count DESC LIMIT 10",
+                "SELECT last_error as error_summary, COUNT(*) as count FROM {$table_name} WHERE status = 'dead' GROUP BY error_summary ORDER BY count DESC LIMIT 10",
                 ARRAY_A
             ) ?: [],
             'oldest_item' => $wpdb->get_var("SELECT MIN(failed_at) FROM {$table_name} WHERE status = 'dead'"),

@@ -73,12 +73,6 @@ parameters:
 			path: includes/cache-manager.php
 
 		-
-			message: '#^PHPDoc tag @return with type array\|null is not subtype of native type array\|false\.$#'
-			identifier: return.phpDocType
-			count: 1
-			path: includes/cache-manager.php
-
-		-
 			message: '#^Unreachable statement \- code above always terminates\.$#'
 			identifier: deadCode.unreachable
 			count: 4
@@ -529,18 +523,6 @@ parameters:
 			path: includes/sync-profiles.php
 
 		-
-			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: includes/variation-synchronizer.php
-
-		-
-			message: '#^Call to function is_array\(\) with array\<mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: includes/variation-synchronizer.php
-
-		-
 			message: '#^Parameter \#1 \$attachment_id of static method WC_Multi_Store_Image_Proxy\:\:get_image_data\(\) expects int, string given\.$#'
 			identifier: argument.type
 			count: 1
@@ -554,12 +536,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#2 \$variation of method WC_Multi_Store_Product_Transformer\:\:apply_variation_stock_rules\(\) expects WC_Product_Variation, WC_Product given\.$#'
-			identifier: argument.type
-			count: 1
-			path: includes/variation-synchronizer.php
-
-		-
-			message: '#^Parameter \#3 \$variations of static method WC_Multi_Store_Cache_Manager\:\:set_remote_variations\(\) expects array, null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: includes/variation-synchronizer.php

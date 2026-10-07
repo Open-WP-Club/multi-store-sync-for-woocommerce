@@ -507,4 +507,25 @@ class DeadLetterQueueTest extends WC_Multi_Store_TestCase
         $result = WC_Multi_Store_Dead_Letter_Queue::retry_all();
         $this->assertEquals(0, $result);
     }
+    public function test_retry_conflict_preserves_the_decision_and_its_queue_identity(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 123;
+        $extra = json_encode(['conflict_id' => 7, 'resolution' => 'merge']);
+        $wpdb->shouldReceive('prepare')->andReturn('SQL');
+        $wpdb->shouldReceive('get_row')->twice()->andReturn([
+            'id' => 9, 'product_id' => 42, 'product_sku' => 'SKU-42', 'store_url' => 'https://shop.example.com',
+            'sync_type' => 'conflict_resolution', 'extra_data' => $extra, 'original_queue_id' => 99,
+        ], null);
+        $wpdb->shouldReceive('get_var')->twice()->andReturn(1);
+        $wpdb->shouldReceive('insert')->once()->with('wp_wc_mss_queue', \Mockery::on(fn($data) =>
+            $data['source'] === 'conflict_resolution_7' && $data['sync_type'] === 'conflict_resolution' && $data['extra_data'] === $extra
+        ), \Mockery::any())->andReturn(1);
+        $wpdb->shouldReceive('update')->once()->andReturn(1);
+        $wpdb->shouldReceive('delete')->once()->andReturn(1);
+        $this->assertTrue(WC_Multi_Store_Dead_Letter_Queue::retry_item(9));
+    }
+
 }

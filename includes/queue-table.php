@@ -97,10 +97,15 @@ class WC_Multi_Store_Queue_Table {
 
         try {
 
+        // A conflict decision must never replace (or be replaced by) a normal sync.
+        $operation_filter = $sync_type === 'conflict_resolution'
+            ? $wpdb->prepare(" AND sync_type = 'conflict_resolution' AND source = %s", $source)
+            : " AND sync_type <> 'conflict_resolution'";
+
         // Check if already queued (pending or processing)
         // Include 'processing' to prevent duplicates when items are stuck processing
         $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT id, status FROM {$table_name} WHERE product_id = %d AND store_url = %s AND status IN ('pending', 'processing')",
+            "SELECT id, status FROM {$table_name} WHERE product_id = %d AND store_url = %s AND status IN ('pending', 'processing'){$operation_filter}",
             $product_id,
             $store_url
         ), ARRAY_A);
@@ -108,6 +113,10 @@ class WC_Multi_Store_Queue_Table {
         if ($existing) {
             $existing_id = $existing['id'];
             $existing_status = $existing['status'];
+
+            if ($sync_type === 'conflict_resolution') {
+                return (int) $existing_id;
+            }
 
             // If item is currently processing, insert a new queue item instead of
             // silently returning. This prevents data loss when a new operation

@@ -80,3 +80,15 @@ test('buildConflictsTable hides resolve actions for already-resolved conflicts',
     assert.match(html, /wc-mss-status-resolved/);
     assert.match(html, /Resolved \(overwrite\)/);
 });
+
+
+test('queued decisions stay visible without claiming success or offering duplicate actions', () => {
+    for (const status of ['pending', 'processing']) {
+        const html = buildConflictsTable([{id: 1, resolved: false, queue_status: status}], {...i18n, queued: 'Queued', processing: 'Processing'});
+        assert.match(html, status === 'pending' ? /Queued/ : /Processing/);
+        assert.doesNotMatch(html, /wc-mss-status-resolved|wc-mss-resolve-conflict-btn/);
+    }
+    const html = buildConflictsTable([{id: 1, resolved: false, queue_status: 'failed'}], {...i18n, failed: 'Failed'});
+    assert.match(html, /Failed/);
+    assert.match(html, /wc-mss-resolve-conflict-btn/);
+});

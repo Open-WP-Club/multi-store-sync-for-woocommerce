@@ -56,7 +56,7 @@ $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
             <table class="wc-mss-status-table">
                 <?php foreach (array_slice($dlq_stats['by_error'], 0, 5) as $error): ?>
                 <tr>
-                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc_attr($error['error_summary']); ?>">
+                    <td style="max-width: 300px; overflow-wrap: anywhere; white-space: pre-wrap;" title="<?php echo esc_attr($error['error_summary']); ?>">
                         <?php echo esc_html($error['error_summary']); ?>
                     </td>
                     <td><strong><?php echo esc_html($error['count']); ?></strong></td>
@@ -94,7 +94,7 @@ $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
                 <td><?php echo esc_html(wp_parse_url($item['store_url'], PHP_URL_HOST) ?: $item['store_url']); ?></td>
                 <td><?php echo esc_html($item['sync_type']); ?></td>
                 <td><?php echo esc_html($item['attempts']); ?></td>
-                <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc_attr($item['last_error']); ?>">
+                <td style="overflow-wrap: anywhere; white-space: pre-wrap;" title="<?php echo esc_attr($item['last_error']); ?>">
                     <?php echo esc_html($item['last_error'] ?: '-'); ?>
                 </td>
                 <td><?php echo esc_html($item['failed_at']); ?></td>

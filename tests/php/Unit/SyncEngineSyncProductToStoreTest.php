@@ -98,10 +98,10 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $wpdb->posts = 'wp_posts';
         $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql) => $sql);
         $wpdb->shouldReceive('insert')->andReturn(1);
-        $wpdb->shouldReceive('get_var')->andReturn(null);
+        $wpdb->shouldReceive('get_var')->andReturn(null)->byDefault();
         $wpdb->shouldReceive('get_results')->andReturn([]);
         $wpdb->shouldReceive('get_row')->andReturn(null);
-        $wpdb->shouldReceive('query')->andReturn(1);
+        $wpdb->shouldReceive('query')->andReturn(1)->byDefault();
         $wpdb->shouldReceive('update')->andReturn(1);
         $wpdb->insert_id = 1;
     }
@@ -1558,4 +1558,129 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $this->assertArrayNotHasKey('name', $sent_body, 'name must stay out of the payload when it already matches the remote — keeps lightweight syncs lightweight');
         $this->assertArrayNotHasKey('slug', $sent_body, 'slug must stay out of the payload when it already matches the remote — keeps lightweight syncs lightweight');
     }
+    public function test_conflict_overwrite_targets_recorded_id_and_sends_unchanged_local_fields(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        Functions\when('get_option')->alias(function ($key, $default = false) {
+            return match ($key) {
+                'wc_multi_store_sync_settings' => ['auth_method' => 'query_string'],
+                'wc_mss_conflict_settings' => ['enabled' => true, 'action_on_conflict' => 'block'],
+                default => $default,
+            };
+        });
+        $product = $this->mockFullProductProduct();
+        $remote = ['id' => 555, 'name' => 'Remote edit', 'description' => 'Remote description', 'sku' => 'RENAMED'];
+        Functions\when('get_post_meta')->justReturn(md5(serialize(['Full description', 'Short'])));
+        Functions\expect('wp_remote_get')->once()->with(\Mockery::on(fn($url) => str_contains($url, '/products/555?')), \Mockery::any())->andReturn(['response' => ['code' => 200], 'body' => json_encode($remote)]);
+        $sent = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent, $remote) {
+            $this->assertStringContainsString('/products/555?', $url);
+            $sent = json_decode($args['body'], true);
+            return ['response' => ['code' => 200], 'body' => json_encode(array_merge($remote, $sent))];
+        });
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($product, 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+            'resolution' => 'overwrite', 'remote_product_id' => 555,
+        ]);
+        $this->assertTrue($result['success']);
+        $this->assertSame('Full description', $sent['description']);
+        $this->assertSame('SKU-1', $sent['sku']);
+    }
+
+    public function test_conflict_merge_preserves_remote_fields_and_related_stock_and_price_fields(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        global $wpdb;
+        $remote = ['id' => 555, 'name' => 'Remote name', 'sku' => 'REMOTE-SKU', 'stock_quantity' => 12, 'stock_status' => 'instock', 'regular_price' => '35', 'sale_price' => '', 'categories' => [['id' => 22]]];
+        $snapshot = $remote;
+        $snapshot['weight'] = '1';
+        $remote['weight'] = '2'; // A remote edit made after this conflict was recorded.
+        $wpdb->shouldReceive('get_var')->andReturn(json_encode($snapshot));
+        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => json_encode($remote)]);
+        $sent = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent, $remote) {
+            $sent = json_decode($args['body'], true);
+            return ['response' => ['code' => 200], 'body' => json_encode(array_merge($remote, $sent))];
+        });
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockFullProductProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+            'resolution' => 'merge', 'remote_product_id' => 555, 'changed_fields' => ['name', 'sku', 'stock_quantity', 'regular_price', 'categories'],
+        ]);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        foreach (['name', 'sku', 'stock_quantity', 'stock_status', 'manage_stock', 'backorders', 'regular_price', 'sale_price', 'date_on_sale_from', 'date_on_sale_to', 'categories', 'weight'] as $field) {
+            $this->assertArrayNotHasKey($field, $sent);
+        }
+        $this->assertSame('Full description', $sent['description']);
+    }
+
+    public function test_keep_remote_fetches_live_data_and_never_writes_remote_product(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        Functions\expect('wp_remote_get')->once()->andReturn(['response' => ['code' => 200], 'body' => json_encode(['id' => 555, 'name' => 'Remote name'])]);
+        Functions\expect('wp_remote_request')->never();
+        Functions\expect('wp_remote_post')->never();
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+            'resolution' => 'keep_remote', 'remote_product_id' => 555,
+        ]);
+        $this->assertTrue($result['success']);
+        $this->assertSame('Conflict resolved: kept remote version', $result['message']);
+    }
+
+    public function test_conflict_read_failure_does_not_create_or_overwrite_any_product(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        Functions\expect('wp_remote_get')->andReturn(new WP_Error('not_found', 'Invalid ID'));
+        Functions\expect('wp_remote_request')->never();
+        Functions\expect('wp_remote_post')->never();
+        foreach (['overwrite', 'merge', 'keep_remote'] as $resolution) {
+            $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+                'resolution' => $resolution, 'remote_product_id' => 555,
+            ]);
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString('Invalid ID', $result['message']);
+        }
+    }
+
+    public function test_merge_without_baseline_does_not_write(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => '{"id":555}']);
+        Functions\expect('wp_remote_request')->never();
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+            'resolution' => 'merge', 'remote_product_id' => 555,
+        ]);
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Cannot merge', $result['message']);
+    }
+
+    public function test_custom_field_failure_fails_the_sync_instead_of_reporting_success(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        Functions\when('get_post_meta')->alias(fn($id, $key = '', $single = false) => $key === '' ? ['local_note' => ['hello']] : '');
+        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => '[{"id":555,"sku":"SKU-1"}]']);
+        Functions\when('wp_remote_request')->alias(function ($url, $args) {
+            $payload = json_decode($args['body'], true);
+            return isset($payload['meta_data'])
+                ? new WP_Error('rejected', 'Custom fields rejected')
+                : ['response' => ['code' => 200], 'body' => '{"id":555,"sku":"SKU-1"}'];
+        });
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', [
+            'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'custom_field_mapping' => ['local_note' => 'remote_note'],
+        ], 'price_quantity');
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Custom fields rejected', $result['message']);
+    }
+
+    public function test_keep_remote_does_not_report_success_when_baseline_write_fails(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        global $wpdb;
+        $wpdb->shouldReceive('query')->with(\Mockery::on(fn($sql) => str_contains($sql, 'wc_mss_conflict_hashes')))->once()->andReturn(false);
+        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => '{"id":555}']);
+        Functions\expect('wp_remote_request')->never();
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+            'resolution' => 'keep_remote', 'remote_product_id' => 555,
+        ]);
+        $this->assertFalse($result['success']);
+        $this->assertSame('Could not save accepted remote version', $result['message']);
+    }
+
 }

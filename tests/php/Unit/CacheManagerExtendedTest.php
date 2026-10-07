@@ -259,4 +259,25 @@ class CacheManagerExtendedTest extends WC_Multi_Store_TestCase
 
         $this->assertFalse($result);
     }
+    public function test_remote_variations_cache_rejects_invalid_values_and_preserves_arrays(): void
+    {
+        foreach ([null, false, true, '', 'corrupt', 123, new \stdClass(), [], [['id' => 10]]] as $cached) {
+            Functions\when('get_transient')->justReturn($cached);
+            $this->assertSame(
+                is_array($cached) ? $cached : false,
+                WC_Multi_Store_Cache_Manager::get_remote_variations('https://store.com', 999)
+            );
+        }
+    }
+
+    public function test_set_remote_variations_null_deletes_the_cache(): void
+    {
+        Functions\expect('set_transient')->never();
+        Functions\expect('delete_transient')->once()
+            ->with('wc_mss_cache_remote_variations_httpsstorecom_999')
+            ->andReturn(true);
+
+        $this->assertTrue(WC_Multi_Store_Cache_Manager::set_remote_variations('https://store.com', 999, null));
+    }
+
 }

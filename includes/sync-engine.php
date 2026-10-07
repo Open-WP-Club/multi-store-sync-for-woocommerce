@@ -419,7 +419,7 @@ class WC_Multi_Store_Sync_Engine {
      * @param string $sync_type Sync type
      * @return int Number of additional API calls made
      */
-    private function perform_post_sync_operations(WC_Product $product, int $remote_product_id, WC_Multi_Store_API_Client $api, string $store_url, array $store_config, string $sync_type): int {
+    private function perform_post_sync_operations(WC_Product $product, int $remote_product_id, WC_Multi_Store_API_Client $api, string $store_url, array $store_config, string $sync_type, array $preserved_fields = []): int {
         $api_calls = 0;
 
         // Sync variations if variable product. Light sync types (quantity/
@@ -444,7 +444,8 @@ class WC_Multi_Store_Sync_Engine {
             if ($custom_fields_result['success']) {
                 $this->logger->info($custom_fields_result['message'] . ' for product ' . $product->get_sku());
             } else {
-                $this->logger->warning('Custom fields sync failed: ' . $custom_fields_result['message']);
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught by the sync/queue handler, stored as text, escaped by the admin views.
+                throw new \RuntimeException('Custom fields sync failed: ' . $custom_fields_result['message']);
             }
 
             $api_calls++;
@@ -452,7 +453,7 @@ class WC_Multi_Store_Sync_Engine {
 
         // Schedule stock verification if enabled and stock was synced
         $webhook_settings = WC_Multi_Store_Settings::get_webhook_settings();
-        if (!empty($webhook_settings['auto_verify']) && in_array($sync_type, ['full_product', 'price_quantity', 'quantity'])) {
+        if (!array_intersect($preserved_fields, ['stock_quantity', 'stock_status']) && !empty($webhook_settings['auto_verify']) && in_array($sync_type, ['full_product', 'price_quantity', 'quantity'])) {
             // Only verify if product manages stock
             if ($product->managing_stock()) {
                 $expected_stock = $product->get_stock_quantity();
@@ -473,7 +474,7 @@ class WC_Multi_Store_Sync_Engine {
      * @param string $sync_source Source of sync (manual, scheduled, hook, etc.)
      * @return array Result array
      */
-    public function sync_product_to_store(WC_Product $product, string $store_url, array $store_config, string $sync_type, string $sync_source = 'manual'): array {
+    public function sync_product_to_store(WC_Product $product, string $store_url, array $store_config, string $sync_type, string $sync_source = 'manual', array $conflict_resolution = []): array {
         // Safety net: if a variation object reaches here, sync its parent instead.
         // Variations must be synced through the parent product's variation sync flow,
         // otherwise they would be created as standalone simple products on the remote store.
@@ -489,7 +490,7 @@ class WC_Multi_Store_Sync_Engine {
                     $parent->get_sku(),
                     $parent_id
                 ));
-                return $this->sync_product_to_store($parent, $store_url, $store_config, $sync_type, $sync_source);
+                return $this->sync_product_to_store($parent, $store_url, $store_config, $sync_type, $sync_source, $conflict_resolution);
             }
 
             $this->logger->warning(sprintf(
@@ -518,7 +519,7 @@ class WC_Multi_Store_Sync_Engine {
         $match_by = $settings['match_products_by'] ?? 'sku';
         $search_value = ($match_by === 'sku') ? $product->get_sku() : $product->get_slug();
 
-        if ($sync_type !== 'full_product' && !empty($search_value)) {
+        if (!$conflict_resolution && $sync_type !== 'full_product' && !empty($search_value)) {
             if (WC_Multi_Store_Cache_Manager::is_product_not_found($store_url, $search_value, $match_by)) {
                 // Check if auto-create missing products is enabled
                 $auto_create_missing = $settings['auto_create_missing_products'] ?? false;
@@ -557,8 +558,49 @@ class WC_Multi_Store_Sync_Engine {
             }
         }
 
-        // Find remote product
-        $remote_product = $this->find_remote_product($api, $product, $match_by, $store_url);
+        // Decisions target the recorded remote ID, never a stale cache or a new product.
+        $preserved_fields = [];
+        if ($conflict_resolution) {
+            $resolution = $conflict_resolution['resolution'] ?? '';
+            $remote_id = (int) ($conflict_resolution['remote_product_id'] ?? 0);
+            if (!in_array($resolution, ['overwrite', 'keep_remote', 'merge'], true) || $remote_id < 1) {
+                return ['success' => false, 'message' => 'Invalid conflict resolution target'];
+            }
+            $remote_product = $api->get_product($remote_id);
+            if (is_wp_error($remote_product)) {
+                return ['success' => false, 'message' => $remote_product->get_error_message()];
+            }
+            if ((int) ($remote_product['id'] ?? 0) !== $remote_id) {
+                return ['success' => false, 'message' => 'Remote conflict product was not returned'];
+            }
+            if ($resolution === 'keep_remote') {
+                if (!WC_Multi_Store_Conflict_Detector::store_hash($product->get_id(), $store_url, $remote_product)) {
+                    return ['success' => false, 'message' => 'Could not save accepted remote version'];
+                }
+                WC_Multi_Store_Cache_Manager::set_remote_product($store_url, $search_value, $match_by, $remote_product);
+                $message = 'Conflict resolved: kept remote version';
+                $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'success', $message, $remote_id, $start_time, $start_memory, 1);
+                return ['success' => true, 'remote_id' => $remote_id, 'message' => $message];
+            }
+            if ($resolution === 'merge') {
+                $preserved_fields = array_unique(array_merge(
+                    $conflict_resolution['changed_fields'] ?? [],
+                    WC_Multi_Store_Conflict_Detector::identify_changed_fields($remote_product, $product->get_id(), $store_url)
+                ));
+                if (in_array('unknown', $preserved_fields, true)) {
+                    return ['success' => false, 'message' => 'Cannot merge without a remote baseline; choose Overwrite or Keep Remote'];
+                }
+                // WooCommerce couples stock fields and sale prices/dates. Preserve each group together.
+                if (array_intersect($preserved_fields, ['stock_quantity', 'stock_status'])) {
+                    $preserved_fields = array_merge($preserved_fields, ['manage_stock', 'stock_quantity', 'stock_status', 'backorders']);
+                }
+                if (array_intersect($preserved_fields, ['regular_price', 'sale_price'])) {
+                    $preserved_fields = array_merge($preserved_fields, ['regular_price', 'sale_price', 'date_on_sale_from', 'date_on_sale_to', 'date_on_sale_from_gmt', 'date_on_sale_to_gmt']);
+                }
+            }
+        } else {
+            $remote_product = $this->find_remote_product($api, $product, $match_by, $store_url);
+        }
         $api_calls++;
 
         // Determine if this is an update or create
@@ -572,7 +614,7 @@ class WC_Multi_Store_Sync_Engine {
         // of reusing $remote_product above — only costs anything once a store
         // opts into the toggle, so not worth plumbing the already-fetched data
         // through for a feature that's off by default.
-        if ($is_update) {
+        if ($is_update && !$conflict_resolution) {
             $conflict_result = WC_Multi_Store_Conflict_Detector::check_for_conflicts($api, $remote_product['id'], $product->get_id(), $store_url);
 
             if ($conflict_result['has_conflict'] && WC_Multi_Store_Conflict_Detector::get_settings()['action_on_conflict'] === 'block') {
@@ -594,6 +636,9 @@ class WC_Multi_Store_Sync_Engine {
         // Build and apply rules to product data
         $product_data = $this->build_product_data($product, $sync_type);
         $product_data = $this->apply_store_rules($product_data, $product, $store_config);
+        foreach ($preserved_fields as $field) {
+            unset($product_data[$field]);
+        }
 
         // Upload downloadable files to the remote store's Media API when
         // configured for API transfer mode (replaces build_product_data()'s
@@ -618,7 +663,7 @@ class WC_Multi_Store_Sync_Engine {
 
         // Smart data handling: skip unchanged data on updates.
         // Force/manual syncs always send everything — no skipping.
-        if ($is_update && $sync_source !== 'manual_test' && in_array($sync_type, ['full_product', 'price_quantity_categories'], true)) {
+        if ($is_update && !$conflict_resolution && $sync_source !== 'manual_test' && in_array($sync_type, ['full_product', 'price_quantity_categories'], true)) {
             $skipped = [];
 
             // Skip description/short_description if unchanged (full_product only).
@@ -843,8 +888,10 @@ class WC_Multi_Store_Sync_Engine {
             // Advance the conflict-detector baseline to what we just pushed, so a
             // future check_for_conflicts() compares against our own last write
             // instead of re-flagging the same already-handled discrepancy forever.
-            if (!empty($operation_result['result']) && !empty(WC_Multi_Store_Conflict_Detector::get_settings()['enabled'])) {
-                WC_Multi_Store_Conflict_Detector::store_hash($product->get_id(), $store_url, $operation_result['result']);
+            if (!empty($operation_result['result']) && ($conflict_resolution || !empty(WC_Multi_Store_Conflict_Detector::get_settings()['enabled']))) {
+                if (!WC_Multi_Store_Conflict_Detector::store_hash($product->get_id(), $store_url, $operation_result['result']) && $conflict_resolution) {
+                    throw new \RuntimeException('Could not save conflict baseline');
+                }
             }
 
             // Persist the stable local↔remote ID mapping so a later SKU/slug
@@ -854,7 +901,7 @@ class WC_Multi_Store_Sync_Engine {
             WC_Multi_Store_Remote_Product_Manager::save_remote_product_id($product->get_id(), $store_url, $remote_product_id);
 
             // Perform post-sync operations (variations, custom fields, stock verification)
-            $additional_api_calls = $this->perform_post_sync_operations($product, $remote_product_id, $api, $store_url, $store_config, $sync_type);
+            $additional_api_calls = $this->perform_post_sync_operations($product, $remote_product_id, $api, $store_url, $store_config, $sync_type, $preserved_fields);
             $api_calls += $additional_api_calls;
 
             // Save sync hashes for smart comparison on next sync
@@ -884,6 +931,8 @@ class WC_Multi_Store_Sync_Engine {
             $wpdb->query('COMMIT');
         } catch (\Throwable $e) {
             $wpdb->query('ROLLBACK');
+            // Remote batches cannot roll back; discard any pre-batch cache restored by ROLLBACK.
+            WC_Multi_Store_Cache_Manager::set_remote_variations($store_url, $remote_product_id, null);
             $tx_message = 'Post-sync transaction failed: ' . $e->getMessage();
             $this->logger->error($tx_message . ' for product ' . $product->get_sku());
             $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'error', $tx_message, $remote_product_id, $start_time, $start_memory, $api_calls);
