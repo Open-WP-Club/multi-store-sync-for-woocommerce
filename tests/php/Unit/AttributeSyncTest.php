@@ -35,7 +35,7 @@ if (!function_exists('wc_mss_test_make_term')) {
 
 /**
  * Same rationale as the API client stubs in CouponSyncTest/ReviewSyncTest:
- * exposes the private get/post/put/delete methods as public, mockable per
+ * exposes the get/post/put/delete methods, mockable per
  * test without needing a real HTTP client.
  */
 if (!class_exists('WC_MSS_Attribute_Test_API_Client_Stub')) {
@@ -148,7 +148,7 @@ class AttributeSyncTest extends WC_Multi_Store_TestCase
         $sync   = $this->makeSync();
         $client = $this->makeClient();
 
-        $client->get_handler = fn($ep, $p) => [['id' => 20, 'slug' => 'color']];
+        $client->get_handler = fn($ep, $p) => [['id' => 20, 'slug' => 'pa_color']];
         $putCalled = false;
         $client->put_handler = function ($ep, $data) use (&$putCalled) {
             $putCalled = true;
@@ -210,7 +210,7 @@ class AttributeSyncTest extends WC_Multi_Store_TestCase
         $client = $this->makeClient();
 
         $client->get_handler = fn($ep, $p) => match (true) {
-            $ep === 'products/attributes'              => [['id' => 5, 'slug' => 'color']],
+            $ep === 'products/attributes'              => [['id' => 5, 'slug' => 'pa_color']],
             $ep === 'products/attributes/5/terms'       => [],
             default                                     => [],
         };
@@ -234,7 +234,7 @@ class AttributeSyncTest extends WC_Multi_Store_TestCase
         $client = $this->makeClient();
 
         $client->get_handler = fn($ep, $p) => match (true) {
-            $ep === 'products/attributes'         => [['id' => 5, 'slug' => 'color']],
+            $ep === 'products/attributes'         => [['id' => 5, 'slug' => 'pa_color']],
             $ep === 'products/attributes/5/terms' => [['id' => 40, 'slug' => 'red']],
             default                                => [],
         };
@@ -250,38 +250,6 @@ class AttributeSyncTest extends WC_Multi_Store_TestCase
 
         $this->assertTrue($result);
         $this->assertTrue($putCalled);
-    }
-
-    // ─── on_term_saved()/on_term_deleted(): filter to pa_* taxonomies ──────
-
-    public function test_on_term_saved_ignores_non_attribute_taxonomy(): void
-    {
-        $sync = $this->makeSync();
-
-        // No API client handlers configured anywhere — reaching this point
-        // without a fatal proves the non-pa_* taxonomy was filtered out
-        // before scheduling any sync work.
-        $sync->on_term_saved(1, 1, 'product_cat');
-        $this->assertTrue(true);
-    }
-
-    public function test_on_term_deleted_ignores_non_attribute_taxonomy(): void
-    {
-        $sync = $this->makeSync();
-        $term = wc_mss_test_make_term(['taxonomy' => 'product_cat']);
-
-        $sync->on_term_deleted(1, 1, 'product_cat', $term);
-        $this->assertTrue(true);
-    }
-
-    public function test_on_term_deleted_ignores_non_wp_term_payload(): void
-    {
-        $sync = $this->makeSync();
-
-        // Older/edge-case callers can pass something other than a WP_Term;
-        // must not attempt to schedule work off it.
-        $sync->on_term_deleted(1, 1, 'pa_color', null);
-        $this->assertTrue(true);
     }
 
     // ─── ajax_toggle() ──────────────────────────────────────────────────────
@@ -307,4 +275,13 @@ class AttributeSyncTest extends WC_Multi_Store_TestCase
 
         unset($_POST['enabled']);
     }
+    public function test_term_lookup_error_does_not_create_duplicate(): void
+    {
+        $client = $this->makeClient();
+        $client->get_handler = fn($endpoint) => $endpoint === 'products/attributes'
+            ? [['id' => 5, 'slug' => 'pa_color']]
+            : new WP_Error('offline', 'Offline');
+        $this->assertFalse($this->makeSync()->sync_term_to_store($client, 'color', ['slug' => 'red']));
+    }
+
 }

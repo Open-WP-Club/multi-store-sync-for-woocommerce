@@ -862,4 +862,18 @@ class ApiClientTest extends WC_Multi_Store_TestCase
         $result = $api_client->test_connection();
         $this->assertTrue($result);
     }
+    public function test_generic_methods_are_callable_by_sync_modules(): void
+    {
+        $client = new WC_Multi_Store_API_Client($this->store_url, $this->consumer_key, $this->consumer_secret);
+        $response = ['response' => ['code' => 200], 'body' => '{"id":42}'];
+        Functions\expect('wp_remote_get')->once()->andReturn($response);
+        Functions\expect('wp_remote_post')->once()->andReturn($response);
+        Functions\expect('wp_remote_request')->twice()->andReturn($response);
+
+        $this->assertSame(['id' => 42], $client->get('coupons', ['code' => 'TEST10']));
+        $this->assertSame(['id' => 42], $client->post('coupons', ['code' => 'TEST10']));
+        $this->assertSame(['id' => 42], $client->put('coupons/42', ['amount' => '10']));
+        $this->assertSame(['id' => 42], $client->delete('coupons/42', ['force' => true]));
+    }
+
 }

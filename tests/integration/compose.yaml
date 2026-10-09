@@ -1,0 +1,40 @@
+x-wordpress: &wordpress
+  image: wordpress:php8.5-apache
+  depends_on:
+    db:
+      condition: service_healthy
+  volumes:
+    - ${WC_MSS_REPO_ROOT:?}:/var/www/html/wp-content/plugins/multi-store-sync-for-woocommerce:ro
+  environment: &wp-environment
+    WORDPRESS_DB_HOST: db
+    WORDPRESS_DB_USER: root
+    WORDPRESS_DB_PASSWORD: integration-only
+    WORDPRESS_CONFIG_EXTRA: |
+      define('DISABLE_WP_CRON', true);
+      define('WP_ENVIRONMENT_TYPE', 'local');
+      // Simulate TLS termination for REST Basic Auth on the private test network.
+      $$_SERVER['HTTPS'] = 'on';
+
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: integration-only
+      MARIADB_ROOT_HOST: '%'
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  source:
+    <<: *wordpress
+    environment:
+      <<: *wp-environment
+      WORDPRESS_DB_NAME: source
+  target:
+    <<: *wordpress
+    environment:
+      <<: *wp-environment
+      WORDPRESS_DB_NAME: target

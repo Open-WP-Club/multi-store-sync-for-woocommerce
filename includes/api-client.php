@@ -386,7 +386,7 @@ class WC_Multi_Store_API_Client {
      * @param array $params Query parameters
      * @return array|WP_Error Response array or WP_Error
      */
-    private function get(string $endpoint, array $params = []): array|\WP_Error {
+    public function get(string $endpoint, array $params = []): array|\WP_Error {
         $this->enforce_rate_limit();
         $start_time = microtime(true);
 
@@ -421,7 +421,7 @@ class WC_Multi_Store_API_Client {
      * @param array $data Request body data
      * @return array|WP_Error Response array or WP_Error
      */
-    private function post(string $endpoint, array $data = []): array|\WP_Error {
+    public function post(string $endpoint, array $data = []): array|\WP_Error {
         $this->enforce_rate_limit();
         $start_time = microtime(true);
         $body = json_encode($data);
@@ -454,7 +454,7 @@ class WC_Multi_Store_API_Client {
      * @param array $data Request body data
      * @return array|WP_Error Response array or WP_Error
      */
-    private function put(string $endpoint, array $data = []): array|\WP_Error {
+    public function put(string $endpoint, array $data = []): array|\WP_Error {
         $this->enforce_rate_limit();
         $start_time = microtime(true);
         $body = json_encode($data);
@@ -488,7 +488,7 @@ class WC_Multi_Store_API_Client {
      * @param array $params Query parameters
      * @return array|WP_Error Response array or WP_Error
      */
-    private function delete(string $endpoint, array $params = []): array|\WP_Error {
+    public function delete(string $endpoint, array $params = []): array|\WP_Error {
         $this->enforce_rate_limit();
         $start_time = microtime(true);
 

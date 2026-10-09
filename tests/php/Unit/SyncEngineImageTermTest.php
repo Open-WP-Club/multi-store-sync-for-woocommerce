@@ -81,77 +81,9 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
         Functions\when('get_the_terms')->justReturn([]);
     }
 
-    // ── is_image_download_error ───────────────────────────────────
-
-    public function test_is_image_download_error_detects_403_with_image_url(): void
-    {
-        $engine = new WC_Multi_Store_Sync_Engine();
-        $method = new \ReflectionMethod($engine, 'is_image_download_error');
-
-        $this->assertTrue(
-            $method->invoke($engine, 'Forbidden: https://cdn.example.com/wp-content/uploads/image.jpg')
-        );
-    }
-
-    public function test_is_image_download_error_detects_403_status_code(): void
-    {
-        $engine = new WC_Multi_Store_Sync_Engine();
-        $method = new \ReflectionMethod($engine, 'is_image_download_error');
-
-        $this->assertTrue(
-            $method->invoke($engine, '403 error downloading https://example.com/wp-content/uploads/photo.png')
-        );
-    }
-
-    public function test_is_image_download_error_detects_406_cdn_block(): void
-    {
-        $engine = new WC_Multi_Store_Sync_Engine();
-        $method = new \ReflectionMethod($engine, 'is_image_download_error');
-
-        $this->assertTrue(
-            $method->invoke($engine, 'Not Acceptable: https://example.com/image/product.webp')
-        );
-    }
-
-    public function test_is_image_download_error_ignores_non_image_urls(): void
-    {
-        $engine = new WC_Multi_Store_Sync_Engine();
-        $method = new \ReflectionMethod($engine, 'is_image_download_error');
-
-        // 403 error but not an image URL
-        $this->assertFalse(
-            $method->invoke($engine, 'Forbidden: https://example.com/api/products')
-        );
-    }
-
-    public function test_is_image_download_error_ignores_non_error_image_urls(): void
-    {
-        $engine = new WC_Multi_Store_Sync_Engine();
-        $method = new \ReflectionMethod($engine, 'is_image_download_error');
-
-        // Image URL but no error pattern
-        $this->assertFalse(
-            $method->invoke($engine, 'Downloaded https://example.com/wp-content/uploads/photo.jpg successfully')
-        );
-    }
-
-    public function test_is_image_download_error_detects_various_extensions(): void
-    {
-        $engine = new WC_Multi_Store_Sync_Engine();
-        $method = new \ReflectionMethod($engine, 'is_image_download_error');
-
-        $extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'];
-        foreach ($extensions as $ext) {
-            $this->assertTrue(
-                $method->invoke($engine, "403 error at https://example.com/photo.{$ext}"),
-                "Failed for extension: {$ext}"
-            );
-        }
-    }
-
     // ── upload_images_via_api ──────────────────────────────────────
 
-    public function test_upload_images_skips_on_upload_error(): void
+    public function test_upload_images_fails_on_upload_error(): void
     {
         $engine = new WC_Multi_Store_Sync_Engine();
         $method = new \ReflectionMethod($engine, 'upload_images_via_api');
@@ -177,8 +109,8 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
         $result = $method->invoke($engine, $api, $product, $images);
         @unlink($tmpFile);
 
-        // Upload error → image is skipped entirely (no fallback to src to avoid orphaned remote media)
-        $this->assertCount(0, $result);
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('image_upload_failed', $result->get_error_code());
     }
 
     public function test_upload_images_returns_remote_id_on_success(): void
@@ -209,7 +141,7 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
         $this->assertEquals(0, $result[0]['position']);
     }
 
-    public function test_upload_images_skips_when_image_data_null(): void
+    public function test_upload_images_fails_when_image_data_null(): void
     {
         $engine = new WC_Multi_Store_Sync_Engine();
         $method = new \ReflectionMethod($engine, 'upload_images_via_api');
@@ -229,11 +161,11 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
 
         $result = $method->invoke($engine, $api, $product, $images);
 
-        // Null image data → image is skipped entirely (no fallback to src)
-        $this->assertCount(0, $result);
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('image_read_failed', $result->get_error_code());
     }
 
-    public function test_upload_images_skips_zero_attachment_id(): void
+    public function test_upload_images_fails_on_zero_attachment_id(): void
     {
         $engine = new WC_Multi_Store_Sync_Engine();
         $method = new \ReflectionMethod($engine, 'upload_images_via_api');
@@ -249,11 +181,11 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
 
         $result = $method->invoke($engine, $api, $product, $images);
 
-        // No attachment ID → image is skipped entirely (no fallback to src)
-        $this->assertCount(0, $result);
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('image_read_failed', $result->get_error_code());
     }
 
-    public function test_upload_images_handles_mixed_success_and_failure(): void
+    public function test_upload_images_rejects_partial_success(): void
     {
         $engine = new WC_Multi_Store_Sync_Engine();
         $method = new \ReflectionMethod($engine, 'upload_images_via_api');
@@ -283,11 +215,9 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
         $result = $method->invoke($engine, $api, $product, $images);
         @unlink($tmpFile);
 
-        $this->assertCount(1, $result);
-        // First image uploaded successfully → has 'id'
-        $this->assertArrayHasKey('id', $result[0]);
-        $this->assertEquals(100, $result[0]['id']);
-        // Second image failed → skipped entirely (no fallback to src)
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('image_upload_failed', $result->get_error_code());
+        $this->assertStringContainsString('Image 20 upload failed', $result->get_error_message());
     }
 
     // ── Term pagination (fetch_all_terms) ─────────────────────────

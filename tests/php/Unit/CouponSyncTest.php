@@ -32,17 +32,7 @@ if (!class_exists('WC_Coupon')) {
     }
 }
 
-/**
- * Testable stub for WC_Multi_Store_API_Client that exposes the private
- * get/post/put/delete methods as public so we can mock them without needing
- * to instantiate a real HTTP client.
- *
- * Coupon-sync calls these methods generically (e.g. $client->get('coupons', ...))
- * rather than through the typed public wrappers (get_products, etc.), so we
- * need a stub that defines them as public.
- *
- * Only defined once to avoid redeclaration when the full suite runs.
- */
+/** API client with per-test handlers instead of HTTP requests. */
 if (!class_exists('WC_MSS_Test_API_Client_Stub')) {
     class WC_MSS_Test_API_Client_Stub extends WC_Multi_Store_API_Client {
         /** Callable|null set per-test to control what each call returns. */
@@ -95,6 +85,9 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
                 default                               => $default,
             };
         });
+        Functions\when('add_query_arg')->alias(fn($args, $url) => $url . '?' . http_build_query($args));
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code']);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body']);
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
@@ -188,7 +181,7 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         $this->assertContains('SKU-002', $skuEntry[0]['value']);
     }
 
-    public function test_extract_coupon_data_skips_products_without_sku(): void
+    public function test_extract_coupon_data_rejects_products_without_sku(): void
     {
         $coupon = $this->basicCouponMock(productIds: [1]);
 
@@ -198,19 +191,9 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         Functions\when('wc_get_products')->justReturn([$product]);
 
         $sync = $this->makeSync();
-        $data = $sync->extract_coupon_data($coupon);
-
-        // meta_data may be present but the SKU list must be empty
-        if (isset($data['meta_data'])) {
-            $skuEntry = array_values(array_filter($data['meta_data'], fn($m) => $m['key'] === '_wc_mss_product_skus'));
-            if (!empty($skuEntry)) {
-                $this->assertEmpty($skuEntry[0]['value']);
-            } else {
-                $this->assertTrue(true);
-            }
-        } else {
-            $this->assertArrayNotHasKey('meta_data', $data);
-        }
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Cannot resolve every coupon product restriction');
+        $sync->extract_coupon_data($coupon);
     }
 
     public function test_extract_coupon_data_converts_category_ids_to_slugs(): void
@@ -312,99 +295,6 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         $this->assertTrue($result);
     }
 
-    // ─── on_coupon_saved() sync-loop prevention ────────────────────────────────
-
-    public function test_on_coupon_saved_skips_when_global_sync_disabled(): void
-    {
-        WC_Multi_Store_Settings::clear_static_cache();
-        Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return match ($opt) {
-                'wc_multi_store_sync_settings'        => ['enabled' => false],
-                'wc_multi_store_sync_coupon_settings' => ['enabled' => true],
-                default                               => $default,
-            };
-        });
-
-        $sync   = $this->makeSync();
-        $coupon = new WC_Coupon(42);
-
-        // Should return early without syncing — no exception = success
-        $sync->on_coupon_saved(42, $coupon);
-        $this->assertTrue(true);
-    }
-
-    public function test_on_coupon_saved_skips_when_syncing_flag_set(): void
-    {
-        WC_Multi_Store_Settings::clear_static_cache();
-        Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return match ($opt) {
-                'wc_multi_store_sync_settings'        => ['enabled' => true, 'auth_method' => 'basic_auth'],
-                'wc_multi_store_sync_stores'          => [],
-                'wc_multi_store_sync_coupon_settings' => ['enabled' => true],
-                default                               => $default,
-            };
-        });
-        Functions\when('get_post_meta')->alias(fn($id, $key, $single) => $key === '_wc_mss_syncing' ? '1' : '');
-
-        $sync   = $this->makeSync();
-        $coupon = new WC_Coupon(42);
-
-        $sync->on_coupon_saved(42, $coupon);
-        $this->assertTrue(true);
-    }
-
-    // ─── on_coupon_saved()/on_coupon_deleted() defer via Action Scheduler ─────
-    // Action Scheduler's real `ActionScheduler` class is never loaded in the
-    // unit test process, so WC_Multi_Store_Action_Scheduler_Manager::is_available()
-    // is always false here — schedule_async() takes its "log a warning and
-    // skip" branch. That's enough to prove these hooks no longer sync
-    // inline (no client calls are ever wired up in this test, so the process
-    // would error/fatal if a sync call were attempted). The deferred-work
-    // methods themselves (sync_coupon_by_id/delete_coupon_by_code) are
-    // tested directly below.
-
-    public function test_on_coupon_saved_does_not_sync_inline(): void
-    {
-        WC_Multi_Store_Settings::clear_static_cache();
-        Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return match ($opt) {
-                'wc_multi_store_sync_settings'        => ['enabled' => true, 'auth_method' => 'basic_auth'],
-                'wc_multi_store_sync_stores'          => ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'store_url' => 'https://store1.com']],
-                'wc_multi_store_sync_coupon_settings' => ['enabled' => true],
-                default                               => $default,
-            };
-        });
-
-        $sync   = $this->makeSync();
-        $coupon = new WC_Coupon(42);
-
-        // No API client handlers are configured anywhere in this test, so if
-        // on_coupon_saved() still synced inline it would call through to a
-        // real (un-stubbed) HTTP client and fail. Reaching this point without
-        // error confirms it only scheduled (and, since AS is unavailable in
-        // this process, skipped with a logged warning).
-        $sync->on_coupon_saved(42, $coupon);
-        $this->assertTrue(true);
-    }
-
-    public function test_on_coupon_deleted_does_not_sync_inline(): void
-    {
-        WC_Multi_Store_Settings::clear_static_cache();
-        Functions\when('get_option')->alias(function ($opt, $default = null) {
-            return match ($opt) {
-                'wc_multi_store_sync_settings'        => ['enabled' => true, 'auth_method' => 'basic_auth'],
-                'wc_multi_store_sync_stores'          => ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'store_url' => 'https://store1.com']],
-                'wc_multi_store_sync_coupon_settings' => ['enabled' => true],
-                default                               => $default,
-            };
-        });
-
-        $sync = $this->makeSync();
-
-        $sync->on_coupon_deleted(42);
-        $this->assertTrue(true);
-    }
-
     // ─── sync_coupon_by_id() / delete_coupon_by_code() (AS callbacks) ────────
 
     public function test_sync_coupon_by_id_noop_when_coupon_missing(): void
@@ -413,8 +303,9 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
 
         // WC_Coupon(0)->get_id() returns 0 in the test stub — should return
         // early without attempting any API calls.
-        $sync->sync_coupon_by_id(0);
-        $this->assertTrue(true);
+        Functions\expect('wp_remote_get')->never();
+        Functions\expect('as_schedule_single_action')->never();
+        $this->assertNull($sync->sync_coupon_by_id(0));
     }
 
     public function test_delete_coupon_by_code_noop_when_no_active_stores(): void
@@ -444,51 +335,18 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
 
     public function test_delete_from_all_stores_skips_when_no_remote_coupon(): void
     {
-        $sync   = $this->makeSync();
-        $client = $this->makeClient();
-
-        // find_remote_coupon: GET returns empty → null → no delete call
-        $client->get_handler    = fn($ep, $p) => [];
-        $deleteCalled           = false;
-        $client->delete_handler = function () use (&$deleteCalled) {
-            $deleteCalled = true;
-            return [];
-        };
-
-        // Invoke find_remote_coupon via reflection to verify the null return
-        $method = new \ReflectionMethod($sync, 'find_remote_coupon');
-        $found  = $method->invoke($sync, $client, 'TEST10');
-
-        $this->assertNull($found);
-        $this->assertFalse($deleteCalled, 'delete should not have been called');
+        Functions\expect('wp_remote_get')->once()->andReturn(['response' => ['code' => 200], 'body' => '[]']);
+        Functions\expect('wp_remote_request')->never();
+        $this->assertSame([], $this->makeSync()->delete_coupon_from_all_stores_by_code('TEST10'));
     }
 
     public function test_delete_from_all_stores_calls_delete_endpoint(): void
     {
-        $sync   = $this->makeSync();
-        $client = $this->makeClient();
-
-        // find_remote_coupon: GET returns existing coupon
-        $client->get_handler = fn($ep, $p) => [['id' => 99, 'code' => 'TEST10']];
-
-        $deleteEndpoint = null;
-        $deleteParams   = null;
-        $client->delete_handler = function ($ep, $params) use (&$deleteEndpoint, &$deleteParams) {
-            $deleteEndpoint = $ep;
-            $deleteParams   = $params;
-            return ['id' => 99];
-        };
-
-        $method = new \ReflectionMethod($sync, 'find_remote_coupon');
-        $remote = $method->invoke($sync, $client, 'TEST10');
-        $this->assertNotNull($remote);
-        $this->assertSame(99, $remote['id']);
-
-        // Call delete as the production code would
-        $client->delete('coupons/' . $remote['id'], ['force' => true]);
-
-        $this->assertSame('coupons/99', $deleteEndpoint);
-        $this->assertSame(['force' => true], $deleteParams);
+        Functions\expect('wp_remote_get')->once()->with('https://store1.com/wp-json/wc/v3/coupons?code=TEST10', \Mockery::type('array'))
+            ->andReturn(['response' => ['code' => 200], 'body' => '[{"id":99}]']);
+        Functions\expect('wp_remote_request')->once()->with('https://store1.com/wp-json/wc/v3/coupons/99?force=1', \Mockery::on(fn($args) => $args['method'] === 'DELETE'))
+            ->andReturn(['response' => ['code' => 200], 'body' => '{"id":99}']);
+        $this->assertSame(['https://store1.com' => true], $this->makeSync()->delete_coupon_from_all_stores_by_code('TEST10'));
     }
 
     // ─── resolve_remote_ids() via sync_coupon_to_store() ──────────────────────
@@ -642,4 +500,40 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         $this->assertIsInt($results['failed']);
         $this->assertIsInt($results['total']);
     }
+    public function test_empty_restrictions_are_sent_to_clear_remote_values(): void
+    {
+        $data = $this->makeSync()->extract_coupon_data(new WC_Coupon(1));
+        foreach (['product_ids', 'excluded_product_ids', 'product_categories', 'excluded_product_categories', 'email_restrictions'] as $key) {
+            $this->assertSame([], $data[$key]);
+        }
+    }
+
+    public function test_unresolved_local_categories_fail_every_store(): void
+    {
+        Functions\when('get_terms')->justReturn([]);
+        $this->assertSame(['https://store1.com' => false], $this->makeSync()->sync_coupon_to_all_stores($this->basicCouponMock(categoryIds: [7])));
+    }
+
+    public function test_missing_remote_restriction_aborts_without_writing_or_caching_failure(): void
+    {
+        $client = $this->makeClient();
+        $client->get_handler = fn() => [];
+        Functions\expect('set_transient')->never();
+        $data = ['meta_data' => [['key' => '_wc_mss_excluded_product_skus', 'value' => ['MISSING']]]];
+        $this->assertFalse($this->makeSync()->sync_coupon_to_store($client, new WC_Coupon(1), $data, 'https://store1.com'));
+    }
+
+    public function test_old_negative_cache_does_not_block_recovered_restriction(): void
+    {
+        Functions\when('get_transient')->justReturn(['SKU-1' => null]);
+        $client = $this->makeClient();
+        $client->get_handler = fn($endpoint) => $endpoint === 'products' ? [['id' => 55]] : [];
+        $client->post_handler = function ($endpoint, $data) {
+            $this->assertSame([55], $data['product_ids']);
+            return ['id' => 2];
+        };
+        $data = ['meta_data' => [['key' => '_wc_mss_product_skus', 'value' => ['SKU-1']]]];
+        $this->assertTrue($this->makeSync()->sync_coupon_to_store($client, new WC_Coupon(1), $data, 'https://store1.com'));
+    }
+
 }

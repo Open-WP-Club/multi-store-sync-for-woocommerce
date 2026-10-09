@@ -31,6 +31,10 @@ class WC_Multi_Store_Review_Sync {
     const SYNCED_MARKER_META = '_wc_mss_review_synced';
 
     public function __construct() {
+        // Keep queued callbacks registered so disabled features can exit cleanly.
+        add_action(self::ASYNC_SYNC_HOOK, $this->sync_review_by_id(...), 10, 3);
+        add_action(self::ASYNC_DELETE_HOOK, $this->delete_review_by_data(...), 10, 4);
+
         // Registered unconditionally (not gated by the enabled setting
         // below): this store may be a sync target for another store even
         // if outbound review sync is off here, so it must still be able to
@@ -47,12 +51,6 @@ class WC_Multi_Store_Review_Sync {
         add_action('edit_comment', $this->on_review_changed(...), 10, 1);
         add_action('transition_comment_status', $this->on_review_status_changed(...), 10, 3);
         add_action('delete_comment', $this->on_review_deleted(...), 10, 1);
-
-        // Action Scheduler callbacks, matching the coupon-sync convention of
-        // deferring the actual remote-store fan-out out of the request that
-        // triggered it.
-        add_action(self::ASYNC_SYNC_HOOK, $this->sync_review_by_id(...), 10, 1);
-        add_action(self::ASYNC_DELETE_HOOK, $this->delete_review_by_data(...), 10, 2);
     }
 
     /**
@@ -157,7 +155,10 @@ class WC_Multi_Store_Review_Sync {
      * Action Scheduler callback for on_review_posted()/on_review_changed()/
      * on_review_status_changed().
      */
-    public function sync_review_by_id(int $comment_id): void {
+    public function sync_review_by_id(int $comment_id, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_settings()['enabled'])) {
+            return;
+        }
         // Loop guard: skip reviews that arrived here via sync (see
         // register_synced_field()). Checked here, at execution time, rather
         // than when the hook first fired — the marker meta is only set by
@@ -172,7 +173,7 @@ class WC_Multi_Store_Review_Sync {
             return;
         }
 
-        $this->sync_review_to_all_stores($comment);
+        $this->finish_async($this->sync_review_to_all_stores($comment, $store_urls), self::ASYNC_SYNC_HOOK, [$comment_id], $attempt);
     }
 
     /**
@@ -194,7 +195,7 @@ class WC_Multi_Store_Review_Sync {
     /**
      * Sync a review to all active remote stores
      */
-    public function sync_review_to_all_stores(\WP_Comment $comment): array {
+    public function sync_review_to_all_stores(\WP_Comment $comment, ?array $store_urls = null): array {
         $product = wc_get_product((int) $comment->comment_post_ID);
         if (!$product || !$product->get_sku()) {
             return [];
@@ -202,7 +203,7 @@ class WC_Multi_Store_Review_Sync {
 
         $sku = $product->get_sku();
         $data = $this->extract_review_data($comment);
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+        $stores = self::get_sync_stores($store_urls);
         $results = [];
 
         foreach ($stores as $store) {
@@ -218,7 +219,7 @@ class WC_Multi_Store_Review_Sync {
      */
     public function sync_review_to_store(WC_Multi_Store_API_Client $client, string $sku, array $data, string $store_url): bool {
         $remote_product_id = $this->resolve_remote_product_id($client, $sku, $store_url);
-        if (!$remote_product_id) {
+        if (is_wp_error($remote_product_id) || !$remote_product_id) {
             WC_Multi_Store_Logger::write(sprintf(
                 'Skipped review sync to %s: product SKU "%s" not found remotely',
                 $store_url,
@@ -230,6 +231,10 @@ class WC_Multi_Store_Review_Sync {
         $data['product_id'] = $remote_product_id;
 
         $existing = $this->find_remote_review($client, $remote_product_id, $data['reviewer_email']);
+        if (is_wp_error($existing)) {
+            WC_Multi_Store_Logger::write($existing->get_error_message(), 'error');
+            return false;
+        }
         $response = $existing
             ? $client->put('products/reviews/' . $existing['id'], $data)
             : $client->post('products/reviews', $data);
@@ -252,25 +257,36 @@ class WC_Multi_Store_Review_Sync {
      * around delete_review_from_all_stores() — Action Scheduler hook
      * callbacks must return void.
      */
-    public function delete_review_by_data(string $sku, string $reviewer_email): void {
-        $this->delete_review_from_all_stores($sku, $reviewer_email);
+    public function delete_review_by_data(string $sku, string $reviewer_email, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_settings()['enabled'])) {
+            return;
+        }
+        $this->finish_async($this->delete_review_from_all_stores($sku, $reviewer_email, $store_urls), self::ASYNC_DELETE_HOOK, [$sku, $reviewer_email], $attempt);
     }
 
     /**
      * Delete a review from all remote stores by SKU + reviewer email.
      */
-    public function delete_review_from_all_stores(string $sku, string $reviewer_email): array {
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+    public function delete_review_from_all_stores(string $sku, string $reviewer_email, ?array $store_urls = null): array {
+        $stores = self::get_sync_stores($store_urls);
         $results = [];
 
         foreach ($stores as $store) {
             $client = self::get_api_client($store);
             $remote_product_id = $this->resolve_remote_product_id($client, $sku, $store['store_url']);
+            if (is_wp_error($remote_product_id)) {
+                $results[$store['store_url']] = false;
+                continue;
+            }
             if (!$remote_product_id) {
                 continue;
             }
 
             $existing = $this->find_remote_review($client, $remote_product_id, $reviewer_email);
+            if (is_wp_error($existing)) {
+                $results[$store['store_url']] = false;
+                continue;
+            }
             if (!$existing) {
                 continue;
             }
@@ -289,18 +305,19 @@ class WC_Multi_Store_Review_Sync {
      * WC_Multi_Store_Coupon_Sync::find_remote_coupon() (coupons have no
      * per-store ID mapping stored locally either).
      */
-    private function find_remote_review(WC_Multi_Store_API_Client $client, int $remote_product_id, string $reviewer_email): ?array {
+    private function find_remote_review(WC_Multi_Store_API_Client $client, int $remote_product_id, string $reviewer_email): array|\WP_Error|null {
         $response = $client->get('products/reviews', [
             'product' => [$remote_product_id],
             'reviewer_email' => $reviewer_email,
+            'status' => 'all',
             'per_page' => 1,
         ]);
 
-        if (is_wp_error($response) || empty($response)) {
-            return null;
+        if (is_wp_error($response)) {
+            return $response;
         }
 
-        return is_array($response) ? ($response[0] ?? null) : null;
+        return $response[0] ?? null;
     }
 
     /**
@@ -308,19 +325,25 @@ class WC_Multi_Store_Review_Sync {
      * store so a burst of reviews for the same product doesn't issue one
      * lookup call per review.
      */
-    private function resolve_remote_product_id(WC_Multi_Store_API_Client $client, string $sku, string $store_url): ?int {
+    private function resolve_remote_product_id(WC_Multi_Store_API_Client $client, string $sku, string $store_url): int|\WP_Error|null {
         $cache_key = 'wc_mss_review_sku_map_' . md5($store_url);
         $map = get_transient($cache_key);
         if (!is_array($map)) {
             $map = [];
         }
 
-        if (array_key_exists($sku, $map)) {
+        if (!empty($map[$sku])) {
             return $map[$sku];
         }
 
         $response = $client->get('products', ['sku' => $sku, 'per_page' => 1]);
-        $remote_id = (!is_wp_error($response) && !empty($response[0]['id'])) ? (int) $response[0]['id'] : null;
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        if (empty($response[0]['id'])) {
+            return null;
+        }
+        $remote_id = (int) $response[0]['id'];
 
         $map[$sku] = $remote_id;
         set_transient($cache_key, $map, self::REMOTE_ID_CACHE_TTL);

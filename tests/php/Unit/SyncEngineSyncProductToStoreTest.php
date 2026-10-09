@@ -763,7 +763,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
     // ── (d) image-download-error retry path ─────────────────────────
 
-    public function test_retries_without_images_after_image_download_error_then_succeeds(): void
+    public function test_image_download_error_fails_without_retrying_incomplete_product(): void
     {
         $this->mockWpdbForSyncHistory();
 
@@ -811,30 +811,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'body' => '[]',
         ]);
 
-        // POST (create_product): first call fails with an image-download-style
-        // 403 Forbidden error mentioning an image URL; second call (retry,
-        // without images) succeeds.
-        $call_count = 0;
-        Functions\when('wp_remote_post')->alias(function ($url, $args) use (&$call_count) {
-            $call_count++;
-            if ($call_count === 1) {
-                // Sanity: first call's body must include the image.
-                $body = json_decode($args['body'], true);
-                \PHPUnit\Framework\Assert::assertNotEmpty($body['images'] ?? [], 'First attempt must include images');
-
-                return [
-                    'response' => ['code' => 403],
-                    'body' => json_encode(['message' => 'Forbidden: could not download wp-content/uploads/main.jpg']),
-                ];
-            }
-
-            // Retry: images must have been stripped from the payload.
+        Functions\expect('wp_remote_post')->once()->andReturnUsing(function ($url, $args) {
             $body = json_decode($args['body'], true);
-            \PHPUnit\Framework\Assert::assertArrayNotHasKey('images', $body, 'Retry payload must not include images');
-
+            $this->assertNotEmpty($body['images'] ?? []);
             return [
-                'response' => ['code' => 201],
-                'body' => json_encode(['id' => 888, 'sku' => 'SKU-1']),
+                'response' => ['code' => 403],
+                'body' => json_encode(['message' => 'Forbidden: could not download wp-content/uploads/main.jpg']),
             ];
         });
 
@@ -846,9 +828,8 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'full_product'
         );
 
-        $this->assertTrue($result['success']);
-        $this->assertSame(888, $result['remote_id']);
-        $this->assertSame(2, $call_count, 'Must have retried exactly once after the image-download error');
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Forbidden', $result['message']);
     }
 
     // ── (e) DB transaction around post-sync operations ──────────────

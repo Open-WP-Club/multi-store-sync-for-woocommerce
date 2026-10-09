@@ -154,7 +154,7 @@ class ProductExtractorEdgeCaseTest extends WC_Multi_Store_TestCase
 
     // ── format_images edge cases ─────────────────────────────────
 
-    public function test_format_images_skips_null_urls(): void
+    public function test_format_images_rejects_null_urls(): void
     {
         $product = \Mockery::mock('WC_Product');
         $product->shouldReceive('get_image_id')->andReturn(1);
@@ -163,10 +163,9 @@ class ProductExtractorEdgeCaseTest extends WC_Multi_Store_TestCase
         // All URLs return false (deleted attachments)
         Functions\when('wp_get_attachment_url')->justReturn(false);
 
-        $result = $this->extractor->format_images($product);
-
-        $this->assertIsArray($result);
-        $this->assertEmpty($result);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Image attachment 1 has no usable URL');
+        $this->extractor->format_images($product);
     }
 
     public function test_format_images_with_no_image(): void
@@ -181,7 +180,7 @@ class ProductExtractorEdgeCaseTest extends WC_Multi_Store_TestCase
         $this->assertEmpty($result);
     }
 
-    public function test_format_images_with_mixed_valid_invalid_urls(): void
+    public function test_format_images_rejects_partial_gallery(): void
     {
         $product = \Mockery::mock('WC_Product');
         $product->shouldReceive('get_image_id')->andReturn(1);
@@ -194,12 +193,9 @@ class ProductExtractorEdgeCaseTest extends WC_Multi_Store_TestCase
             return "https://example.com/image-$id.jpg";
         });
 
-        $result = $this->extractor->format_images($product);
-
-        // Main image (id=1) + gallery image (id=3) — id=2 skipped
-        $this->assertCount(2, $result);
-        $this->assertEquals(0, $result[0]['position']); // Main image
-        $this->assertEquals(1, $result[1]['position']); // Gallery
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Image attachment 2 has no usable URL');
+        $this->extractor->format_images($product);
     }
 
     // ── get_stock_data edge cases ────────────────────────────────

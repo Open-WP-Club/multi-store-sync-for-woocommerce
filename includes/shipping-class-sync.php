@@ -60,6 +60,10 @@ class WC_Multi_Store_Shipping_Class_Sync {
      * Initialize hooks for auto-syncing shipping class changes
      */
     public function __construct() {
+        // Keep queued callbacks registered so disabled features can exit cleanly.
+        add_action(self::ASYNC_SYNC_HOOK, [$this, 'sync_shipping_class_by_term_id'], 10, 3);
+        add_action(self::ASYNC_DELETE_HOOK, [$this, 'delete_shipping_class_by_data'], 10, 4);
+
         if (!self::is_enabled()) {
             return;
         }
@@ -70,12 +74,6 @@ class WC_Multi_Store_Shipping_Class_Sync {
             add_action('edited_product_shipping_class', [$this, 'on_shipping_class_edited'], 10, 2);
             add_action('delete_product_shipping_class', [$this, 'on_shipping_class_deleted'], 10, 4);
         }
-
-        // Action Scheduler callbacks — run out of the request that triggered
-        // the term hook above so saving/deleting a shipping class doesn't
-        // block wp-admin on API calls to every active remote store.
-        add_action(self::ASYNC_SYNC_HOOK, [$this, 'sync_shipping_class_by_term_id'], 10, 1);
-        add_action(self::ASYNC_DELETE_HOOK, [$this, 'delete_shipping_class_by_data'], 10, 2);
     }
 
     /**
@@ -143,27 +141,33 @@ class WC_Multi_Store_Shipping_Class_Sync {
     /**
      * Action Scheduler callback for on_shipping_class_created()/on_shipping_class_edited().
      */
-    public function sync_shipping_class_by_term_id(int $term_id): void {
+    public function sync_shipping_class_by_term_id(int $term_id, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || !self::is_enabled()) {
+            return;
+        }
         $term = get_term($term_id, 'product_shipping_class');
         if (!$term || is_wp_error($term)) {
             return;
         }
 
-        $this->sync_shipping_class_to_all_stores($term);
+        $this->finish_async($this->sync_shipping_class_to_all_stores($term, $store_urls), self::ASYNC_SYNC_HOOK, [$term_id], $attempt);
     }
 
     /**
      * Action Scheduler callback for on_shipping_class_deleted().
      */
-    public function delete_shipping_class_by_data(string $name, string $slug): void {
-        $this->delete_shipping_class_from_all_stores_by_data($name, $slug);
+    public function delete_shipping_class_by_data(string $name, string $slug, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || !self::is_enabled()) {
+            return;
+        }
+        $this->finish_async($this->delete_shipping_class_from_all_stores_by_data($name, $slug, $store_urls), self::ASYNC_DELETE_HOOK, [$name, $slug], $attempt);
     }
 
     /**
      * Sync a single shipping class to all active remote stores
      */
-    public function sync_shipping_class_to_all_stores(WP_Term $term): array {
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+    public function sync_shipping_class_to_all_stores(WP_Term $term, ?array $store_urls = null): array {
+        $stores = self::get_sync_stores($store_urls);
         $results = [];
 
         foreach ($stores as $store) {
@@ -179,6 +183,10 @@ class WC_Multi_Store_Shipping_Class_Sync {
      */
     public function sync_shipping_class_to_store(WC_Multi_Store_API_Client $client, WP_Term $term, string $store_url): bool {
         $remote_class = $this->find_remote_shipping_class($client, $term->slug, $store_url);
+        if (is_wp_error($remote_class)) {
+            WC_Multi_Store_Logger::write($remote_class->get_error_message(), 'error');
+            return false;
+        }
 
         $data = [
             'name' => $term->name,
@@ -227,13 +235,17 @@ class WC_Multi_Store_Shipping_Class_Sync {
      * used by the Action Scheduler callback, where the local WP_Term is
      * already gone by the time the job runs (see on_shipping_class_deleted()).
      */
-    public function delete_shipping_class_from_all_stores_by_data(string $name, string $slug): array {
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+    public function delete_shipping_class_from_all_stores_by_data(string $name, string $slug, ?array $store_urls = null): array {
+        $stores = self::get_sync_stores($store_urls);
         $results = [];
 
         foreach ($stores as $store) {
             $client = self::get_api_client($store);
             $remote_class = $this->find_remote_shipping_class($client, $slug, $store['store_url']);
+            if (is_wp_error($remote_class)) {
+                $results[$store['store_url']] = false;
+                continue;
+            }
 
             if ($remote_class) {
                 $response = $client->delete('products/shipping_classes/' . $remote_class['id'], ['force' => true]);
@@ -299,8 +311,11 @@ class WC_Multi_Store_Shipping_Class_Sync {
     /**
      * Find a remote shipping class by slug
      */
-    private function find_remote_shipping_class(WC_Multi_Store_API_Client $client, string $slug, string $store_url): ?array {
+    private function find_remote_shipping_class(WC_Multi_Store_API_Client $client, string $slug, string $store_url): array|\WP_Error|null {
         $remote_classes = $this->get_remote_shipping_classes($client, $store_url);
+        if (is_wp_error($remote_classes)) {
+            return $remote_classes;
+        }
 
         foreach ($remote_classes as $class) {
             if (($class['slug'] ?? '') === $slug) {
@@ -314,7 +329,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
     /**
      * Get all remote shipping classes (cached)
      */
-    private function get_remote_shipping_classes(WC_Multi_Store_API_Client $client, string $store_url): array {
+    private function get_remote_shipping_classes(WC_Multi_Store_API_Client $client, string $store_url): array|\WP_Error {
         $cache_key = self::CACHE_PREFIX . md5($store_url);
         $cached = get_transient($cache_key);
 
@@ -322,13 +337,15 @@ class WC_Multi_Store_Shipping_Class_Sync {
             return $cached;
         }
 
-        $response = $client->get('products/shipping_classes', ['per_page' => 100]);
-
-        if (is_wp_error($response)) {
-            return [];
-        }
-
-        $classes = is_array($response) ? $response : [];
+        $classes = [];
+        $page = 1;
+        do {
+            $response = $client->get('products/shipping_classes', ['per_page' => 100, 'page' => $page++]);
+            if (is_wp_error($response)) {
+                return $response;
+            }
+            array_push($classes, ...$response);
+        } while (count($response) === 100);
         set_transient($cache_key, $classes, self::CACHE_TTL);
 
         return $classes;

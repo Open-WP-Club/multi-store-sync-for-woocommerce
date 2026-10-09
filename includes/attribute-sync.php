@@ -26,6 +26,12 @@ class WC_Multi_Store_Attribute_Sync {
     const ASYNC_DELETE_TERM_HOOK = 'wc_mss_delete_attribute_term_async';
 
     public function __construct() {
+        // Keep queued callbacks registered so disabled features can exit cleanly.
+        add_action(self::ASYNC_SYNC_ATTRIBUTE_HOOK, $this->sync_attribute_by_id(...), 10, 3);
+        add_action(self::ASYNC_DELETE_ATTRIBUTE_HOOK, $this->delete_attribute_by_slug(...), 10, 3);
+        add_action(self::ASYNC_SYNC_TERM_HOOK, $this->sync_term_by_id(...), 10, 4);
+        add_action(self::ASYNC_DELETE_TERM_HOOK, $this->delete_term_by_slug(...), 10, 4);
+
         $settings = self::get_settings();
         if (empty($settings['enabled'])) {
             return;
@@ -40,11 +46,6 @@ class WC_Multi_Store_Attribute_Sync {
         add_action('created_term', $this->on_term_saved(...), 10, 3);
         add_action('edited_term', $this->on_term_saved(...), 10, 3);
         add_action('delete_term', $this->on_term_deleted(...), 10, 4);
-
-        add_action(self::ASYNC_SYNC_ATTRIBUTE_HOOK, $this->sync_attribute_by_id(...), 10, 1);
-        add_action(self::ASYNC_DELETE_ATTRIBUTE_HOOK, $this->delete_attribute_by_slug(...), 10, 1);
-        add_action(self::ASYNC_SYNC_TERM_HOOK, $this->sync_term_by_id(...), 10, 2);
-        add_action(self::ASYNC_DELETE_TERM_HOOK, $this->delete_term_by_slug(...), 10, 2);
     }
 
     private function is_attribute_taxonomy(string $taxonomy): bool {
@@ -101,61 +102,85 @@ class WC_Multi_Store_Attribute_Sync {
     /**
      * Action Scheduler callback for on_attribute_saved().
      */
-    public function sync_attribute_by_id(int $attribute_id): void {
+    public function sync_attribute_by_id(int $attribute_id, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_settings()['enabled'])) {
+            return;
+        }
         $attribute = $this->get_local_attribute($attribute_id);
         if (!$attribute) {
             return;
         }
 
-        $this->sync_attribute_to_all_stores($attribute);
+        $this->finish_async($this->sync_attribute_to_all_stores($attribute, $store_urls), self::ASYNC_SYNC_ATTRIBUTE_HOOK, [$attribute_id], $attempt);
     }
 
     /**
      * Action Scheduler callback for on_attribute_deleted().
      */
-    public function delete_attribute_by_slug(string $slug): void {
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+    public function delete_attribute_by_slug(string $slug, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_settings()['enabled'])) {
+            return;
+        }
+        $stores = self::get_sync_stores($store_urls);
+        $results = [];
 
         foreach ($stores as $store) {
             $client = self::get_api_client($store);
             $remote = $this->find_remote_attribute($client, $slug);
-            if ($remote) {
-                $client->delete('products/attributes/' . $remote['id'], ['force' => true]);
+            if (is_wp_error($remote)) {
+                $results[$store['store_url']] = false;
+            } elseif ($remote) {
+                $results[$store['store_url']] = !is_wp_error($client->delete('products/attributes/' . $remote['id'], ['force' => true]));
             }
         }
+        $this->finish_async($results, self::ASYNC_DELETE_ATTRIBUTE_HOOK, [$slug], $attempt);
     }
 
     /**
      * Action Scheduler callback for on_term_saved().
      */
-    public function sync_term_by_id(int $term_id, string $taxonomy): void {
+    public function sync_term_by_id(int $term_id, string $taxonomy, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_settings()['enabled'])) {
+            return;
+        }
         $term = get_term($term_id, $taxonomy);
         if (!$term instanceof \WP_Term) {
             return;
         }
 
-        $this->sync_term_to_all_stores($term, wc_attribute_taxonomy_slug($taxonomy));
+        $this->finish_async($this->sync_term_to_all_stores($term, wc_attribute_taxonomy_slug($taxonomy), $store_urls), self::ASYNC_SYNC_TERM_HOOK, [$term_id, $taxonomy], $attempt);
     }
 
     /**
      * Action Scheduler callback for on_term_deleted().
      */
-    public function delete_term_by_slug(string $slug, string $taxonomy): void {
+    public function delete_term_by_slug(string $slug, string $taxonomy, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_settings()['enabled'])) {
+            return;
+        }
         $attribute_slug = wc_attribute_taxonomy_slug($taxonomy);
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+        $stores = self::get_sync_stores($store_urls);
+        $results = [];
 
         foreach ($stores as $store) {
             $client = self::get_api_client($store);
             $remote_attribute = $this->find_remote_attribute($client, $attribute_slug);
+            if (is_wp_error($remote_attribute)) {
+                $results[$store['store_url']] = false;
+                continue;
+            }
             if (!$remote_attribute) {
                 continue;
             }
 
             $remote_term = $this->find_remote_term($client, (int) $remote_attribute['id'], $slug);
-            if ($remote_term) {
-                $client->delete('products/attributes/' . $remote_attribute['id'] . '/terms/' . $remote_term['id'], ['force' => true]);
+            if (is_wp_error($remote_term)) {
+                $results[$store['store_url']] = false;
+            } elseif ($remote_term) {
+                $results[$store['store_url']] = !is_wp_error($client->delete('products/attributes/' . $remote_attribute['id'] . '/terms/' . $remote_term['id'], ['force' => true]));
             }
         }
+        $this->finish_async($results, self::ASYNC_DELETE_TERM_HOOK, [$slug, $taxonomy], $attempt);
     }
 
     /**
@@ -174,9 +199,9 @@ class WC_Multi_Store_Attribute_Sync {
     /**
      * Sync a global attribute to all active remote stores
      */
-    public function sync_attribute_to_all_stores(object $attribute): array {
+    public function sync_attribute_to_all_stores(object $attribute, ?array $store_urls = null): array {
         $data = $this->extract_attribute_data($attribute);
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+        $stores = self::get_sync_stores($store_urls);
         $results = [];
 
         foreach ($stores as $store) {
@@ -192,6 +217,10 @@ class WC_Multi_Store_Attribute_Sync {
      */
     public function sync_attribute_to_store(WC_Multi_Store_API_Client $client, array $data): bool {
         $existing = $this->find_remote_attribute($client, $data['slug']);
+        if (is_wp_error($existing)) {
+            WC_Multi_Store_Logger::write($existing->get_error_message(), 'error');
+            return false;
+        }
         $response = $existing
             ? $client->put('products/attributes/' . $existing['id'], $data)
             : $client->post('products/attributes', $data);
@@ -222,9 +251,9 @@ class WC_Multi_Store_Attribute_Sync {
     /**
      * Sync an attribute term to all active remote stores
      */
-    public function sync_term_to_all_stores(\WP_Term $term, string $attribute_slug): array {
+    public function sync_term_to_all_stores(\WP_Term $term, string $attribute_slug, ?array $store_urls = null): array {
         $data = $this->extract_term_data($term);
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+        $stores = self::get_sync_stores($store_urls);
         $results = [];
 
         foreach ($stores as $store) {
@@ -243,7 +272,7 @@ class WC_Multi_Store_Attribute_Sync {
      */
     public function sync_term_to_store(WC_Multi_Store_API_Client $client, string $attribute_slug, array $data): bool {
         $remote_attribute = $this->find_remote_attribute($client, $attribute_slug);
-        if (!$remote_attribute) {
+        if (is_wp_error($remote_attribute) || !$remote_attribute) {
             WC_Multi_Store_Logger::write(sprintf(
                 'Skipped term sync: attribute "%s" not found remotely',
                 $attribute_slug
@@ -253,6 +282,10 @@ class WC_Multi_Store_Attribute_Sync {
 
         $endpoint = 'products/attributes/' . $remote_attribute['id'] . '/terms';
         $existing = $this->find_remote_term($client, (int) $remote_attribute['id'], $data['slug']);
+        if (is_wp_error($existing)) {
+            WC_Multi_Store_Logger::write($existing->get_error_message(), 'error');
+            return false;
+        }
         $response = $existing
             ? $client->put($endpoint . '/' . $existing['id'], $data)
             : $client->post($endpoint, $data);
@@ -274,14 +307,14 @@ class WC_Multi_Store_Attribute_Sync {
      * has no slug filter, so unlike find_remote_term() this fetches the
      * (typically small) full list and matches client-side.
      */
-    private function find_remote_attribute(WC_Multi_Store_API_Client $client, string $slug): ?array {
+    private function find_remote_attribute(WC_Multi_Store_API_Client $client, string $slug): array|\WP_Error|null {
         $response = $client->get('products/attributes', ['per_page' => 100]);
-        if (is_wp_error($response) || empty($response)) {
-            return null;
+        if (is_wp_error($response)) {
+            return $response;
         }
 
         foreach ($response as $attribute) {
-            if (($attribute['slug'] ?? '') === $slug) {
+            if (wc_attribute_taxonomy_slug($attribute['slug'] ?? '') === wc_attribute_taxonomy_slug($slug)) {
                 return $attribute;
             }
         }
@@ -289,13 +322,13 @@ class WC_Multi_Store_Attribute_Sync {
         return null;
     }
 
-    private function find_remote_term(WC_Multi_Store_API_Client $client, int $remote_attribute_id, string $slug): ?array {
+    private function find_remote_term(WC_Multi_Store_API_Client $client, int $remote_attribute_id, string $slug): array|\WP_Error|null {
         $response = $client->get('products/attributes/' . $remote_attribute_id . '/terms', ['slug' => $slug, 'per_page' => 1]);
-        if (is_wp_error($response) || empty($response)) {
-            return null;
+        if (is_wp_error($response)) {
+            return $response;
         }
 
-        return is_array($response) ? ($response[0] ?? null) : null;
+        return $response[0] ?? null;
     }
 
     private function get_local_attribute(int $attribute_id): ?object {

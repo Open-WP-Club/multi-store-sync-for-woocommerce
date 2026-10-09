@@ -217,31 +217,15 @@ class WC_Multi_Store_Sync {
     /**
      * Initialize feature modules.
      * Each module registers its own hooks internally on construction.
-     * Modules with their own enable-toggle are gated here so disabled
-     * features skip both the constructor and the class autoload.
      */
     private function init_features(): void {
         new WC_Multi_Store_Category_Deletion_Sync();
 
-        if (WC_Multi_Store_Shipping_Class_Sync::is_enabled()) {
-            new WC_Multi_Store_Shipping_Class_Sync();
-        }
-
-        $coupon_settings = get_option('wc_multi_store_sync_coupon_settings', ['enabled' => false]);
-        if (!empty($coupon_settings['enabled'])) {
-            new WC_Multi_Store_Coupon_Sync();
-        }
-
-        // Always instantiated (unlike the other toggleable modules above):
-        // its constructor registers the REST field peer stores need to push
-        // reviews here even when outbound sync is off on this store — only
-        // the outbound hooks are gated internally on the enabled setting.
+        // Queued callbacks must remain registered after a feature is disabled.
+        new WC_Multi_Store_Shipping_Class_Sync();
+        new WC_Multi_Store_Coupon_Sync();
         new WC_Multi_Store_Review_Sync();
-
-        $attribute_sync_settings = get_option('wc_mss_attribute_sync_settings', ['enabled' => false]);
-        if (!empty($attribute_sync_settings['enabled'])) {
-            new WC_Multi_Store_Attribute_Sync();
-        }
+        new WC_Multi_Store_Attribute_Sync();
 
         if (WC_Multi_Store_Email_Notifications::is_enabled()) {
             new WC_Multi_Store_Email_Notifications();
@@ -454,14 +438,6 @@ class WC_Multi_Store_Sync {
 
         if (!get_option('wc_multi_store_sync_email_settings')) {
             add_option('wc_multi_store_sync_email_settings', $default_email);
-        }
-
-        // Create logs directory
-        $logs_dir = WC_MSS_PLUGIN_DIR . 'assets/logs';
-        if (!file_exists($logs_dir)) {
-            wp_mkdir_p($logs_dir);
-            // Add .htaccess to protect logs
-            file_put_contents($logs_dir . '/.htaccess', 'Deny from all');
         }
 
         // Phase 3: Create sync history table

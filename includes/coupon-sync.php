@@ -33,6 +33,10 @@ class WC_Multi_Store_Coupon_Sync {
      * Initialize hooks for auto-syncing coupon changes
      */
     public function __construct() {
+        // Keep queued callbacks registered so disabled features can exit cleanly.
+        add_action(self::ASYNC_SYNC_HOOK, $this->sync_coupon_by_id(...), 10, 3);
+        add_action(self::ASYNC_DELETE_HOOK, $this->delete_coupon_by_code(...), 10, 3);
+
         $settings = self::get_coupon_settings();
 
         if (empty($settings['enabled'])) {
@@ -43,13 +47,6 @@ class WC_Multi_Store_Coupon_Sync {
         add_action('woocommerce_update_coupon', $this->on_coupon_saved(...), 10, 2);
         add_action('woocommerce_delete_coupon', $this->on_coupon_deleted(...), 10, 1);
         add_action('woocommerce_trash_coupon', $this->on_coupon_deleted(...), 10, 1);
-
-        // Action Scheduler callbacks — run out of the admin request that
-        // triggered on_coupon_saved()/on_coupon_deleted() so saving a coupon
-        // restricted to many products doesn't block wp-admin on N remote
-        // stores worth of API calls.
-        add_action(self::ASYNC_SYNC_HOOK, $this->sync_coupon_by_id(...), 10, 1);
-        add_action(self::ASYNC_DELETE_HOOK, $this->delete_coupon_by_code(...), 10, 1);
     }
 
     /**
@@ -105,30 +102,28 @@ class WC_Multi_Store_Coupon_Sync {
      * Action Scheduler callback for on_coupon_saved(). Public because Action
      * Scheduler invokes hook callbacks like any other WordPress action.
      */
-    public function sync_coupon_by_id(int $coupon_id): void {
+    public function sync_coupon_by_id(int $coupon_id, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_coupon_settings()['enabled'])) {
+            return;
+        }
         $coupon = new WC_Coupon($coupon_id);
         if (!$coupon->get_id()) {
             return;
         }
 
-        $this->sync_coupon_to_all_stores($coupon);
+        $this->finish_async($this->sync_coupon_to_all_stores($coupon, $store_urls), self::ASYNC_SYNC_HOOK, [$coupon_id], $attempt);
     }
 
     /**
      * Action Scheduler callback for on_coupon_deleted().
      */
-    public function delete_coupon_by_code(string $code): void {
-        $this->delete_coupon_from_all_stores_by_code($code);
+    public function delete_coupon_by_code(string $code, int $attempt = 0, ?array $store_urls = null): void {
+        if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_coupon_settings()['enabled'])) {
+            return;
+        }
+        $this->finish_async($this->delete_coupon_from_all_stores_by_code($code, $store_urls), self::ASYNC_DELETE_HOOK, [$code], $attempt);
     }
 
-    /**
-     * Defer a hook to run via Action Scheduler instead of inline in the
-     * current request. Matches the skip-if-unavailable convention used
-     * elsewhere in the plugin (e.g. WC_Multi_Store_Stock_Verifier::schedule_verification())
-     * rather than falling back to synchronous execution — Action Scheduler
-     * ships with WooCommerce, which this plugin already requires, so the
-     * unavailable case should only happen on a broken install.
-     */
     /**
      * Extract coupon data for the WooCommerce REST API
      */
@@ -147,6 +142,11 @@ class WC_Multi_Store_Coupon_Sync {
             'exclude_sale_items' => $coupon->get_exclude_sale_items(),
             'minimum_amount' => $coupon->get_minimum_amount(),
             'maximum_amount' => $coupon->get_maximum_amount(),
+            'product_ids' => [],
+            'excluded_product_ids' => [],
+            'product_categories' => [],
+            'excluded_product_categories' => [],
+            'email_restrictions' => $coupon->get_email_restrictions(),
         ];
 
         // Product restrictions by SKU (instead of IDs which differ across stores)
@@ -179,21 +179,20 @@ class WC_Multi_Store_Coupon_Sync {
             $data['meta_data'][] = ['key' => '_wc_mss_excluded_category_slugs', 'value' => $slugs];
         }
 
-        // Email restrictions
-        $email_restrictions = $coupon->get_email_restrictions();
-        if (!empty($email_restrictions)) {
-            $data['email_restrictions'] = $email_restrictions;
-        }
-
         return $data;
     }
 
     /**
      * Sync a coupon to all active remote stores
      */
-    public function sync_coupon_to_all_stores(WC_Coupon $coupon): array {
-        $stores = WC_Multi_Store_Settings::get_active_stores();
-        $data = $this->extract_coupon_data($coupon);
+    public function sync_coupon_to_all_stores(WC_Coupon $coupon, ?array $store_urls = null): array {
+        $stores = self::get_sync_stores($store_urls);
+        try {
+            $data = $this->extract_coupon_data($coupon);
+        } catch (\RuntimeException $e) {
+            WC_Multi_Store_Logger::write($e->getMessage(), 'error');
+            return array_fill_keys(array_column($stores, 'store_url'), false);
+        }
         $results = [];
 
         foreach ($stores as $store) {
@@ -209,10 +208,20 @@ class WC_Multi_Store_Coupon_Sync {
      */
     public function sync_coupon_to_store(WC_Multi_Store_API_Client $client, WC_Coupon $coupon, array $data, string $store_url): bool {
         // Resolve product/category IDs on the remote store
-        $data = $this->resolve_remote_ids($client, $data, $store_url);
+        try {
+            $data = $this->resolve_remote_ids($client, $data, $store_url);
+        } catch (\RuntimeException $e) {
+            WC_Multi_Store_Logger::write('Coupon sync aborted for ' . $store_url . ': ' . $e->getMessage(), 'error');
+            return false;
+        }
 
         // Find existing coupon on remote by code
         $remote_coupon = $this->find_remote_coupon($client, $coupon->get_code());
+
+        if (is_wp_error($remote_coupon)) {
+            WC_Multi_Store_Logger::write($remote_coupon->get_error_message(), 'error');
+            return false;
+        }
 
         if ($remote_coupon) {
             $response = $client->put('coupons/' . $remote_coupon['id'], $data);
@@ -245,13 +254,18 @@ class WC_Multi_Store_Coupon_Sync {
      * Action Scheduler callback, where the local WC_Coupon post may already
      * be gone by the time the job runs (see on_coupon_deleted()).
      */
-    public function delete_coupon_from_all_stores_by_code(string $code): array {
-        $stores = WC_Multi_Store_Settings::get_active_stores();
+    public function delete_coupon_from_all_stores_by_code(string $code, ?array $store_urls = null): array {
+        $stores = self::get_sync_stores($store_urls);
         $results = [];
 
         foreach ($stores as $store) {
             $client = self::get_api_client($store);
             $remote_coupon = $this->find_remote_coupon($client, $code);
+
+            if (is_wp_error($remote_coupon)) {
+                $results[$store['store_url']] = false;
+                continue;
+            }
 
             if ($remote_coupon) {
                 $response = $client->delete('coupons/' . $remote_coupon['id'], ['force' => true]);
@@ -334,14 +348,14 @@ class WC_Multi_Store_Coupon_Sync {
     /**
      * Find a remote coupon by code
      */
-    private function find_remote_coupon(WC_Multi_Store_API_Client $client, string $code): ?array {
+    private function find_remote_coupon(WC_Multi_Store_API_Client $client, string $code): array|\WP_Error|null {
         $response = $client->get('coupons', ['code' => $code]);
 
-        if (is_wp_error($response) || empty($response)) {
-            return null;
+        if (is_wp_error($response)) {
+            return $response;
         }
 
-        return is_array($response) ? ($response[0] ?? null) : null;
+        return $response[0] ?? null;
     }
 
     /**
@@ -389,14 +403,7 @@ class WC_Multi_Store_Coupon_Sync {
         return $data;
     }
 
-    /**
-     * Resolve SKUs to remote product IDs.
-     *
-     * Cached per store (sku => remote_id|null map, including negative
-     * lookups) so a coupon with many restricted products — or repeated
-     * syncs of different coupons touching the same store — doesn't issue
-     * one API call per SKU every time.
-     */
+    /** Resolve every restriction; never broaden a coupon after a failed lookup. */
     private function resolve_skus_to_remote_ids(WC_Multi_Store_API_Client $client, array $skus, string $store_url): array {
         return $this->resolve_via_cached_map(
             $client,
@@ -419,12 +426,7 @@ class WC_Multi_Store_Coupon_Sync {
         );
     }
 
-    /**
-     * Shared lookup-with-cache helper for the two resolvers above. $fetch is
-     * called only for keys not already in the cached map (including keys
-     * cached as "not found", stored as null, so a bad SKU on a coupon
-     * doesn't get re-queried every sync within the TTL window).
-     */
+    /** Cache successful mappings only, so missing products can be retried. */
     private function resolve_via_cached_map(WC_Multi_Store_API_Client $client, array $keys, string $cache_key, \Closure $fetch): array {
         $map = get_transient($cache_key);
         if (!is_array($map)) {
@@ -435,22 +437,22 @@ class WC_Multi_Store_Coupon_Sync {
         $map_changed = false;
 
         foreach ($keys as $key) {
-            if (array_key_exists($key, $map)) {
-                if ($map[$key] !== null) {
-                    $ids[] = $map[$key];
-                }
+            if (!empty($map[$key])) {
+                $ids[] = $map[$key];
                 continue;
             }
 
             $response = $fetch($key);
-            $remote_id = (!is_wp_error($response) && !empty($response[0]['id'])) ? $response[0]['id'] : null;
+            if (is_wp_error($response) || empty($response[0]['id'])) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught and logged by sync_coupon_to_store().
+                throw new \RuntimeException('Cannot resolve coupon restriction: ' . $key);
+            }
+            $remote_id = $response[0]['id'];
 
             $map[$key] = $remote_id;
             $map_changed = true;
 
-            if ($remote_id !== null) {
-                $ids[] = $remote_id;
-            }
+            $ids[] = $remote_id;
         }
 
         if ($map_changed) {
@@ -477,6 +479,9 @@ class WC_Multi_Store_Coupon_Sync {
                 $skus[] = $product->get_sku();
             }
         }
+        if (count($skus) !== count(array_unique($product_ids))) {
+            throw new \RuntimeException('Cannot resolve every coupon product restriction to a SKU.');
+        }
         return $skus;
     }
 
@@ -490,8 +495,8 @@ class WC_Multi_Store_Coupon_Sync {
             'hide_empty' => false,
         ]);
 
-        if (is_wp_error($terms)) {
-            return [];
+        if (is_wp_error($terms) || count($terms) !== count(array_unique($category_ids))) {
+            throw new \RuntimeException('Cannot resolve every coupon category restriction to a slug.');
         }
 
         return array_map(fn($term) => $term->slug, $terms);

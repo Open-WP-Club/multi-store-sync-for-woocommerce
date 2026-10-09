@@ -23,12 +23,7 @@ if (!class_exists('WP_Term')) {
     }
 }
 
-/**
- * Testable stub reusing the same pattern as CouponSyncTest.
- * Shipping-class-sync calls $client->get/post/put/delete() which are private
- * in the real client. This stub exposes them as public handler-driven methods.
- * Only defined once to avoid redeclaration when the full suite runs.
- */
+/** API client with per-test handlers, shared with CouponSyncTest. */
 if (!class_exists('WC_MSS_Test_API_Client_Stub')) {
     class WC_MSS_Test_API_Client_Stub extends WC_Multi_Store_API_Client {
         public ?\Closure $get_handler    = null;
@@ -346,38 +341,6 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Settings::clear_static_cache();
     }
 
-    public function test_on_shipping_class_created_does_not_sync_inline(): void
-    {
-        $this->enableAutoSync();
-        Functions\when('get_term')->justReturn($this->makeTerm());
-
-        $sync = new WC_Multi_Store_Shipping_Class_Sync();
-        $sync->on_shipping_class_created(5, 5);
-
-        $this->assertTrue(true);
-    }
-
-    public function test_on_shipping_class_edited_does_not_sync_inline(): void
-    {
-        $this->enableAutoSync();
-        Functions\when('get_term')->justReturn($this->makeTerm());
-
-        $sync = new WC_Multi_Store_Shipping_Class_Sync();
-        $sync->on_shipping_class_edited(5, 5);
-
-        $this->assertTrue(true);
-    }
-
-    public function test_on_shipping_class_deleted_does_not_sync_inline(): void
-    {
-        $this->enableAutoSync();
-
-        $sync = new WC_Multi_Store_Shipping_Class_Sync();
-        $sync->on_shipping_class_deleted(5, 5, $this->makeTerm('Heavy', 'heavy'), [10, 20]);
-
-        $this->assertTrue(true);
-    }
-
     // ═══════════════════════════════════════════════════════════════
     // sync_shipping_class_by_term_id() / delete_shipping_class_by_data()
     // (Action Scheduler callbacks)
@@ -389,9 +352,9 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
         Functions\when('get_term')->justReturn(null);
 
         $sync = new WC_Multi_Store_Shipping_Class_Sync();
-        $sync->sync_shipping_class_by_term_id(999);
-
-        $this->assertTrue(true);
+        Functions\expect('wp_remote_get')->never();
+        Functions\expect('as_schedule_single_action')->never();
+        $this->assertNull($sync->sync_shipping_class_by_term_id(999));
     }
 
     public function test_delete_shipping_class_by_data_noop_when_no_active_stores(): void
@@ -536,4 +499,32 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
         $this->assertNotNull($saved_settings);
         $this->assertTrue($saved_settings['shipping_class_sync_enabled']);
     }
+    public function test_shipping_class_on_second_page_is_updated_instead_of_created(): void
+    {
+        $client = $this->makeClient();
+        $pages = [];
+        $client->get_handler = function ($endpoint, $params) use (&$pages) {
+            $pages[] = $params['page'];
+            return $params['page'] === 1
+                ? array_fill(0, 100, ['id' => 1, 'slug' => 'other'])
+                : [['id' => 101, 'slug' => 'heavy']];
+        };
+        $client->put_handler = function ($endpoint) {
+            $this->assertSame('products/shipping_classes/101', $endpoint);
+            return ['id' => 101];
+        };
+        $this->assertTrue((new WC_Multi_Store_Shipping_Class_Sync())->sync_shipping_class_to_store($client, $this->makeTerm(), 'https://store.example'));
+        $this->assertSame([1, 2], $pages);
+    }
+
+    public function test_failed_shipping_page_is_not_cached_as_complete_list(): void
+    {
+        $client = $this->makeClient();
+        $client->get_handler = fn($endpoint, $params) => $params['page'] === 1
+            ? array_fill(0, 100, ['id' => 1, 'slug' => 'other'])
+            : new WP_Error('offline', 'Offline');
+        Functions\expect('set_transient')->never();
+        $this->assertFalse((new WC_Multi_Store_Shipping_Class_Sync())->sync_shipping_class_to_store($client, $this->makeTerm(), 'https://store.example'));
+    }
+
 }

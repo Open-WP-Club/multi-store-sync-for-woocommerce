@@ -37,7 +37,7 @@ if (!class_exists('WC_MSS_Review_Test_Product_Stub')) {
 
 /**
  * Same rationale as WC_MSS_Test_API_Client_Stub in CouponSyncTest: exposes
- * the private get/post/put/delete methods as public, mockable per test.
+ * the get/post/put/delete methods, mockable per test.
  */
 if (!class_exists('WC_MSS_Review_Test_API_Client_Stub')) {
     class WC_MSS_Review_Test_API_Client_Stub extends WC_Multi_Store_API_Client {
@@ -84,6 +84,9 @@ class ReviewSyncTest extends WC_Multi_Store_TestCase
                 default                          => $default,
             };
         });
+        Functions\when('add_query_arg')->alias(fn($args, $url) => $url . '?' . http_build_query($args));
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code']);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body']);
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('update_option')->justReturn(true);
@@ -276,8 +279,9 @@ class ReviewSyncTest extends WC_Multi_Store_TestCase
         // No API client handlers configured anywhere — reaching this point
         // without a fatal proves sync_review_to_all_stores() was never
         // reached.
-        $sync->sync_review_by_id(1);
-        $this->assertTrue(true);
+        Functions\expect('wp_remote_get')->never();
+        Functions\expect('as_schedule_single_action')->never();
+        $this->assertNull($sync->sync_review_by_id(1));
     }
 
     public function test_sync_review_by_id_skips_non_review_comment_type(): void
@@ -286,44 +290,31 @@ class ReviewSyncTest extends WC_Multi_Store_TestCase
 
         $sync = $this->makeSync();
 
-        $sync->sync_review_by_id(1);
-        $this->assertTrue(true);
+        Functions\expect('wp_remote_get')->never();
+        Functions\expect('as_schedule_single_action')->never();
+        $this->assertNull($sync->sync_review_by_id(1));
     }
 
     // ─── delete_review_from_all_stores() ───────────────────────────────────
 
     public function test_delete_from_all_stores_deletes_when_found(): void
     {
-        $sync = $this->makeSync();
-
-        // WC_Multi_Store_Async_Sync::get_api_client() builds a real client
-        // via ::for_store(), so — matching the coupon-sync tests' approach —
-        // exercise the resolve/find/delete steps directly against a stub
-        // client instead of going through delete_review_from_all_stores().
-        $client = $this->makeClient();
-        $client->get_handler = fn($ep, $p) => match (true) {
-            $ep === 'products'         => [['id' => 55]],
-            $ep === 'products/reviews' => [['id' => 77]],
-            default                    => [],
-        };
-        $deleteCalled = false;
-        $client->delete_handler = function ($ep, $params) use (&$deleteCalled) {
-            $deleteCalled = true;
-            $this->assertSame('products/reviews/77', $ep);
-            $this->assertTrue($params['force']);
-            return [];
-        };
-
-        $remoteId = (new \ReflectionClass($sync))->getMethod('resolve_remote_product_id');
-        $this->assertSame(55, $remoteId->invoke($sync, $client, 'SKU-100', 'https://store1.com'));
-
-        $findMethod = (new \ReflectionClass($sync))->getMethod('find_remote_review');
-        $existing = $findMethod->invoke($sync, $client, 55, 'jane@example.com');
-        $this->assertSame(77, $existing['id']);
-
-        $response = $client->delete('products/reviews/' . $existing['id'], ['force' => true]);
-        $this->assertTrue($deleteCalled);
-        $this->assertFalse(is_wp_error($response));
+        Functions\expect('wp_remote_get')->twice()->andReturnUsing(function ($url) {
+            parse_str(parse_url($url, PHP_URL_QUERY), $params);
+            if (str_contains($url, '/products/reviews?')) {
+                $this->assertSame(['55'], $params['product']);
+                $this->assertSame('jane@example.com', $params['reviewer_email']);
+                $this->assertSame('all', $params['status']);
+                $data = [['id' => 77]];
+            } else {
+                $this->assertSame('SKU-100', $params['sku']);
+                $data = [['id' => 55]];
+            }
+            return ['response' => ['code' => 200], 'body' => json_encode($data)];
+        });
+        Functions\expect('wp_remote_request')->once()->with('https://store1.com/wp-json/wc/v3/products/reviews/77?force=1', \Mockery::on(fn($args) => $args['method'] === 'DELETE'))
+            ->andReturn(['response' => ['code' => 200], 'body' => '{"id":77}']);
+        $this->assertSame(['https://store1.com' => true], $this->makeSync()->delete_review_from_all_stores('SKU-100', 'jane@example.com'));
     }
 
     // ─── ajax_toggle() ──────────────────────────────────────────────────────
@@ -349,4 +340,27 @@ class ReviewSyncTest extends WC_Multi_Store_TestCase
 
         unset($_POST['enabled']);
     }
+    public function test_review_lookup_error_does_not_create_duplicate(): void
+    {
+        $client = $this->makeClient();
+        $client->get_handler = function ($endpoint, $params) {
+            if ($endpoint === 'products') {
+                return [['id' => 55]];
+            }
+            $this->assertSame('all', $params['status']);
+            return new WP_Error('offline', 'Offline');
+        };
+        $sync = $this->makeSync();
+        $this->assertFalse($sync->sync_review_to_store($client, 'SKU-100', $sync->extract_review_data(new WP_Comment()), 'https://store1.com'));
+    }
+
+    public function test_failed_product_lookup_is_not_cached(): void
+    {
+        $client = $this->makeClient();
+        $client->get_handler = fn() => new WP_Error('offline', 'Offline');
+        Functions\expect('set_transient')->never();
+        $sync = $this->makeSync();
+        $this->assertFalse($sync->sync_review_to_store($client, 'SKU-100', $sync->extract_review_data(new WP_Comment()), 'https://store1.com'));
+    }
+
 }
