@@ -889,57 +889,6 @@
         }
 
         /**
-         * Queue Retry Button
-         */
-        document.querySelectorAll('.wc-mss-queue-retry').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var id = this.dataset.id;
-                var row = document.getElementById('queue-row-' + id);
-                var table = this.closest('table');
-                var labelRetry = (table && table.dataset.labelRetry) || 'Retry';
-                var labelRetrying = (table && table.dataset.labelRetrying) || 'Retrying…';
-                var labelPending = (table && table.dataset.labelPending) || 'Pending';
-                var labelError = (table && table.dataset.labelError) || 'Error';
-
-                this.disabled = true;
-                this.textContent = labelRetrying;
-
-                fetch(wcMssAdmin.ajax_url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: new URLSearchParams({action: 'wc_mss_queue_retry_item', nonce: wcMssAdmin.nonce, item_id: id}).toString()
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(result) {
-                    if (result.success) {
-                        if (row) {
-                            var statusCell = row.querySelector('td:nth-child(6) span');
-                            if (statusCell) {
-                                statusCell.style.cssText = 'color: #2271b1;';
-                                statusCell.textContent = labelPending;
-                            }
-                            var errorNote = row.querySelector('td:nth-child(6) small');
-                            if (errorNote) errorNote.remove();
-                            var actionCell = row.querySelector('td:last-child');
-                            if (actionCell) actionCell.innerHTML = '';
-                            var attemptsCell = row.querySelector('td:nth-child(8)');
-                            if (attemptsCell) attemptsCell.textContent = '0/3';
-                        }
-                    } else {
-                        alert((result.data && result.data.message) || labelError);
-                        this.disabled = false;
-                        this.textContent = labelRetry;
-                    }
-                }.bind(this))
-                .catch(function() {
-                    alert(wcMssAdmin.i18n.request_failed);
-                    this.disabled = false;
-                    this.textContent = labelRetry;
-                }.bind(this));
-            });
-        });
-
-        /**
          * Dead Letter Queue Actions
          */
         function wcMssDlqAction(action, data, callback) {
@@ -962,29 +911,6 @@
                 callback(false, err.message);
             });
         }
-
-        document.querySelectorAll('.wc-mss-dlq-retry').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var id = this.dataset.id;
-                var row = document.getElementById('dlq-row-' + id);
-                this.disabled = true;
-                wcMssDlqAction('wc_mss_dlq_retry_item', {item_id: id}, function(ok, msg) {
-                    if (ok && row) row.style.opacity = '0.3';
-                    alert(msg);
-                });
-            });
-        });
-
-        document.querySelectorAll('.wc-mss-dlq-resolve').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var id = this.dataset.id;
-                var row = document.getElementById('dlq-row-' + id);
-                this.disabled = true;
-                wcMssDlqAction('wc_mss_dlq_resolve_item', {item_id: id}, function(ok, msg) {
-                    if (ok && row) row.style.opacity = '0.3';
-                });
-            });
-        });
 
         var dlqRetryAllBtn = document.getElementById('wc-mss-dlq-retry-all');
         if (dlqRetryAllBtn) {
@@ -1488,57 +1414,21 @@
                     var html = '';
                     $.each(list, function (i, store) {
                         if (store.error) {
-                            html += '<div class="notice notice-error inline"><p><strong>' + store.store_name + ':</strong> ' + store.error + '</p></div>';
+                            html += '<div class="notice notice-error inline"><p><strong>' + escapeHtml(store.store_name) + ':</strong> ' + escapeHtml(store.error) + '</p></div>';
                             return;
                         }
                         if (!store.count) {
                             return;
                         }
 
-                        html += '<h3>' + store.store_name + ' — ' + store.count + ' ' + i18n.mismatch_count_label;
+                        html += '<h3>' + escapeHtml(store.store_name) + ' — ' + store.count + ' ' + i18n.mismatch_count_label;
                         html += ' <small style="font-weight:normal;color:#666;">(' + store.total_local + ' ' + i18n.local + ' / ' + store.total_remote + ' ' + i18n.remote + ')</small></h3>';
-                        html += '<table class="wp-list-table widefat fixed striped" style="margin-bottom:1.5rem;">';
-                        html += '<thead><tr>';
-                        html += '<th style="width:30%">' + i18n.th_product + '</th>';
-                        html += '<th style="width:12%">' + i18n.th_sku + '</th>';
-                        html += '<th>' + i18n.th_missing + '</th>';
-                        html += '<th>' + i18n.th_extra + '</th>';
-                        html += '<th style="width:90px">' + i18n.th_action + '</th>';
-                        html += '</tr></thead><tbody>';
-
-                        $.each(store.items, function (j, item) {
-                            html += '<tr>';
-                            html += '<td><a href="' + item.edit_link + '" target="_blank"><strong>' + item.product_name + '</strong></a></td>';
-                            html += '<td><code>' + item.sku + '</code></td>';
-                            html += '<td>' + (item.missing.length ? '<span class="wc-mss-negative">' + item.missing.join(', ') + '</span>' : '—') + '</td>';
-                            html += '<td>' + (item.extra.length   ? '<span class="wc-mss-positive">' + item.extra.join(', ')   + '</span>' : '—') + '</td>';
-                            html += '<td><button class="button button-small wc-mss-resync-btn" data-product-id="' + item.product_id + '">' + i18n.resync + '</button></td>';
-                            html += '</tr>';
-                        });
-
-                        html += '</tbody></table>';
+                        html += store.table_html;
                     });
 
                     results.html(html);
 
-                    results.off('click', '.wc-mss-resync-btn').on('click', '.wc-mss-resync-btn', function () {
-                        var b   = $(this);
-                        var pid = b.data('product-id');
-                        b.prop('disabled', true).text(i18n.queuing);
-                        fetch(ajaxurl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: new URLSearchParams({
-                                action:     'wc_mss_force_sync_product',
-                                nonce:      wcMssAdmin.nonce,
-                                product_id: pid,
-                            }),
-                        })
-                            .then(function (res) { return res.json(); })
-                            .then(function (r) {
-                                b.text(r.success ? i18n.queued : i18n.failed);
-                            });
-                    });
+
                 }
             });
         }
@@ -2271,128 +2161,6 @@
             });
         });
 
-        /**
-         * Conflicts Page
-         */
-        if (document.getElementById('wc-mss-conflicts-results') && typeof jQuery !== 'undefined' && typeof wcMssConflictsData !== 'undefined') {
-            jQuery(function ($) {
-                var i18n = wcMssConflictsData.i18n;
-                var resultsEl = document.getElementById('wc-mss-conflicts-results');
-                var noticesEl = document.getElementById('wc-mss-conflicts-notices');
-                var statusFilter = document.getElementById('wc-mss-conflicts-status-filter');
-                var storeFilter = document.getElementById('wc-mss-conflicts-store-filter');
-                var resolutionSelect = document.getElementById('wc-mss-conflicts-resolution');
-                var resolveAllBtn = document.getElementById('wc-mss-conflicts-resolve-all-btn');
-
-                var escapeHtml = wcMssConflictUtils.escapeHtml;
-
-                function showNotice(message, type) {
-                    var cls = type === 'error' ? 'notice-error' : 'notice-success';
-                    $(noticesEl).html('<div class="notice ' + cls + ' is-dismissible"><p>' + escapeHtml(message) + '</p></div>');
-                }
-
-                function renderTable(conflicts) {
-                    resultsEl.innerHTML = wcMssConflictUtils.buildConflictsTable(conflicts, i18n);
-                }
-
-                function loadConflicts() {
-                    resultsEl.innerHTML = '<p>' + escapeHtml(i18n.loading) + '</p>';
-
-                    var params = new URLSearchParams({
-                        action: 'wc_mss_get_conflicts',
-                        nonce: wcMssAdmin.nonce,
-                        status: statusFilter.value,
-                        store_url: storeFilter.value
-                    });
-
-                    fetch(wcMssAdmin.ajax_url + '?' + params.toString())
-                        .then(function (res) { return res.json(); })
-                        .then(function (response) {
-                            if (response.success) {
-                                renderTable(response.data.conflicts);
-                            } else {
-                                resultsEl.innerHTML = '<div class="notice notice-error inline"><p>' + escapeHtml(i18n.load_failed) + '</p></div>';
-                            }
-                        })
-                        .catch(function () {
-                            resultsEl.innerHTML = '<div class="notice notice-error inline"><p>' + escapeHtml(i18n.load_failed) + '</p></div>';
-                        });
-                }
-
-                $(statusFilter).on('change', loadConflicts);
-                $(storeFilter).on('change', loadConflicts);
-
-                $(resultsEl).on('click', '.wc-mss-resolve-conflict-btn', function () {
-                    var $btn = $(this);
-                    var id = $btn.data('id');
-                    var resolution = $btn.data('resolution');
-                    var $row = $('#wc-mss-conflict-row-' + id);
-
-                    $row.find('button').prop('disabled', true);
-
-                    fetch(wcMssAdmin.ajax_url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                            action: 'wc_mss_resolve_conflict',
-                            nonce: wcMssAdmin.nonce,
-                            id: id,
-                            resolution: resolution
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
-                        .then(function (response) {
-                            if (response.success) {
-                                showNotice(response.data.message, 'success');
-                                loadConflicts();
-                            } else {
-                                showNotice((response.data && response.data.message) || i18n.resolve_failed, 'error');
-                                $row.find('button').prop('disabled', false);
-                            }
-                        })
-                        .catch(function () {
-                            showNotice(i18n.resolve_failed, 'error');
-                            $row.find('button').prop('disabled', false);
-                        });
-                });
-
-                $(resolveAllBtn).on('click', function () {
-                    var resolution = resolutionSelect.value;
-                    if (!confirm(i18n.confirm_resolve_all.replace('%s', resolution))) {
-                        return;
-                    }
-
-                    var $btn = $(this).prop('disabled', true);
-
-                    fetch(wcMssAdmin.ajax_url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                            action: 'wc_mss_resolve_all_conflicts',
-                            nonce: wcMssAdmin.nonce,
-                            store_url: storeFilter.value,
-                            resolution: resolution
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
-                        .then(function (response) {
-                            $btn.prop('disabled', false);
-                            if (response.success) {
-                                showNotice(response.data.message);
-                                loadConflicts();
-                            } else {
-                                showNotice((response.data && response.data.message) || i18n.resolve_failed, 'error');
-                            }
-                        })
-                        .catch(function () {
-                            $btn.prop('disabled', false);
-                            showNotice(i18n.resolve_failed, 'error');
-                        });
-                });
-
-                loadConflicts();
-            });
-        }
 
     });
 

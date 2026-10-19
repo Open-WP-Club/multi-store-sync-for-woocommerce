@@ -406,6 +406,18 @@ class WC_Multi_Store_Conflict_Detector {
         }, $rows ?: []);
     }
 
+    /** Count records matching the native admin list filters. */
+    public static function get_conflict_count(string $store_url = '', bool $include_resolved = true): int {
+        global $wpdb;
+        $table = $wpdb->prefix . self::LOG_TABLE;
+        $where = $include_resolved ? '1=1' : 'resolved = 0';
+        if ($store_url !== '') {
+            return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE {$where} AND store_url = %s", $store_url));
+        }
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed predicates and plugin table name only.
+        return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE {$where}");
+    }
+
     /** Queue a resolution; only the worker may mark the conflict resolved. */
     public static function resolve_conflict(int $id, string $resolution): bool {
         global $wpdb;

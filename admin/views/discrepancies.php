@@ -9,46 +9,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Handle actions
-if (isset($_POST['action']) && isset($_POST['discrepancy_id'])) {
-    check_admin_referer('wc_mss_discrepancy_action');
-
-    if (!current_user_can('manage_woocommerce')) {
-        wp_die(esc_html__('You do not have permission to perform this action.', 'multi-store-sync-for-woocommerce'));
-    }
-
-    $discrepancy_id = is_string($_POST['discrepancy_id']) ? absint(wp_unslash($_POST['discrepancy_id'])) : 0;
-    $action = is_string($_POST['action']) ? sanitize_key(wp_unslash($_POST['action'])) : '';
-
-    if ($discrepancy_id === 0) {
-        echo '<div class="notice notice-error"><p>' . esc_html__('Invalid discrepancy ID.', 'multi-store-sync-for-woocommerce') . '</p></div>';
-        $action = '';
-    }
-
-    switch ($action) {
-        case 'mark_resolved':
-            if (WC_Multi_Store_Stock_Verifier::mark_resolved($discrepancy_id)) {
-                echo '<div class="notice notice-success"><p>' . esc_html__('Discrepancy marked as resolved.', 'multi-store-sync-for-woocommerce') . '</p></div>';
-            }
-            break;
-
-        case 'mark_ignored':
-            if (WC_Multi_Store_Stock_Verifier::mark_ignored($discrepancy_id)) {
-                echo '<div class="notice notice-success"><p>' . esc_html__('Discrepancy marked as ignored.', 'multi-store-sync-for-woocommerce') . '</p></div>';
-            }
-            break;
-
-        case 'auto_correct':
-            $result = WC_Multi_Store_Stock_Verifier::auto_correct($discrepancy_id);
-            if (is_wp_error($result)) {
-                echo '<div class="notice notice-error"><p>' . esc_html($result->get_error_message()) . '</p></div>';
-            } else {
-                echo '<div class="notice notice-success"><p>' . esc_html__('Correction queued for this store. It will be marked resolved after remote stock verification; failures appear in Queue / Dead Letter Queue.', 'multi-store-sync-for-woocommerce') . '</p></div>';
-            }
-            break;
-    }
-}
-
 // Handle bulk cleanup
 if (isset($_POST['cleanup_old']) && check_admin_referer('wc_mss_cleanup_discrepancies')) {
     if (!current_user_can('manage_woocommerce')) {
@@ -69,10 +29,13 @@ if (!in_array($status_filter, ['pending', 'resolving', 'resolved', 'ignored', 'a
 }
 $store_filter = isset($_GET['store']) && is_string($_GET['store']) ? sanitize_text_field(wp_unslash($_GET['store'])) : '';
 
+$total = WC_Multi_Store_Stock_Verifier::get_discrepancy_count($status_filter, $store_filter);
+
 // Get discrepancies
 $args = [
-    'status' => $status_filter,
-    'limit' => 100,
+    'status' => $status_filter === 'all' ? '' : $status_filter,
+    'limit' => 50,
+    'offset' => (WC_Multi_Store_Admin_List_Table::page_number($total) - 1) * 50,
     'orderby' => 'detected_at',
     'order' => 'DESC',
 ];
@@ -149,89 +112,83 @@ $stores = get_option('wc_multi_store_sync_stores', []);
             </p>
         </div>
     <?php else: ?>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th><?php esc_html_e('Product', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('SKU', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Expected Stock', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Actual Stock', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Difference', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Detected', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Actions', 'multi-store-sync-for-woocommerce'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($discrepancies as $discrepancy): ?>
-                    <?php
-                    $product = wc_get_product($discrepancy['product_id']);
-                    $product_name = $product ? $product->get_name() : __('(Product not found)', 'multi-store-sync-for-woocommerce');
-                    $edit_link = $product ? get_edit_post_link($discrepancy['product_id']) : '';
+            <form method="post">
+            <?php
+            $list_table = new WC_Multi_Store_Admin_List_Table('discrepancies', [
+                'product' => __('Product', 'multi-store-sync-for-woocommerce'),
+                'sku' => __('SKU', 'multi-store-sync-for-woocommerce'),
+                'store' => __('Store', 'multi-store-sync-for-woocommerce'),
+                'expected' => __('Expected Stock', 'multi-store-sync-for-woocommerce'),
+                'actual' => __('Actual Stock', 'multi-store-sync-for-woocommerce'),
+                'difference' => __('Difference', 'multi-store-sync-for-woocommerce'),
+                'detected' => __('Detected', 'multi-store-sync-for-woocommerce'),
+                'status' => __('Status', 'multi-store-sync-for-woocommerce'),
+                'actions' => __('Actions', 'multi-store-sync-for-woocommerce'),
+            ], $discrepancies, static function (array $discrepancy) use ($stores): void {
+                $product = wc_get_product($discrepancy['product_id']);
+                $product_name = $product ? $product->get_name() : __('(Product not found)', 'multi-store-sync-for-woocommerce');
+                $edit_link = $product ? get_edit_post_link($discrepancy['product_id']) : '';
 
-                    // Find store name — stores are keyed by URL
-                    $store_name = parse_url($discrepancy['store_url'], PHP_URL_HOST);
-                    $norm_disc_url = untrailingslashit($discrepancy['store_url']);
-                    foreach ($stores as $s_url => $s_config) {
-                        if (untrailingslashit($s_url) === $norm_disc_url) {
-                            $store_name = $s_config['name'] ?? $s_url;
-                            break;
-                        }
+                // Find store name — stores are keyed by URL
+                $store_name = parse_url($discrepancy['store_url'], PHP_URL_HOST);
+                $norm_disc_url = untrailingslashit($discrepancy['store_url']);
+                foreach ($stores as $s_url => $s_config) {
+                    if (untrailingslashit($s_url) === $norm_disc_url) {
+                        $store_name = $s_config['name'] ?? $s_url;
+                        break;
                     }
+                }
 
-                    $difference = $discrepancy['difference'];
-                    $diff_class = $difference > 0 ? 'wc-mss-positive' : 'wc-mss-negative';
-                    $diff_text = sprintf('%+d', $difference);
+                $difference = $discrepancy['difference'];
+                $diff_class = $difference > 0 ? 'wc-mss-positive' : 'wc-mss-negative';
+                $diff_text = sprintf('%+d', $difference);
 
-                    $status_class = 'wc-mss-status-' . $discrepancy['status'];
-                    ?>
-                    <tr>
-                        <td>
-                            <?php if ($edit_link): ?>
-                                <a href="<?php echo esc_url($edit_link); ?>" target="_blank">
-                                    <strong><?php echo esc_html($product_name); ?></strong>
-                                </a>
-                            <?php else: ?>
+                $status_class = 'wc-mss-status-' . $discrepancy['status'];
+                ?>
+                    <td>
+                        <?php if ($edit_link): ?>
+                            <a href="<?php echo esc_url($edit_link); ?>" target="_blank">
                                 <strong><?php echo esc_html($product_name); ?></strong>
-                            <?php endif; ?>
-                        </td>
-                        <td><code><?php echo esc_html($discrepancy['sku']); ?></code></td>
-                        <td><?php echo esc_html($store_name); ?></td>
-                        <td><?php echo esc_html($discrepancy['expected_stock']); ?></td>
-                        <td><?php echo esc_html($discrepancy['actual_stock']); ?></td>
-                        <td class="<?php echo esc_attr($diff_class); ?>">
-                            <strong><?php echo esc_html($diff_text); ?></strong>
-                        </td>
-                        <td>
-                            <?php echo esc_html(human_time_diff(strtotime($discrepancy['detected_at']), current_time('timestamp'))); ?> <?php esc_html_e('ago', 'multi-store-sync-for-woocommerce'); ?>
-                        </td>
-                        <td>
-                            <span class="wc-mss-status-badge <?php echo esc_attr($status_class); ?>">
-                                <?php echo esc_html(ucfirst($discrepancy['status'])); ?>
-                            </span>
-                        </td>
-                        <td>
-                            <?php if (in_array($discrepancy['status'], ['pending', 'resolving'], true)): ?>
-                                <form method="post" style="display: inline;">
-                                    <?php wp_nonce_field('wc_mss_discrepancy_action'); ?>
-                                    <input type="hidden" name="discrepancy_id" value="<?php echo esc_attr($discrepancy['id']); ?>" />
-                                    <button type="submit" name="action" value="auto_correct" class="button button-primary button-small">
-                                        <?php esc_html_e('Auto-Correct', 'multi-store-sync-for-woocommerce'); ?>
-                                    </button>
-                                    <button type="submit" name="action" value="mark_resolved" class="button button-small">
-                                        <?php esc_html_e('Mark Resolved', 'multi-store-sync-for-woocommerce'); ?>
-                                    </button>
-                                    <button type="submit" name="action" value="mark_ignored" class="button button-small">
-                                        <?php esc_html_e('Ignore', 'multi-store-sync-for-woocommerce'); ?>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                            </a>
+                        <?php else: ?>
+                            <strong><?php echo esc_html($product_name); ?></strong>
+                        <?php endif; ?>
+                    </td>
+                    <td><code><?php echo esc_html($discrepancy['sku']); ?></code></td>
+                    <td><?php echo esc_html($store_name); ?></td>
+                    <td><?php echo esc_html($discrepancy['expected_stock']); ?></td>
+                    <td><?php echo esc_html($discrepancy['actual_stock']); ?></td>
+                    <td class="<?php echo esc_attr($diff_class); ?>">
+                        <strong><?php echo esc_html($diff_text); ?></strong>
+                    </td>
+                    <td>
+                        <?php echo esc_html(human_time_diff(strtotime($discrepancy['detected_at']), current_time('timestamp'))); ?> <?php esc_html_e('ago', 'multi-store-sync-for-woocommerce'); ?>
+                    </td>
+                    <td>
+                        <span class="wc-mss-status-badge <?php echo esc_attr($status_class); ?>">
+                            <?php echo esc_html(ucfirst($discrepancy['status'])); ?>
+                        </span>
+                    </td>
+                    <td>
+                        <?php if (in_array($discrepancy['status'], ['pending', 'resolving'], true)): ?>
+
+                                <button type="submit" name="wc_mss_row_action" value="auto_correct:<?php echo esc_attr($discrepancy['id']); ?>" class="button button-primary button-small">
+                                    <?php esc_html_e('Auto-Correct', 'multi-store-sync-for-woocommerce'); ?>
+                                </button>
+                                <button type="submit" name="wc_mss_row_action" value="mark_resolved:<?php echo esc_attr($discrepancy['id']); ?>" class="button button-small">
+                                    <?php esc_html_e('Mark Resolved', 'multi-store-sync-for-woocommerce'); ?>
+                                </button>
+                                <button type="submit" name="wc_mss_row_action" value="mark_ignored:<?php echo esc_attr($discrepancy['id']); ?>" class="button button-small">
+                                    <?php esc_html_e('Ignore', 'multi-store-sync-for-woocommerce'); ?>
+                                </button>
+
+                        <?php endif; ?>
+                    </td>
+            <?php
+            }, static fn(array $item): bool => in_array($item['status'], ['pending', 'resolving'], true), $total);
+            $list_table->display();
+            ?>
+            </form>
     <?php endif; ?>
 
     <hr style="margin: 2rem 0;" />

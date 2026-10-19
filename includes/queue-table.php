@@ -383,9 +383,10 @@ class WC_Multi_Store_Queue_Table {
      *
      * @param int $limit Number of items to get
      * @param string $status Filter by status (all, pending, processing, completed, failed)
+     * @param int $offset Pagination offset
      * @return array Queue items with product info
      */
-    public static function get_recent_items(int $limit = 50, string $status = 'all'): array {
+    public static function get_recent_items(int $limit = 50, string $status = 'all', int $offset = 0): array {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
@@ -403,20 +404,21 @@ class WC_Multi_Store_Queue_Table {
                 END,
                 priority ASC,
                 created_at DESC
-            LIMIT %d";
+            LIMIT %d OFFSET %d";
 
         if ($status !== 'all') {
             $items = $wpdb->get_results(
                 $wpdb->prepare(
                     "SELECT * FROM {$table_name} WHERE status = %s {$order_sql}",
                     $status,
-                    $limit
+                    $limit,
+                    max(0, $offset)
                 ),
                 ARRAY_A
             );
         } else {
             $items = $wpdb->get_results(
-                $wpdb->prepare("SELECT * FROM {$table_name} {$order_sql}", $limit),
+                $wpdb->prepare("SELECT * FROM {$table_name} {$order_sql}", $limit, max(0, $offset)),
                 ARRAY_A
             );
         }

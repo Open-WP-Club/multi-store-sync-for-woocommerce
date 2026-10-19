@@ -474,7 +474,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
-        $wpdb->shouldReceive('prepare')->once()->with(\Mockery::pattern('/SELECT \*/'), 50)->andReturn('SQL');
+        $wpdb->shouldReceive('prepare')->once()->with(\Mockery::pattern('/SELECT \*/'), 50, 0)->andReturn('SQL');
         $wpdb->shouldReceive('get_results')->once()->with('SQL', ARRAY_A)->andReturn([]);
 
         $this->assertSame([], WC_Multi_Store_Queue_Table::get_recent_items());
@@ -488,11 +488,25 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $wpdb->shouldReceive('prepare')->once()->with(
             \Mockery::on(fn(string $sql): bool => str_contains($sql, 'WHERE status = %s')),
             'failed',
-            5
+            5,
+            0
         )->andReturn('FILTERED');
         $wpdb->shouldReceive('get_results')->once()->andReturn([]);
 
         $this->assertSame([], WC_Multi_Store_Queue_Table::get_recent_items(5, 'failed'));
+    }
+
+    public function test_get_recent_items_paginates_with_status_filter(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->with(
+            \Mockery::on(fn(string $sql): bool => str_contains($sql, 'WHERE status = %s') && str_contains($sql, 'LIMIT %d OFFSET %d')),
+            'failed', 50, 100
+        )->andReturn('PAGE3');
+        $wpdb->shouldReceive('get_results')->once()->with('PAGE3', ARRAY_A)->andReturn([]);
+        $this->assertSame([], WC_Multi_Store_Queue_Table::get_recent_items(50, 'failed', 100));
     }
 
     public function test_get_recent_items_clamps_limit_to_one(): void
@@ -500,7 +514,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
-        $wpdb->shouldReceive('prepare')->once()->with(\Mockery::type('string'), 1)->andReturn('SQL');
+        $wpdb->shouldReceive('prepare')->once()->with(\Mockery::type('string'), 1, 0)->andReturn('SQL');
         $wpdb->shouldReceive('get_results')->once()->andReturn([]);
 
         WC_Multi_Store_Queue_Table::get_recent_items(0);

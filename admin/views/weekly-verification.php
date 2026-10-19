@@ -642,30 +642,40 @@ foreach ($active_stores as $store_url => $store_config) {
                         <?php
                         $report_data = maybe_unserialize($latest_report['report_data']);
                         if (!empty($report_data['details'])):
-                            $shown = 0;
+                            $report_items = array_map(
+                                static fn(array $item): array => ['id' => $item['product_id']] + $item,
+                                array_filter($report_data['details'], static fn(array $item): bool => !empty($item['discrepancies']))
+                            );
                         ?>
-                            <h3><?php esc_html_e('Sample Discrepancies (First 5)', 'multi-store-sync-for-woocommerce'); ?></h3>
-                            <?php foreach ($report_data['details'] as $product_report):
-                                if ($shown >= 5) break;
-                                if (!empty($product_report['discrepancies'])):
-                                    $shown++;
-                            ?>
-                                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0;">
-                                    <strong><?php echo esc_html($product_report['name']); ?></strong>
-                                    (SKU: <?php echo esc_html($product_report['sku']); ?>, ID: <?php echo esc_html($product_report['product_id']); ?>)
-                                    <ul style="margin: 5px 0 0 20px;">
-                                        <?php foreach ($product_report['discrepancies'] as $disc): ?>
-                                            <li>
-                                                <strong><?php echo esc_html($disc['store_name']); ?>:</strong>
-                                                <?php echo wp_kses_post(WC_Multi_Store_Weekly_Sync_Verifier::format_discrepancy_message($disc)); ?>
-                                            </li>
-                                        <?php endforeach; ?>
-                                    </ul>
-                                </div>
+                            <h3><?php esc_html_e('Reported Discrepancies', 'multi-store-sync-for-woocommerce'); ?></h3>
+                            <form method="post">
                             <?php
-                                endif;
-                            endforeach;
+                            $list_table = new WC_Multi_Store_Admin_List_Table('verification', [
+                                'product' => __('Product', 'multi-store-sync-for-woocommerce'),
+                                'sku' => __('SKU', 'multi-store-sync-for-woocommerce'),
+                                'discrepancies' => __('Discrepancies', 'multi-store-sync-for-woocommerce'),
+                                'actions' => __('Actions', 'multi-store-sync-for-woocommerce'),
+                            ], $report_items, static function (array $item): void {
+                                ?>
+                                <td><strong><?php echo esc_html($item['name']); ?></strong> (#<?php echo esc_html($item['id']); ?>)</td>
+                                <td><code><?php echo esc_html($item['sku']); ?></code></td>
+                                <td><ul>
+                                    <?php foreach ($item['discrepancies'] as $disc): ?>
+                                        <li><strong><?php echo esc_html($disc['store_name']); ?>:</strong>
+                                            <?php echo wp_kses_post(WC_Multi_Store_Weekly_Sync_Verifier::format_discrepancy_message($disc)); ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul></td>
+                                <td>
+                                    <?php if ($item['id'] > 0): ?>
+                                        <button type="submit" class="button button-small" name="wc_mss_row_action" value="resync:<?php echo esc_attr($item['id']); ?>"><?php esc_html_e('Re-sync to all stores', 'multi-store-sync-for-woocommerce'); ?></button>
+                                    <?php endif; ?>
+                                </td>
+                                <?php
+                            }, static fn(array $item): bool => $item['id'] > 0);
+                            $list_table->display();
                             ?>
+                            </form>
                         <?php endif; ?>
                     </div>
                 <?php else: ?>

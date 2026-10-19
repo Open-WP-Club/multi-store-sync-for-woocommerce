@@ -64,28 +64,21 @@ if (!defined('ABSPATH')) {
 
             <!-- Queue Table -->
             <?php if (!empty($queue_items)): ?>
-            <table class="wp-list-table widefat fixed striped"
-                data-label-retry="<?php echo esc_attr__('Retry', 'multi-store-sync-for-woocommerce'); ?>"
-                data-label-retrying="<?php echo esc_attr__('Retrying…', 'multi-store-sync-for-woocommerce'); ?>"
-                data-label-pending="<?php echo esc_attr__('Pending', 'multi-store-sync-for-woocommerce'); ?>"
-                data-label-error="<?php echo esc_attr__('Error', 'multi-store-sync-for-woocommerce'); ?>">
-                <thead>
-                    <tr>
-                        <th style="width: 60px;"><?php esc_html_e('ID', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th style="width: 120px;"><?php esc_html_e('SKU', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php esc_html_e('Product', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th style="width: 100px;"><?php esc_html_e('Sync Type', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th style="width: 100px;"><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th style="width: 60px;"><?php esc_html_e('Priority', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th style="width: 70px;"><?php esc_html_e('Attempts', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th style="width: 140px;"><?php esc_html_e('Created', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th style="width: 80px;"><?php esc_html_e('Actions', 'multi-store-sync-for-woocommerce'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($queue_items as $item): ?>
-                    <tr id="queue-row-<?php echo esc_attr($item['id']); ?>">
+            <form method="post">
+            <?php
+            $list_table = new WC_Multi_Store_Admin_List_Table('queue', [
+                'id' => __('ID', 'multi-store-sync-for-woocommerce'),
+                'sku' => __('SKU', 'multi-store-sync-for-woocommerce'),
+                'product' => __('Product', 'multi-store-sync-for-woocommerce'),
+                'store' => __('Store', 'multi-store-sync-for-woocommerce'),
+                'sync_type' => __('Sync Type', 'multi-store-sync-for-woocommerce'),
+                'status' => __('Status', 'multi-store-sync-for-woocommerce'),
+                'priority' => __('Priority', 'multi-store-sync-for-woocommerce'),
+                'attempts' => __('Attempts', 'multi-store-sync-for-woocommerce'),
+                'created' => __('Created', 'multi-store-sync-for-woocommerce'),
+                'actions' => __('Actions', 'multi-store-sync-for-woocommerce'),
+            ], $queue_items, static function (array $item): void {
+                ?>
                         <td><?php echo esc_html($item['id']); ?></td>
                         <td><code><?php echo esc_html($item['product_sku'] ?: '-'); ?></code></td>
                         <td>
@@ -133,21 +126,21 @@ if (!defined('ABSPATH')) {
                         <td><small><?php echo esc_html($item['created_at']); ?></small></td>
                         <td>
                             <?php if ($item['status'] === 'failed'): ?>
-                                <button type="button"
-                                    class="button button-small wc-mss-queue-retry"
-                                    data-id="<?php echo esc_attr($item['id']); ?>"
+                                <button type="submit" name="wc_mss_row_action" value="retry:<?php echo esc_attr($item['id']); ?>"
+                                    class="button button-small"
                                     title="<?php esc_attr_e('Reset to pending for retry', 'multi-store-sync-for-woocommerce'); ?>">
                                     <?php esc_html_e('Retry', 'multi-store-sync-for-woocommerce'); ?>
                                 </button>
                             <?php endif; ?>
                         </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+                <?php
+            }, static fn(array $item): bool => $item['status'] === 'failed', (int) ($queue_stats[$queue_status_filter] ?? $queue_stats['total']));
+            $list_table->display();
+            ?>
+            </form>
 
             <p class="description" style="margin-top: 10px;">
-                <?php esc_html_e('Showing up to 50 most recent queue items. Priority: 1-2 = Critical (red), 3-4 = High (yellow), 5+ = Normal.', 'multi-store-sync-for-woocommerce'); ?>
+                <?php esc_html_e('Showing 50 queue items per page. Priority: 1-2 = Critical (red), 3-4 = High (yellow), 5+ = Normal.', 'multi-store-sync-for-woocommerce'); ?>
             </p>
             <?php else: ?>
             <div class="wc-mss-empty-state" style="text-align: center; padding: 30px; background: #f9f9f9; border-radius: 4px;">

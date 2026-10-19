@@ -259,10 +259,17 @@ class WC_Multi_Store_Stock_Verifier {
      * @param string $status Status filter (default: 'pending')
      * @return int Count
      */
-    public static function get_discrepancy_count(string $status = 'pending'): int {
+    public static function get_discrepancy_count(string $status = 'pending', string $store_url = ''): int {
         global $wpdb;
 
         $table_name = $wpdb->prefix . 'wc_multi_store_stock_discrepancies';
+
+        if ($store_url !== '') {
+            if ($status === 'all') {
+                return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_name} WHERE store_url = %s", $store_url));
+            }
+            return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_name} WHERE status = %s AND store_url = %s", $status, $store_url));
+        }
 
         if ($status === 'all') {
             return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");

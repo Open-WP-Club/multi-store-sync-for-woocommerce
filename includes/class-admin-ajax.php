@@ -992,6 +992,11 @@ class WC_Multi_Store_Admin_Ajax {
                 return;
             }
 
+            require_once WC_MSS_PLUGIN_DIR . 'includes/admin-list-table.php';
+            $scan_result = $result;
+            ob_start();
+            include WC_MSS_PLUGIN_DIR . 'admin/views/category-scan-results.php';
+            $result['table_html'] = ob_get_clean();
             wp_send_json_success($result);
 
         } catch (\Throwable $e) {

@@ -10,7 +10,10 @@ if (!defined('ABSPATH')) {
 }
 
 $dlq_stats = WC_Multi_Store_Dead_Letter_Queue::get_stats();
-$items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
+$items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50, 'offset' => (WC_Multi_Store_Admin_List_Table::page_number() - 1) * 50]);
+if (empty($items['results']) && $items['total'] > 0) {
+    $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50, 'offset' => (WC_Multi_Store_Admin_List_Table::page_number($items['total']) - 1) * 50]);
+}
 ?>
 
 <div class="wrap">
@@ -69,23 +72,20 @@ $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
 
     <!-- Items Table -->
     <?php if (!empty($items['results'])): ?>
-    <table class="wp-list-table widefat fixed striped">
-        <thead>
-            <tr>
-                <th style="width: 50px;"><?php esc_html_e('ID', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th style="width: 80px;"><?php esc_html_e('Product', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th style="width: 100px;"><?php esc_html_e('SKU', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th style="width: 100px;"><?php esc_html_e('Type', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th style="width: 60px;"><?php esc_html_e('Attempts', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Error', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th style="width: 140px;"><?php esc_html_e('Failed At', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th style="width: 120px;"><?php esc_html_e('Actions', 'multi-store-sync-for-woocommerce'); ?></th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($items['results'] as $item): ?>
-            <tr id="dlq-row-<?php echo esc_attr($item['id']); ?>">
+            <form method="post">
+            <?php
+            $list_table = new WC_Multi_Store_Admin_List_Table('dead-letter-queue', [
+                'id' => __('ID', 'multi-store-sync-for-woocommerce'),
+                'product' => __('Product', 'multi-store-sync-for-woocommerce'),
+                'sku' => __('SKU', 'multi-store-sync-for-woocommerce'),
+                'store' => __('Store', 'multi-store-sync-for-woocommerce'),
+                'sync_type' => __('Type', 'multi-store-sync-for-woocommerce'),
+                'attempts' => __('Attempts', 'multi-store-sync-for-woocommerce'),
+                'error' => __('Error', 'multi-store-sync-for-woocommerce'),
+                'failed' => __('Failed At', 'multi-store-sync-for-woocommerce'),
+                'actions' => __('Actions', 'multi-store-sync-for-woocommerce'),
+            ], $items['results'], static function (array $item): void {
+                ?>
                 <td><?php echo esc_html($item['id']); ?></td>
                 <td>
                     <a href="<?php echo esc_url(get_edit_post_link($item['product_id'])); ?>">#<?php echo esc_html($item['product_id']); ?></a>
@@ -99,17 +99,14 @@ $items = WC_Multi_Store_Dead_Letter_Queue::get_items(['limit' => 50]);
                 </td>
                 <td><?php echo esc_html($item['failed_at']); ?></td>
                 <td>
-                    <button type="button" class="button button-small wc-mss-dlq-retry" data-id="<?php echo esc_attr($item['id']); ?>"><?php esc_html_e('Retry', 'multi-store-sync-for-woocommerce'); ?></button>
-                    <button type="button" class="button button-small wc-mss-dlq-resolve" data-id="<?php echo esc_attr($item['id']); ?>"><?php esc_html_e('Dismiss', 'multi-store-sync-for-woocommerce'); ?></button>
+                    <button type="submit" class="button button-small" name="wc_mss_row_action" value="retry:<?php echo esc_attr($item['id']); ?>"><?php esc_html_e('Retry', 'multi-store-sync-for-woocommerce'); ?></button>
+                    <button type="submit" class="button button-small" name="wc_mss_row_action" value="dismiss:<?php echo esc_attr($item['id']); ?>"><?php esc_html_e('Dismiss', 'multi-store-sync-for-woocommerce'); ?></button>
                 </td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-
-    <?php if ($items['total'] > 50): ?>
-    <p class="description"><?php /* translators: %d: total number of queue items. */ printf(esc_html__('Showing 50 of %d items.', 'multi-store-sync-for-woocommerce'), absint($items['total'])); ?></p>
-    <?php endif; ?>
+                <?php
+            }, static fn(array $item): bool => true, $items['total']);
+            $list_table->display();
+            ?>
+            </form>
 
     <?php else: ?>
     <div class="wc-mss-empty-state" style="text-align: center; padding: 40px;">

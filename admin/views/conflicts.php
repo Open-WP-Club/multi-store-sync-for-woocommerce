@@ -46,69 +46,80 @@ $stats = WC_Multi_Store_Conflict_Detector::get_stats();
         </div>
     <?php endif; ?>
 
-    <div class="wc-mss-conflicts-filters" style="margin: 20px 0; background: #fff; padding: 0.9375rem; border: 0.0625rem solid #ccd0d4; border-radius: 0.25rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-        <select id="wc-mss-conflicts-status-filter">
-            <option value="unresolved"><?php esc_html_e('Unresolved', 'multi-store-sync-for-woocommerce'); ?></option>
-            <option value="all"><?php esc_html_e('All', 'multi-store-sync-for-woocommerce'); ?></option>
+    <?php
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list filter or pagination.
+    $status_filter = isset($_GET['status']) && is_string($_GET['status']) && sanitize_key(wp_unslash($_GET['status'])) === 'all' ? 'all' : 'unresolved';
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list filter or pagination.
+    $store_filter = isset($_GET['store']) && is_string($_GET['store']) ? esc_url_raw(wp_unslash($_GET['store'])) : '';
+    $total = WC_Multi_Store_Conflict_Detector::get_conflict_count($store_filter, $status_filter === 'all');
+    $page = WC_Multi_Store_Admin_List_Table::page_number($total);
+    $conflicts = WC_Multi_Store_Conflict_Detector::get_conflicts($store_filter, 50, ($page - 1) * 50, $status_filter === 'all');
+    $products = [];
+    if ($conflicts) {
+        foreach (wc_get_products(['include' => array_unique(array_column($conflicts, 'local_product_id')), 'limit' => -1]) as $product) {
+            $products[$product->get_id()] = $product;
+        }
+    }
+    ?>
+    <form method="get">
+        <input type="hidden" name="page" value="wc-settings" />
+        <input type="hidden" name="tab" value="multi_store_sync" />
+        <input type="hidden" name="section" value="conflicts" />
+        <label class="screen-reader-text" for="wc-mss-conflicts-status-filter"><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></label>
+        <select name="status" id="wc-mss-conflicts-status-filter">
+            <option value="unresolved" <?php selected($status_filter, 'unresolved'); ?>><?php esc_html_e('Unresolved', 'multi-store-sync-for-woocommerce'); ?></option>
+            <option value="all" <?php selected($status_filter, 'all'); ?>><?php esc_html_e('All', 'multi-store-sync-for-woocommerce'); ?></option>
         </select>
-
-        <select id="wc-mss-conflicts-store-filter">
+        <label class="screen-reader-text" for="wc-mss-conflicts-store-filter"><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></label>
+        <select name="store" id="wc-mss-conflicts-store-filter">
             <option value=""><?php esc_html_e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
             <?php foreach ($stores as $store_url => $store_config): ?>
-                <?php if (($store_config['status'] ?? '') === 'active'): ?>
-                    <option value="<?php echo esc_attr($store_url); ?>">
-                        <?php echo esc_html($store_config['name'] ?? $store_url); ?>
-                    </option>
-                <?php endif; ?>
+                <option value="<?php echo esc_attr($store_url); ?>" <?php selected($store_filter, $store_url); ?>><?php echo esc_html($store_config['name'] ?? $store_url); ?></option>
             <?php endforeach; ?>
         </select>
-
-        <span style="flex: 1 1 auto;"></span>
-
-        <select id="wc-mss-conflicts-resolution">
-            <option value="overwrite"><?php esc_html_e('Overwrite', 'multi-store-sync-for-woocommerce'); ?></option>
-            <option value="keep_remote"><?php esc_html_e('Keep Remote', 'multi-store-sync-for-woocommerce'); ?></option>
-            <option value="merge"><?php esc_html_e('Merge', 'multi-store-sync-for-woocommerce'); ?></option>
-        </select>
-        <button type="button" class="button" id="wc-mss-conflicts-resolve-all-btn">
-            <?php esc_html_e('Resolve All', 'multi-store-sync-for-woocommerce'); ?>
-        </button>
-    </div>
-
-    <div id="wc-mss-conflicts-notices"></div>
-
-    <div id="wc-mss-conflicts-results">
-        <p><?php esc_html_e('Loading…', 'multi-store-sync-for-woocommerce'); ?></p>
-    </div>
+        <button type="submit" class="button"><?php esc_html_e('Filter', 'multi-store-sync-for-woocommerce'); ?></button>
+    </form>
+    <form method="post">
+        <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('conflicts', [
+            'product' => __('Product', 'multi-store-sync-for-woocommerce'),
+            'store' => __('Store', 'multi-store-sync-for-woocommerce'),
+            'fields' => __('Changed Fields', 'multi-store-sync-for-woocommerce'),
+            'detected' => __('Detected', 'multi-store-sync-for-woocommerce'),
+            'status' => __('Status', 'multi-store-sync-for-woocommerce'),
+            'actions' => __('Actions', 'multi-store-sync-for-woocommerce'),
+        ], $conflicts, static function (array $conflict) use ($products): void {
+            $product = $products[$conflict['local_product_id']] ?? null;
+            $queued = in_array($conflict['queue_status'] ?? '', ['pending', 'processing'], true);
+            $status = $conflict['resolved'] ? __('Resolved', 'multi-store-sync-for-woocommerce') : match ($conflict['queue_status'] ?? '') {
+                'pending' => __('Queued', 'multi-store-sync-for-woocommerce'),
+                'processing' => __('Processing', 'multi-store-sync-for-woocommerce'),
+                'failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
+                default => __('Unresolved', 'multi-store-sync-for-woocommerce'),
+            };
+            ?>
+            <td>
+                <?php if ($product): ?>
+                    <a href="<?php echo esc_url(get_edit_post_link($product->get_id())); ?>"><strong><?php echo esc_html($product->get_name()); ?></strong></a><br />
+                    <code><?php echo esc_html($product->get_sku()); ?></code>
+                <?php else: ?>
+                    <?php esc_html_e('(Product not found)', 'multi-store-sync-for-woocommerce'); ?>
+                <?php endif; ?>
+            </td>
+            <td><?php echo esc_html($conflict['store_url']); ?></td>
+            <td><?php echo esc_html(implode(', ', $conflict['changed_fields'])); ?></td>
+            <td><?php echo esc_html($conflict['detected_at']); ?></td>
+            <td><?php echo esc_html($status); ?><?php if (!empty($conflict['resolution'])) echo ' (' . esc_html($conflict['resolution']) . ')'; ?></td>
+            <td>
+                <?php if (!$conflict['resolved'] && !$queued): ?>
+                    <?php foreach (WC_Multi_Store_Admin_List_Table::actions_for('conflicts') as $action => $label): ?>
+                        <button type="submit" class="button button-small" name="wc_mss_row_action" value="<?php echo esc_attr($action . ':' . $conflict['id']); ?>"><?php echo esc_html($label); ?></button>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </td>
+            <?php
+        }, static fn(array $item): bool => !$item['resolved'] && !in_array($item['queue_status'] ?? '', ['pending', 'processing'], true), $total);
+        $list_table->display();
+        ?>
+    </form>
 </div>
-
-<style>
-.wc-mss-conflicts-page .wc-mss-status-badge {
-    display: inline-block;
-    padding: 0.1875rem 0.625rem;
-    border-radius: 0.1875rem;
-    font-size: 0.6875rem;
-    font-weight: bold;
-    text-transform: uppercase;
-}
-
-.wc-mss-conflicts-page .wc-mss-status-unresolved {
-    background: #ffb900;
-    color: #000;
-}
-
-.wc-mss-conflicts-page .wc-mss-status-resolved {
-    background: #46b450;
-    color: #fff;
-}
-
-.wc-mss-conflicts-page .wc-mss-changed-field-tag {
-    display: inline-block;
-    background: #f0f0f1;
-    border-radius: 0.1875rem;
-    padding: 0.0625rem 0.375rem;
-    margin: 0.0625rem;
-    font-size: 0.75rem;
-    font-family: monospace;
-}
-</style>

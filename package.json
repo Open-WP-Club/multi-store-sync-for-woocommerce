@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build:chart": "esbuild build-src/chart-entry.js --bundle --minify --outfile=admin/js/vendor/chart.min.js",
-    "test": "node --test tests/js/*.test.js"
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
