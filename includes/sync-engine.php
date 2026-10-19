@@ -425,7 +425,8 @@ class WC_Multi_Store_Sync_Engine {
         $match_by = $settings['match_products_by'] ?? 'sku';
         $search_value = ($match_by === 'sku') ? $product->get_sku() : $product->get_slug();
 
-        if (!$conflict_resolution && $sync_type !== 'full_product' && !empty($search_value)) {
+        if (!$conflict_resolution && $sync_type !== 'full_product' && !empty($search_value)
+            && WC_Multi_Store_Remote_Product_Manager::get_stored_remote_id($product->get_id(), $store_url) === null) {
             if (WC_Multi_Store_Cache_Manager::is_product_not_found($store_url, $search_value, $match_by)) {
                 // Check if auto-create missing products is enabled
                 $auto_create_missing = $settings['auto_create_missing_products'] ?? false;
@@ -508,6 +509,13 @@ class WC_Multi_Store_Sync_Engine {
             $remote_product = $this->find_remote_product($api, $product, $match_by, $store_url);
         }
         $api_calls++;
+
+        if (is_wp_error($remote_product)) {
+            $message = 'Remote product lookup failed: ' . $remote_product->get_error_message();
+            $this->logger->warning($message . ' for ' . $product->get_sku() . ' on ' . $store_url);
+            $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'error', $message, null, $start_time, $start_memory, $api_calls);
+            return ['success' => false, 'message' => $message];
+        }
 
         // Determine if this is an update or create
         $is_update = !empty($remote_product);
@@ -956,9 +964,9 @@ class WC_Multi_Store_Sync_Engine {
      * @param WC_Product $product Product object
      * @param string $match_by Match by 'sku' or 'slug'
      * @param string $store_url Store URL for caching
-     * @return array|null Remote product data or null if not found
+     * @return array|WP_Error|null Remote product, lookup error, or null if not found
      */
-    private function find_remote_product($api, $product, $match_by, $store_url = ''): ?array {
+    private function find_remote_product($api, $product, $match_by, $store_url = ''): array|\WP_Error|null {
         return $this->remote_manager->find_remote_product($api, $product, $match_by, $store_url);
     }
 

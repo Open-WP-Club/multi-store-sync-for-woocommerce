@@ -101,16 +101,18 @@ class RemoteProductManagerTest extends WC_Multi_Store_TestCase
         $this->assertNull($result);
     }
 
-    public function test_find_remote_product_returns_null_on_api_error(): void
+    public function test_find_remote_product_returns_api_error_without_negative_caching(): void
     {
         $api = $this->createMockApi();
         $product = $this->createMockProduct('ERR-SKU');
 
         $api->shouldReceive('get_products')->andReturn(new \WP_Error('api_error', 'Connection failed'));
+        Functions\expect('set_transient')->never();
 
         $result = $this->manager->find_remote_product($api, $product, 'sku', 'https://store1.com');
 
-        $this->assertNull($result);
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('Connection failed', $result->get_error_message());
     }
 
     // ── stable local↔remote ID mapping ───────────────────────────
@@ -156,7 +158,7 @@ class RemoteProductManagerTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_post_meta')->justReturn('999');
         $api->shouldReceive('get_product')->with(999)->once()->andReturn(
-            new \WP_Error('rest_not_found', 'Not found')
+            new \WP_Error('rest_not_found', 'Not found', ['status' => 404])
         );
         $api->shouldReceive('get_products')->with('FIND-SKU', 'sku')->once()->andReturn([
             ['id' => 42, 'sku' => 'FIND-SKU'],
@@ -172,6 +174,44 @@ class RemoteProductManagerTest extends WC_Multi_Store_TestCase
         $this->assertNotNull($result);
         $this->assertEquals(42, $result['id']);
         $this->assertSame([100, '_mss_remote_id_' . md5('https://store1.com')], $deleted_meta);
+    }
+
+    public function test_stored_id_is_preserved_on_lookup_outage_or_malformed_response(): void
+    {
+        Functions\when('get_post_meta')->justReturn('999');
+        Functions\expect('delete_post_meta')->never();
+        Functions\expect('set_transient')->never();
+        foreach ([new \WP_Error('timeout', 'Timed out'), new \WP_Error('auth_error', 'Forbidden', ['status' => 403]), [], ['id' => 42]] as $response) {
+            $api = $this->createMockApi();
+            $api->shouldReceive('get_product')->with(999)->once()->andReturn($response);
+            $api->shouldNotReceive('get_products');
+
+            $result = $this->manager->find_remote_product($api, $this->createMockProduct(), 'sku', 'https://store1.com');
+
+            $this->assertInstanceOf(\WP_Error::class, $result);
+        }
+    }
+
+    public function test_live_not_found_bypasses_stale_search_cache(): void
+    {
+        Functions\when('get_post_meta')->justReturn('999');
+        Functions\when('get_transient')->justReturn(['id' => 999, 'sku' => 'TEST-SKU']);
+        $api = $this->createMockApi();
+        $api->shouldReceive('get_product')->with(999)->once()->andReturn(new \WP_Error('not_found', 'Deleted', ['status' => 404]));
+        $api->shouldReceive('get_products')->with('TEST-SKU', 'sku')->once()->andReturn([]);
+
+        $this->assertNull($this->manager->find_remote_product($api, $this->createMockProduct(), 'sku', 'https://store1.com'));
+    }
+
+    public function test_malformed_search_results_are_errors_and_are_not_cached(): void
+    {
+        Functions\expect('set_transient')->never();
+        foreach ([['message' => 'Error'], [null], ['wrong'], [['id' => 0]], [['id' => '42oops']]] as $response) {
+            $api = $this->createMockApi();
+            $api->shouldReceive('get_products')->once()->andReturn($response);
+            $result = $this->manager->find_remote_product($api, $this->createMockProduct(), 'sku', 'https://store1.com');
+            $this->assertInstanceOf(\WP_Error::class, $result);
+        }
     }
 
     // ── create_or_update ─────────────────────────────────────────
@@ -348,6 +388,24 @@ class RemoteProductManagerTest extends WC_Multi_Store_TestCase
         $result = $this->manager->verify_remote_product($api, 42, ['stock_quantity' => 58, 'regular_price' => '19.99', 'sale_price' => '']);
 
         $this->assertSame($actual, $result);
+    }
+
+    public function test_readback_checks_gallery_including_removed_and_replaced_images(): void
+    {
+        foreach ([
+            [[['id' => 10]], null, false],
+            [[['id' => 10]], [], false],
+            [[['id' => 10]], [['id' => 20]], false],
+            [[], [['id' => 20]], false],
+            [[['src' => 'https://source.test/a.jpg']], [['id' => 20]], true],
+            [[['id' => 10]], [['id' => 10]], true],
+            [[], [], true],
+        ] as [$expected, $images, $success]) {
+            $api = $this->createMockApi();
+            $api->shouldReceive('get_product')->with(42)->once()->andReturn(['id' => 42, 'images' => $images]);
+            $result = $this->manager->verify_remote_product($api, 42, ['images' => $expected]);
+            $this->assertSame($success, !is_wp_error($result));
+        }
     }
 
     public function test_stock_sync_preserves_draft_status_and_explicit_trash_sync_is_allowed(): void

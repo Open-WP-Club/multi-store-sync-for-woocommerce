@@ -57,6 +57,7 @@ class ApiClientTest extends WC_Multi_Store_TestCase
         Functions\when('wp_remote_retrieve_body')->alias(function ($response) {
             return isset($response['body']) ? $response['body'] : '';
         });
+        Functions\when('wp_remote_retrieve_header')->alias(fn($response, $header) => $response['headers'][$header] ?? '');
 
         // Mock do_action
         Functions\when('do_action')->justReturn(null);
@@ -66,6 +67,49 @@ class ApiClientTest extends WC_Multi_Store_TestCase
         $GLOBALS['wc_mss_test_use_object_cache'] = false;
         Functions\when('wp_cache_get')->justReturn(false);
         Functions\when('wp_cache_set')->justReturn(true);
+    }
+
+    public function test_exhausted_retries_preserve_error_with_non_array_data(): void
+    {
+        Functions\when('get_option')->justReturn([]);
+        $client = new WC_Multi_Store_API_Client($this->store_url, $this->consumer_key, $this->consumer_secret);
+        // Exercise the exhausted branch without a backoff delay.
+        (new ReflectionProperty($client, 'max_retries'))->setValue($client, 1);
+        $retry = new ReflectionMethod($client, 'execute_with_retry');
+        foreach (['', 'connection details', null, ['status' => 504]] as $data) {
+            $result = $retry->invoke($client, fn() => new WP_Error('timeout', 'Timed out', $data));
+            $this->assertInstanceOf(WP_Error::class, $result);
+            $this->assertSame('timeout', $result->get_error_code());
+            $this->assertStringContainsString('after 1 attempts', $result->get_error_message());
+            $this->assertSame(1, $result->get_error_data()['retry_attempts']);
+            if (is_array($data)) {
+                $this->assertSame(504, $result->get_error_data()['status']);
+            } else {
+                $this->assertSame($data, $result->get_error_data()['original_data']);
+            }
+        }
+    }
+
+    public function test_valid_json_scalars_are_reported_as_api_errors(): void
+    {
+        Functions\when('get_option')->justReturn([]);
+        $client = new WC_Multi_Store_API_Client($this->store_url, $this->consumer_key, $this->consumer_secret);
+        foreach (['null', 'true', '42', '"OK"'] as $body) {
+            Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => $body]);
+            $result = $client->get_product(42);
+            $this->assertInstanceOf(WP_Error::class, $result);
+            $this->assertSame('invalid_response', $result->get_error_code());
+        }
+    }
+
+    public function test_malformed_error_message_does_not_throw(): void
+    {
+        Functions\when('get_option')->justReturn([]);
+        $client = new WC_Multi_Store_API_Client($this->store_url, $this->consumer_key, $this->consumer_secret);
+        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 403], 'body' => '{"message":{"detail":"denied"}}']);
+        $result = $client->get_product(42);
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $this->assertStringContainsString('HTTP 403', $result->get_error_message());
     }
 
     /**

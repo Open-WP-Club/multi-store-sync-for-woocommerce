@@ -70,9 +70,11 @@ class WC_Multi_Store_Remote_Product_Manager {
      * @param WC_Product $product Product object
      * @param string $match_by Match by 'sku' or 'slug'
      * @param string $store_url Store URL for caching
-     * @return array|null Remote product data or null if not found
+     * @return array|WP_Error|null Remote product, lookup error, or null if not found
      */
-    public function find_remote_product(WC_Multi_Store_API_Client $api, WC_Product $product, string $match_by, string $store_url = ''): ?array {
+    public function find_remote_product(WC_Multi_Store_API_Client $api, WC_Product $product, string $match_by, string $store_url = ''): array|\WP_Error|null {
+        $search_value = ($match_by === 'sku') ? $product->get_sku() : $product->get_slug();
+        $bypass_cache = false;
         // Prefer the stable local↔remote ID link over search-by-value: SKU/slug
         // can legitimately change after the first sync, and re-searching by the
         // NEW value would miss the existing remote record — risking a duplicate
@@ -81,23 +83,31 @@ class WC_Multi_Store_Remote_Product_Manager {
             $stored_id = self::get_stored_remote_id($product->get_id(), $store_url);
             if ($stored_id !== null) {
                 $by_id = $api->get_product($stored_id);
-                if (!is_wp_error($by_id) && !empty($by_id)) {
-                    $search_value = ($match_by === 'sku') ? $product->get_sku() : $product->get_slug();
+                if (!is_wp_error($by_id) && filter_var($by_id['id'] ?? null, FILTER_VALIDATE_INT) === $stored_id) {
                     if (!empty($search_value)) {
                         WC_Multi_Store_Cache_Manager::set_remote_product($store_url, $search_value, $match_by, $by_id);
                     }
                     return $by_id;
                 }
+                // An outage or rejected credentials do not mean the product
+                // was deleted. Keep its identity and let the queue retry.
+                if (is_wp_error($by_id)) {
+                    $error_data = $by_id->get_error_data();
+                    if (!is_array($error_data) || (int) ($error_data['status'] ?? 0) !== 404) {
+                        return $by_id;
+                    }
+                } else {
+                    return new \WP_Error('invalid_product_response', 'Stored remote product lookup returned an invalid product ID');
+                }
                 // Stored ID no longer resolves (deleted independently on the
                 // remote store) — clear it and fall through to search-by-value.
                 self::clear_stored_remote_id($product->get_id(), $store_url);
+                $bypass_cache = true;
+                // A stale positive/negative cache must not undo the live 404.
+                if ($search_value !== '') {
+                    WC_Multi_Store_Cache_Manager::delete_remote_product($store_url, $search_value, $match_by);
+                }
             }
-        }
-
-        if ($match_by === 'sku') {
-            $search_value = $product->get_sku();
-        } else {
-            $search_value = $product->get_slug();
         }
 
         if (empty($search_value)) {
@@ -105,7 +115,7 @@ class WC_Multi_Store_Remote_Product_Manager {
         }
 
         // Try to get from cache first
-        if (!empty($store_url)) {
+        if (!empty($store_url) && !$bypass_cache) {
             // Check if product is known to not exist (negative cache)
             if (WC_Multi_Store_Cache_Manager::is_product_not_found($store_url, $search_value, $match_by)) {
                 return null;
@@ -121,9 +131,12 @@ class WC_Multi_Store_Remote_Product_Manager {
         $result = $api->get_products($search_value, $match_by);
 
         if (is_wp_error($result)) {
-            return null;
+            return $result;
         }
 
+        if (!array_is_list($result) || (!empty($result) && (!is_array($result[0]) || filter_var($result[0]['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false))) {
+            return new \WP_Error('invalid_product_response', 'Remote product search returned an invalid product list');
+        }
         $remote_product = !empty($result) ? $result[0] : null;
 
         // Cache the result
@@ -264,6 +277,14 @@ class WC_Multi_Store_Remote_Product_Manager {
                     $remote_id, $field, json_encode($expected[$field]),
                     array_key_exists($field, $actual) ? json_encode($actual[$field]) : 'missing'
                 ));
+            }
+        }
+        if (array_key_exists('images', $expected)) {
+            $images = $actual['images'] ?? null;
+            $expected_ids = array_filter(array_column($expected['images'], 'id'));
+            if (!is_array($images) || count($images) !== count($expected['images'])
+                || array_diff($expected_ids, array_column($images, 'id'))) {
+                return new \WP_Error('product_verification_failed', sprintf('Remote product %d verification failed: images do not match the sent gallery', $remote_id));
             }
         }
         return $actual;

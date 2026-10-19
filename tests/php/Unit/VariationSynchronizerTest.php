@@ -336,6 +336,44 @@ class VariationSynchronizerTest extends WC_Multi_Store_TestCase
         $this->synchronizer->sync_variations($product, 100, $api, 'https://store1.com');
     }
 
+    public function test_missing_or_wrong_variation_batch_results_abort_sync(): void
+    {
+        foreach ([[], ['update' => []], ['update' => [['id' => 999]]], ['update' => [['id' => 0]]], ['update' => ['bad']], ['update' => [['id' => 700], ['id' => 701]]]] as $response) {
+            [$synchronizer, $product, $remote] = $this->mockLightSyncScenario(['stock_quantity' => 58]);
+            $api = \Mockery::mock('WC_Multi_Store_API_Client');
+            $api->shouldReceive('get_product_variations')->once()->andReturn([$remote]);
+            $api->shouldReceive('batch_product_variations')->once()->andReturn($response);
+            try {
+                $synchronizer->sync_variations($product, 100, $api, 'https://store.com', [], 'quantity');
+                $this->fail('Malformed variation batch must not report success');
+            } catch (\RuntimeException $e) {
+                $this->assertStringContainsString('batch response', $e->getMessage());
+            }
+        }
+    }
+
+    public function test_batch_create_and_delete_results_require_valid_matching_ids(): void
+    {
+        $validate = new \ReflectionMethod($this->synchronizer, 'validate_batch_response');
+        foreach ([
+            [['create' => [['sku' => 'NEW']]], ['create' => [[]]]],
+            [['create' => [['sku' => 'NEW']]], ['create' => [['id' => '1bad']]]],
+            [['delete' => [7]], ['delete' => [['id' => 8]]]],
+            [['delete' => [7]], []],
+        ] as [$sent, $response]) {
+            try {
+                $validate->invoke($this->synchronizer, $sent, $response);
+                $this->fail('Invalid variation batch result must be rejected');
+            } catch (\RuntimeException $e) {
+                $this->assertStringContainsString('batch response', $e->getMessage());
+            }
+        }
+        $validate->invoke($this->synchronizer,
+            ['create' => [['sku' => 'NEW']], 'update' => [['id' => 5]], 'delete' => [7]],
+            ['create' => [['id' => 9]], 'update' => [['id' => 5]], 'delete' => [['id' => 7]]]
+        );
+    }
+
     public function test_partial_variation_error_cannot_report_success(): void
     {
         $method = new \ReflectionMethod(WC_Multi_Store_Variation_Synchronizer::class, 'log_batch_partial_failures');

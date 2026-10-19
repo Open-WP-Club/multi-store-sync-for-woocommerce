@@ -212,6 +212,7 @@ class WC_Multi_Store_Variation_Synchronizer {
 
                 // Check for partial failures in successful batch response
                 $this->log_batch_partial_failures($batch_result, $remote_parent_id);
+                $this->validate_batch_response($batch_data, $batch_result);
                 foreach (['create', 'update'] as $operation) {
                     foreach ($batch_data[$operation] ?? [] as $index => $sent) {
                         if (!empty($sent['image'])) {
@@ -231,6 +232,27 @@ class WC_Multi_Store_Variation_Synchronizer {
         }
 
         return $api_calls;
+    }
+
+    /** Confirm that every requested batch item has a valid result. */
+    private function validate_batch_response(array $sent, array $result): void {
+        foreach ($sent as $operation => $items) {
+            $received = $result[$operation] ?? null;
+            if (!is_array($received) || !array_is_list($received) || count($received) !== count($items)) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught by sync handler and escaped by admin views.
+                throw new \RuntimeException('Incomplete variation batch response for ' . $operation);
+            }
+            foreach ($items as $index => $item) {
+                $id = is_array($received[$index])
+                    ? filter_var($received[$index]['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+                    : false;
+                $expected_id = $operation === 'delete' ? (int) $item : (int) ($item['id'] ?? 0);
+                if ($id === false || ($operation !== 'create' && $id !== $expected_id)) {
+                    // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught by sync handler and escaped by admin views.
+                    throw new \RuntimeException('Invalid variation ID in batch response for ' . $operation);
+                }
+            }
+        }
     }
 
     /**

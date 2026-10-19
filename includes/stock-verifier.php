@@ -90,9 +90,17 @@ class WC_Multi_Store_Stock_Verifier {
             $stored_id = WC_Multi_Store_Remote_Product_Manager::get_stored_remote_id($product_id, $matched_url);
             if ($stored_id !== null) {
                 $by_id = $api->get_product($stored_id);
-                if (!is_wp_error($by_id) && !empty($by_id)) {
+                if (!is_wp_error($by_id) && filter_var($by_id['id'] ?? null, FILTER_VALIDATE_INT) === $stored_id) {
                     $remote_products = [$by_id];
                 } else {
+                    if (is_wp_error($by_id)) {
+                        $error_data = $by_id->get_error_data();
+                        if (!is_array($error_data) || (int) ($error_data['status'] ?? 0) !== 404) {
+                            return ['success' => false, 'error' => 'API Error: ' . $by_id->get_error_message()];
+                        }
+                    } else {
+                        return ['success' => false, 'error' => 'API Error: Stored remote product lookup returned an invalid product ID'];
+                    }
                     // Stored ID no longer resolves (deleted independently on
                     // the remote store) — clear it and fall through to
                     // search-by-value below.

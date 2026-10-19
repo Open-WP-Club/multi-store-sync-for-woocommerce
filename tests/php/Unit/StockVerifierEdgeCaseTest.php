@@ -139,6 +139,38 @@ class StockVerifierEdgeCaseTest extends WC_Multi_Store_TestCase
 
     // ── verify_product_stock: SKU/slug drift, stored remote-ID fallback ──
 
+    public function test_verification_outage_does_not_erase_remote_identity_or_search_another_product(): void
+    {
+        $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('get_sku')->andReturn('RENAMED-SKU');
+        $product->shouldReceive('get_slug')->andReturn('renamed');
+        Functions\when('wc_get_product')->justReturn($product);
+        Functions\when('get_option')->alias(fn($key, $default = false) => match ($key) {
+            'wc_multi_store_sync_stores' => ['https://store.com' => ['status' => 'active', 'consumer_key' => 'ck_test', 'consumer_secret' => 'cs_test']],
+            'wc_multi_store_sync_settings' => ['match_products_by' => 'sku', 'auth_method' => 'query_string'],
+            default => $default,
+        });
+        Functions\when('get_post_meta')->justReturn('999');
+        Functions\expect('delete_post_meta')->never();
+        Functions\when('trailingslashit')->alias(fn($s) => rtrim($s, '/') . '/');
+        Functions\when('add_query_arg')->alias(fn($args, $url) => $url . '?' . http_build_query($args));
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code']);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body']);
+        foreach ([
+            new WP_Error('offline', 'Disconnected'),
+            ['response' => ['code' => 403], 'body' => '{"message":"Forbidden"}'],
+            ['response' => ['code' => 200], 'body' => '{"id":123}'],
+        ] as $response) {
+            Functions\when('wp_remote_get')->alias(function ($url) use ($response) {
+                $this->assertStringContainsString('products/999', $url, 'Do not search by renamed SKU after a failed ID lookup');
+                return $response;
+            });
+            $result = WC_Multi_Store_Stock_Verifier::verify_product_stock(1, 'https://store.com', 58);
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString('API Error:', $result['error']);
+        }
+    }
+
     public function test_verify_product_stock_resolves_via_stored_remote_id_when_sku_drifted(): void
     {
         $product = \Mockery::mock('WC_Product');

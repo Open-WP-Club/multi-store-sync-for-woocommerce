@@ -180,6 +180,70 @@ class ApiClientPaginationTest extends WC_Multi_Store_TestCase
         $this->assertCount(200, $result);
     }
 
+    public function test_pagination_rejects_unexpected_json_shapes_without_calling_consumer(): void
+    {
+        foreach (['null', 'true', '42', '"OK"', '{}', '{"message":"Error"}', '["bad item"]', '[null]', '[42]'] as $body) {
+            Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => $body]);
+            $called = false;
+            $result = $this->client->stream_products([], function () use (&$called) {
+                $called = true;
+            });
+            $this->assertInstanceOf(WP_Error::class, $result);
+            $this->assertSame('invalid_response', $result->get_error_code());
+            $this->assertFalse($called);
+        }
+    }
+
+    public function test_bad_later_page_does_not_return_partial_catalogue_as_success(): void
+    {
+        $page = 0;
+        Functions\when('wp_remote_get')->alias(function () use (&$page) {
+            $page++;
+            return $page === 1
+                ? $this->makeResponse([['id' => 42]], 200, ['x-wp-totalpages' => '2'])
+                : $this->makeResponse(['message' => 'Unexpected error']);
+        });
+        $this->assertInstanceOf(WP_Error::class, $this->client->get_all_products());
+        $this->assertSame(2, $page);
+    }
+
+    public function test_variations_after_the_first_hundred_are_loaded(): void
+    {
+        $calls = 0;
+        Functions\when('wp_remote_get')->alias(function ($url) use (&$calls) {
+            $calls++;
+            $this->assertStringContainsString('products/42/variations', $url);
+            $this->assertStringContainsString('page=' . $calls, $url);
+            $ids = $calls === 1 ? range(1, 100) : range(101, 125);
+            return $this->makeResponse(array_map(fn($id) => ['id' => $id], $ids), 200, ['x-wp-totalpages' => '2']);
+        });
+        $variations = $this->client->get_product_variations(42);
+        $this->assertCount(125, $variations);
+        $this->assertSame(125, $variations[124]['id']);
+        $this->assertSame(2, $calls);
+    }
+
+    public function test_explicit_variation_page_fetches_only_the_requested_page(): void
+    {
+        Functions\expect('wp_remote_get')->once()->with(\Mockery::on(fn($url) => str_contains($url, 'page=2')), \Mockery::any())
+            ->andReturn($this->makeResponse([['id' => 101]], 200, ['x-wp-totalpages' => '3']));
+        $this->assertSame([['id' => 101]], $this->client->get_product_variations(42, ['page' => 2]));
+    }
+
+    public function test_variation_page_failure_does_not_return_a_partial_list(): void
+    {
+        $page = 0;
+        Functions\when('wp_remote_get')->alias(function () use (&$page) {
+            $page++;
+            return $page === 1
+                ? $this->makeResponse([['id' => 42]], 200, ['x-wp-totalpages' => '2'])
+                : new WP_Error('offline', 'Page two failed');
+        });
+        $result = $this->client->get_product_variations(42);
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $this->assertSame('Page two failed', $result->get_error_message());
+    }
+
     public function test_pagination_with_malformed_totalpages_header(): void
     {
         // x-wp-totalpages = "invalid" → (int) "invalid" = 0

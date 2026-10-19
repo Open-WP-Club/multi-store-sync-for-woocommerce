@@ -536,7 +536,7 @@ class WC_Multi_Store_API_Client {
             // Try to parse JSON to get a proper error message from the API
             $data = json_decode($body, true);
 
-            if (json_last_error() === JSON_ERROR_NONE && isset($data['message'])) {
+            if (json_last_error() === JSON_ERROR_NONE && is_array($data) && isset($data['message']) && is_string($data['message'])) {
                 // Valid JSON with error message from WooCommerce API
                 $message = $data['message'];
             } else {
@@ -573,6 +573,10 @@ class WC_Multi_Store_API_Client {
                     'body_preview' => substr($body, 0, 200),
                 ]
             );
+        }
+
+        if (!is_array($data)) {
+            return new WP_Error('invalid_response', sprintf('Expected a JSON object or array (HTTP %d)', $code), ['status' => $code]);
         }
 
         return $data;
@@ -688,6 +692,9 @@ class WC_Multi_Store_API_Client {
             if ($attempt >= $this->max_retries) {
                 // Add retry info to error
                 $error_data = $response->get_error_data();
+                if (!is_array($error_data)) {
+                    $error_data = ['original_data' => $error_data];
+                }
                 $error_data['retry_attempts'] = $attempt;
                 return new WP_Error(
                     $response->get_error_code(),
@@ -713,7 +720,7 @@ class WC_Multi_Store_API_Client {
             ), 'warning');
 
             // Sleep before retry
-            usleep($total_delay * 1000000);
+            usleep((int) round($total_delay * 1000000));
         }
 
         return new WP_Error('max_retries_exceeded', 'Maximum retry attempts exceeded');
@@ -810,7 +817,12 @@ class WC_Multi_Store_API_Client {
 
         $params = wp_parse_args($params, $default_params);
 
-        return $this->get('products/' . $product_id . '/variations', $params);
+        $endpoint = 'products/' . $product_id . '/variations';
+        // Explicit page requests retain their single-page semantics. Syncs
+        // need the entire set to avoid re-creating variations after page one.
+        return isset($params['page'])
+            ? $this->get($endpoint, $params)
+            : $this->get_all_paginated($endpoint, $params, 0);
     }
 
     /**
@@ -1192,7 +1204,17 @@ class WC_Multi_Store_API_Client {
             $data = json_decode($body, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
-                return new \WP_Error('json_decode_error', 'Invalid JSON on page ' . $params['page']);
+                $error = new \WP_Error('json_decode_error', 'Invalid JSON on page ' . $params['page']);
+                $this->track_request($endpoint, 'GET', $start_time, $error);
+                return $error;
+            }
+            // Collection endpoints must return a JSON list of objects. An
+            // error-shaped object or scalar must not become a partial catalogue.
+            if (!is_array($data) || !array_is_list($data) || !str_starts_with(ltrim($body), '[')
+                || count(array_filter($data, 'is_array')) !== count($data)) {
+                $error = new \WP_Error('invalid_response', 'Expected a JSON list of objects on page ' . $params['page']);
+                $this->track_request($endpoint, 'GET', $start_time, $error);
+                return $error;
             }
 
             $this->track_request($endpoint, 'GET', $start_time, $data);
