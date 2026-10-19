@@ -751,6 +751,10 @@ class WC_Multi_Store_Sync_Engine {
             }
         }
 
+        // Keep the identity even if readback or post-sync work fails: the
+        // remote write cannot be rolled back, and retries must not duplicate it.
+        WC_Multi_Store_Remote_Product_Manager::save_remote_product_id($product->get_id(), $store_url, $remote_product_id);
+
         // Wrap all post-success local DB writes in a transaction so that product sync,
         // variation sync, hashes, and history log are committed atomically.
         // Remote API calls inside perform_post_sync_operations() cannot be rolled back,
@@ -758,6 +762,28 @@ class WC_Multi_Store_Sync_Engine {
         global $wpdb;
         $wpdb->query('START TRANSACTION');
         try {
+            // Perform post-sync operations (variations, custom fields, stock verification)
+            $additional_api_calls = $this->perform_post_sync_operations($product, $remote_product_id, $api, $store_url, $store_config, $sync_type, isset($product_data['stock_quantity']) ? (int) $product_data['stock_quantity'] : null);
+            $api_calls += $additional_api_calls;
+
+            // Confirm persistence with a separate GET after all remote writes.
+            $verification_data = array_replace(
+                array_intersect_key($operation_result['result'], array_flip(['sku', 'status', 'catalog_visibility'])),
+                $product_data
+            );
+            if ($product->is_type('variable')) {
+                // Parent prices/status are derived from variations by WooCommerce.
+                unset($verification_data['regular_price'], $verification_data['sale_price'], $verification_data['stock_status']);
+            }
+            $api_calls++;
+            $verified_product = $this->remote_manager->verify_remote_product($api, $remote_product_id, $verification_data);
+            if (is_wp_error($verified_product)) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Caught below and escaped by the admin views.
+                throw new \RuntimeException($verified_product->get_error_message());
+            }
+            $operation_result['result'] = $verified_product;
+            $message .= ' (verified by GET)';
+
             // Update cache with the new remote product data (refreshes expiration)
             $search_value = ($match_by === 'sku') ? $product->get_sku() : $product->get_slug();
             if (!empty($search_value) && !empty($operation_result['result'])) {
@@ -777,16 +803,6 @@ class WC_Multi_Store_Sync_Engine {
                     throw new \RuntimeException('Could not save conflict baseline');
                 }
             }
-
-            // Persist the stable local↔remote ID mapping so a later SKU/slug
-            // rename can't make a future sync miss this remote product and
-            // (on light syncs with auto_create_missing_products) create a
-            // duplicate instead of updating it.
-            WC_Multi_Store_Remote_Product_Manager::save_remote_product_id($product->get_id(), $store_url, $remote_product_id);
-
-            // Perform post-sync operations (variations, custom fields, stock verification)
-            $additional_api_calls = $this->perform_post_sync_operations($product, $remote_product_id, $api, $store_url, $store_config, $sync_type, isset($product_data['stock_quantity']) ? (int) $product_data['stock_quantity'] : null);
-            $api_calls += $additional_api_calls;
 
             // Save sync hashes for smart comparison on next sync
             if (in_array($sync_type, ['full_product', 'price_quantity_categories'], true)) {
@@ -809,7 +825,20 @@ class WC_Multi_Store_Sync_Engine {
             }
 
             // Log success
-            $this->logger->info($message . ': ' . $product->get_sku() . ' to ' . $store_url);
+            $remote_result = $operation_result['result'];
+            $this->logger->info(sprintf(
+                '%s: %s to %s (remote ID: %d, remote SKU: %s, status: %s, visibility: %s, URL: %s, sync: %s, source: %s)',
+                $message,
+                $product->get_sku(),
+                $store_url,
+                $remote_product_id,
+                $remote_result['sku'] ?? 'unknown',
+                $remote_result['status'] ?? 'unknown',
+                $remote_result['catalog_visibility'] ?? 'unknown',
+                $remote_result['permalink'] ?? 'unknown',
+                $sync_type,
+                $sync_source
+            ));
             $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'success', $message, $remote_product_id, $start_time, $start_memory, $api_calls);
 
             $wpdb->query('COMMIT');
@@ -817,6 +846,7 @@ class WC_Multi_Store_Sync_Engine {
             $wpdb->query('ROLLBACK');
             // Remote batches cannot roll back; discard any pre-batch cache restored by ROLLBACK.
             WC_Multi_Store_Cache_Manager::set_remote_variations($store_url, $remote_product_id, null);
+            WC_Multi_Store_Cache_Manager::delete_remote_product($store_url, $search_value, $match_by);
             $tx_message = 'Post-sync transaction failed: ' . $e->getMessage();
             $this->logger->error($tx_message . ' for product ' . $product->get_sku());
             $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'error', $tx_message, $remote_product_id, $start_time, $start_memory, $api_calls);

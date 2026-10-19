@@ -194,12 +194,79 @@ class WC_Multi_Store_Remote_Product_Manager {
             ];
         }
 
+        // A successful HTTP response alone does not confirm a product write.
+        // Reject empty/error-shaped payloads and responses for a different ID
+        // before the engine persists the mapping or reports success.
+        $remote_id = filter_var($result['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $validation_error = null;
+        if ($remote_id === false) {
+            $validation_error = 'Remote product response is missing a valid product ID';
+        } elseif ($remote_product && $remote_id !== (int) $remote_product['id']) {
+            $validation_error = sprintf('Remote product response ID mismatch: expected %d, received %d', $remote_product['id'], $remote_id);
+        } elseif (($result['status'] ?? '') === 'trash' && ($product_data['status'] ?? '') !== 'trash') {
+            $validation_error = sprintf('Remote product %d is in trash; sync did not restore it', $remote_id);
+        } elseif (isset($product_data['status']) && ($result['status'] ?? null) !== $product_data['status']) {
+            $validation_error = sprintf('Remote product %d status mismatch: expected %s, received %s', $remote_id, $product_data['status'], $result['status'] ?? 'missing');
+        }
+
+        if ($validation_error !== null) {
+            return [
+                'success' => false,
+                'action' => $action,
+                'result' => $result,
+                'message' => $validation_error,
+            ];
+        }
+
         return [
             'success' => true,
             'action' => $action,
             'result' => $result,
             'message' => 'Product ' . $action . ' successfully',
         ];
+    }
+
+    /**
+     * Read the product back from the API and verify fields actually sent.
+     * This deliberately bypasses the local remote-product cache.
+     *
+     * @param WC_Multi_Store_API_Client $api Remote API client.
+     * @param int $remote_id Product ID returned by the write.
+     * @param array $expected Data sent after store rules and conflict preservation.
+     * @return array|WP_Error Fresh product, or a verification failure.
+     */
+    public function verify_remote_product(WC_Multi_Store_API_Client $api, int $remote_id, array $expected): array|\WP_Error {
+        $actual = $api->get_product($remote_id);
+        if (is_wp_error($actual)) {
+            return new \WP_Error('product_verification_failed', sprintf('Remote product %d verification failed: %s', $remote_id, $actual->get_error_message()));
+        }
+        if (filter_var($actual['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== $remote_id) {
+            return new \WP_Error('product_verification_failed', sprintf('Remote product %d verification failed: product was not returned by GET', $remote_id));
+        }
+        if (($actual['status'] ?? '') === 'trash' && ($expected['status'] ?? '') !== 'trash') {
+            return new \WP_Error('product_verification_failed', sprintf('Remote product %d verification failed: product is in trash', $remote_id));
+        }
+
+        foreach (['sku', 'status', 'catalog_visibility', 'manage_stock', 'stock_quantity', 'stock_status', 'regular_price', 'sale_price'] as $field) {
+            if (!array_key_exists($field, $expected)) {
+                continue;
+            }
+            $matches = array_key_exists($field, $actual) && $actual[$field] === $expected[$field];
+            // WooCommerce returns prices as decimal strings and may normalize
+            // their precision. Quantities may be serialized as ints or floats.
+            if (in_array($field, ['stock_quantity', 'regular_price', 'sale_price'], true)
+                && is_numeric($expected[$field]) && is_numeric($actual[$field] ?? null)) {
+                $matches = (float) $expected[$field] === (float) $actual[$field];
+            }
+            if (!$matches) {
+                return new \WP_Error('product_verification_failed', sprintf(
+                    'Remote product %d verification failed: %s expected %s, received %s',
+                    $remote_id, $field, json_encode($expected[$field]),
+                    array_key_exists($field, $actual) ? json_encode($actual[$field]) : 'missing'
+                ));
+            }
+        }
+        return $actual;
     }
 
     /**

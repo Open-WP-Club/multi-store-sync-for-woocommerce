@@ -256,4 +256,112 @@ class RemoteProductManagerTest extends WC_Multi_Store_TestCase
         $this->assertArrayNotHasKey('type', $captured_data);
     }
 
+    public function test_update_rejects_invalid_success_payloads(): void
+    {
+        foreach ([[], ['message' => 'OK'], ['id' => 0], ['id' => -1], ['id' => '42oops'], ['id' => 99]] as $response) {
+            $api = $this->createMockApi();
+            $api->shouldReceive('update_product')->with(42, ['stock_quantity' => 58])->once()->andReturn($response);
+
+            $result = $this->manager->create_or_update(
+                $api, $this->createMockProduct('170519'), ['id' => 42], ['stock_quantity' => 58], 'quantity', 'stock_change'
+            );
+
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString('ID', $result['message']);
+        }
+    }
+
+    public function test_create_rejects_empty_success_payload(): void
+    {
+        $api = $this->createMockApi();
+        $api->shouldReceive('create_product')->once()->andReturn([]);
+
+        $result = $this->manager->create_or_update($api, $this->createMockProduct(), null, ['name' => 'Product'], 'full_product');
+
+        $this->assertFalse($result['success']);
+    }
+
+    public function test_stock_update_to_trashed_product_is_not_reported_as_success(): void
+    {
+        $api = $this->createMockApi();
+        $api->shouldReceive('update_product')->once()->andReturn(['id' => 42, 'status' => 'trash']);
+
+        $result = $this->manager->create_or_update(
+            $api, $this->createMockProduct('170519'), ['id' => 42], ['stock_quantity' => 58], 'quantity', 'stock_change'
+        );
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('in trash', $result['message']);
+    }
+
+    public function test_update_rejects_ignored_publish_status(): void
+    {
+        $api = $this->createMockApi();
+        $api->shouldReceive('update_product')->once()->andReturn(['id' => 42, 'status' => 'draft']);
+
+        $result = $this->manager->create_or_update(
+            $api, $this->createMockProduct(), ['id' => 42], ['status' => 'publish'], 'full_product'
+        );
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('status mismatch', $result['message']);
+    }
+
+    public function test_readback_requires_a_real_product_with_the_written_id(): void
+    {
+        foreach ([[], ['id' => 99], ['id' => 42, 'status' => 'trash'], new \WP_Error('http_404', 'Not found'), new \WP_Error('timeout', 'Timed out')] as $response) {
+            $api = $this->createMockApi();
+            $api->shouldReceive('get_product')->with(42)->once()->andReturn($response);
+            $result = $this->manager->verify_remote_product($api, 42, []);
+            $this->assertInstanceOf(\WP_Error::class, $result);
+            $this->assertStringContainsString('verification failed', $result->get_error_message());
+        }
+    }
+
+    public function test_readback_checks_every_sent_core_field_and_rejects_missing_fields(): void
+    {
+        $expected = [
+            'sku' => '170519', 'status' => 'publish', 'catalog_visibility' => 'visible',
+            'manage_stock' => true, 'stock_quantity' => 58, 'stock_status' => 'instock',
+            'regular_price' => '19.99', 'sale_price' => '',
+        ];
+        $wrong = ['sku' => 'other', 'status' => 'draft', 'catalog_visibility' => 'hidden',
+            'manage_stock' => false, 'stock_quantity' => 59, 'stock_status' => 'outofstock',
+            'regular_price' => '20', 'sale_price' => '10'];
+        foreach ($wrong as $field => $value) {
+            foreach ([array_merge($expected, [$field => $value]), array_diff_key($expected, [$field => true])] as $actual) {
+                $api = $this->createMockApi();
+                $api->shouldReceive('get_product')->with(42)->once()->andReturn(['id' => 42] + $actual);
+                $result = $this->manager->verify_remote_product($api, 42, $expected);
+                $this->assertInstanceOf(\WP_Error::class, $result);
+                $this->assertStringContainsString($field, $result->get_error_message());
+            }
+        }
+    }
+
+    public function test_readback_accepts_normalized_numbers_and_checks_only_expected_fields(): void
+    {
+        $api = $this->createMockApi();
+        $actual = ['id' => 42, 'sku' => '170519', 'status' => 'draft', 'stock_quantity' => 58.0, 'regular_price' => '19.9900', 'sale_price' => ''];
+        $api->shouldReceive('get_product')->with(42)->once()->andReturn($actual);
+
+        $result = $this->manager->verify_remote_product($api, 42, ['stock_quantity' => 58, 'regular_price' => '19.99', 'sale_price' => '']);
+
+        $this->assertSame($actual, $result);
+    }
+
+    public function test_stock_sync_preserves_draft_status_and_explicit_trash_sync_is_allowed(): void
+    {
+        foreach ([['stock_quantity' => 58], ['status' => 'trash']] as $data) {
+            $api = $this->createMockApi();
+            $api->shouldReceive('update_product')->with(42, $data)->once()->andReturn([
+                'id' => 42, 'status' => $data['status'] ?? 'draft',
+            ]);
+
+            $result = $this->manager->create_or_update($api, $this->createMockProduct(), ['id' => 42], $data, 'quantity');
+
+            $this->assertTrue($result['success']);
+        }
+    }
+
 }

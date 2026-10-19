@@ -89,6 +89,41 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('sanitize_textarea_field')->alias(fn($str) => strip_tags($str));
     }
 
+    private ?array $readbackFixture = null;
+    private int $readbackCount = 0;
+    private int $expectedReadbackCount = 1;
+
+    /** Fixture for the separate GET after a successful product write. */
+    private function expectProductReadback(int $id = 555, array $overrides = []): void
+    {
+        $this->readbackFixture = array_merge([
+            'id' => $id, 'sku' => 'SKU-1', 'status' => 'publish',
+            'catalog_visibility' => 'visible', 'manage_stock' => false,
+            'stock_quantity' => null, 'stock_status' => 'instock',
+            'regular_price' => '19.99', 'sale_price' => '',
+        ], $overrides);
+    }
+
+    private function readbackResponse(string $url): ?array
+    {
+        if ($this->readbackFixture !== null && str_contains($url, '/products/' . $this->readbackFixture['id'] . '?')) {
+            $this->readbackCount++;
+            return ['response' => ['code' => 200], 'body' => json_encode($this->readbackFixture)];
+        }
+        return null;
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            if ($this->readbackFixture !== null) {
+                $this->assertSame($this->expectedReadbackCount, $this->readbackCount, 'Expected GETs by product ID, including final readback');
+            }
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     private function mockWpdbForSyncHistory(): void
     {
         global $wpdb;
@@ -180,10 +215,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         // Remote lookup for the PARENT sku: not found, and since sync_type is
         // 'price_quantity' (non-full) with no cached "not found" marker yet,
         // it proceeds to a live API GET which we make return "not found" (empty).
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => '[]',
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => '[]',
+            ];
+        });
 
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
@@ -237,7 +274,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertTrue($result['skipped']);
         $this->assertTrue($result['queued_full_sync']);
         $this->assertStringContainsString('queued full sync', $result['message']);
@@ -272,7 +309,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertTrue($result['skipped']);
         $this->assertArrayNotHasKey('queued_full_sync', $result);
         $this->assertStringContainsString('skipped', $result['message']);
@@ -285,18 +322,32 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $this->mockWpdbForSyncHistory();
 
         $product = $this->mockPriceQuantityProduct();
+        $messages = [];
+        $logger = \Mockery::mock();
+        $logger->shouldReceive('log')->andReturnUsing(function ($level, $message, $context) use (&$messages) {
+            if ($level === 'info') {
+                $messages[] = $message;
+            }
+        });
+        Functions\when('wc_get_logger')->justReturn($logger);
 
         // GET (find_remote_product) returns an existing remote product.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
         // PUT (update_product) succeeds.
         Functions\when('wp_remote_request')->justReturn([
             'response' => ['code' => 200],
-            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+            'body' => json_encode([
+                'id' => 555, 'sku' => 'SKU-1', 'status' => 'draft',
+                'catalog_visibility' => 'hidden', 'permalink' => 'https://store1.com/product/test/',
+            ]),
         ]);
 
+        $this->expectProductReadback(555, ['status' => 'draft', 'catalog_visibility' => 'hidden', 'permalink' => 'https://store1.com/product/test/']);
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -305,13 +356,123 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame('updated', $result['action']);
         $this->assertSame(555, $result['remote_id']);
+        $success_log = implode("\n", $messages);
+        foreach (['remote ID: 555', 'remote SKU: SKU-1', 'status: draft', 'visibility: hidden', 'URL: https://store1.com/product/test/', 'sync: price_quantity', 'source: manual'] as $detail) {
+            $this->assertStringContainsString($detail, $success_log);
+        }
+    }
+
+    public function test_invalid_update_response_does_not_persist_mapping_or_log_success(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        Functions\expect('update_post_meta')->never();
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
+        Functions\when('wp_remote_request')->justReturn([
+            'response' => ['code' => 200], 'body' => '{}',
+        ]);
+        $logger = \Mockery::mock();
+        $logger->shouldReceive('log')->with(\Mockery::on(fn($level) => $level !== 'info'), \Mockery::any(), \Mockery::any());
+        Functions\when('wc_get_logger')->justReturn($logger);
+
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store(
+            $this->mockPriceQuantityProduct(), 'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'quantity', 'stock_change'
+        );
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('valid product ID', $result['message']);
+    }
+
+    public function test_final_get_failure_prevents_success_and_keeps_identity_for_retry(): void
+    {
+        foreach ([
+            ['response' => ['code' => 404], 'body' => '{"message":"Not found"}'],
+            new \WP_Error('timeout', 'Readback timed out'),
+            ['response' => ['code' => 200], 'body' => '{}'],
+            ['response' => ['code' => 200], 'body' => '{"id":555,"sku":"SKU-1","status":"publish","manage_stock":true,"stock_quantity":59,"stock_status":"instock"}'],
+        ] as $readback) {
+            $this->mockWpdbForSyncHistory();
+            $written = false;
+            $reads_after_write = 0;
+            Functions\when('wp_remote_get')->alias(function ($url) use (&$written, &$reads_after_write, $readback) {
+                if (!$written) {
+                    return ['response' => ['code' => 200], 'body' => '[{"id":555,"sku":"SKU-1"}]'];
+                }
+                $this->assertStringContainsString('/products/555?', $url);
+                $reads_after_write++;
+                return $readback;
+            });
+            Functions\when('wp_remote_request')->alias(function () use (&$written) {
+                $written = true;
+                return ['response' => ['code' => 200], 'body' => '{"id":555,"sku":"SKU-1","status":"publish"}'];
+            });
+            $saved = [];
+            Functions\when('update_post_meta')->alias(function ($id, $key, $value) use (&$saved) {
+                $saved[$key] = $value;
+                return true;
+            });
+            $logger = \Mockery::mock();
+            $logger->shouldReceive('log')->with(\Mockery::on(fn($level) => $level !== 'info'), \Mockery::any(), \Mockery::any());
+            Functions\when('wc_get_logger')->justReturn($logger);
+
+            $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store(
+                $this->mockPriceQuantityProduct(['managing_stock' => true, 'stock_quantity' => 58]),
+                'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'quantity', 'stock_change'
+            );
+
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString('verification failed', $result['message']);
+            $this->assertSame(1, $reads_after_write);
+            $this->assertSame(555, $saved['_mss_remote_id_' . md5('https://store1.com')] ?? null);
+        }
+    }
+
+    public function test_created_product_must_be_readable_before_saving_success_hashes(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        $created = false;
+        Functions\when('wp_remote_get')->alias(function ($url) use (&$created) {
+            if (!$created) {
+                return ['response' => ['code' => 200], 'body' => '[]'];
+            }
+            $this->assertStringContainsString('/products/777?', $url);
+            return ['response' => ['code' => 404], 'body' => '{"message":"Not found after create"}'];
+        });
+        Functions\expect('wp_remote_post')->once()->andReturnUsing(function () use (&$created) {
+            $created = true;
+            return ['response' => ['code' => 201], 'body' => '{"id":777,"sku":"SKU-1","status":"publish"}'];
+        });
+        $saved = [];
+        Functions\when('update_post_meta')->alias(function ($id, $key, $value) use (&$saved) {
+            $this->assertStringNotContainsString('_hash_', $key, 'An unverified create must not advance sync hashes');
+            $saved[$key] = $value;
+            return true;
+        });
+        $logger = \Mockery::mock();
+        $logger->shouldReceive('log')->with(\Mockery::on(fn($level) => $level !== 'info'), \Mockery::any(), \Mockery::any());
+        Functions\when('wc_get_logger')->justReturn($logger);
+
+        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store(
+            $this->mockFullProductProduct(), 'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product'
+        );
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Not found after create', $result['message']);
+        $this->assertSame(777, $saved['_mss_remote_id_' . md5('https://store1.com')] ?? null);
     }
 
     public function test_conflict_detector_runs_when_enabled_on_update(): void
     {
+        $this->expectedReadbackCount = 2; // Conflict detection also reads by ID.
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
@@ -365,16 +526,19 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         // GET (find_remote_product AND check_for_conflicts' get_product) both
         // resolve through wp_remote_get.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
         // PUT (update_product) succeeds.
         Functions\when('wp_remote_request')->justReturn([
             'response' => ['code' => 200],
-            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
         ]);
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -383,7 +547,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         // One write from check_for_conflicts()'s first-sighting bootstrap,
         // one from the post-sync baseline advance.
         $this->assertSame(2, $conflict_hash_writes);
@@ -439,10 +603,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         $product = $this->mockPriceQuantityProduct();
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
 
         $put_calls = 0;
         Functions\when('wp_remote_request')->alias(function () use (&$put_calls) {
@@ -458,7 +624,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertTrue($result['skipped']);
         $this->assertStringContainsString('conflict', $result['message']);
         $this->assertSame(0, $put_calls, 'sync must not push to the remote store while a conflict is unresolved and action_on_conflict is "block"');
@@ -466,6 +632,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
     public function test_sync_proceeds_when_conflict_detected_and_action_is_warn(): void
     {
+        $this->expectedReadbackCount = 2;
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
@@ -512,15 +679,18 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         $product = $this->mockPriceQuantityProduct();
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
         Functions\when('wp_remote_request')->justReturn([
             'response' => ['code' => 200],
-            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
         ]);
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -529,7 +699,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame('updated', $result['action']);
         $this->assertArrayNotHasKey('skipped', $result);
     }
@@ -540,13 +710,15 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         $product = $this->mockPriceQuantityProduct();
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
         Functions\when('wp_remote_request')->justReturn([
             'response' => ['code' => 200],
-            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
         ]);
 
         $saved_meta = [];
@@ -555,6 +727,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             return true;
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -563,7 +736,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertContains(
             [100, '_mss_remote_id_' . md5('https://store1.com'), 555],
             $saved_meta,
@@ -615,16 +788,19 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('wp_get_post_terms')->justReturn([]);
 
         // GET (find_remote_product): not found.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => '[]',
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => '[]',
+            ];
+        });
         // POST (create_product): succeeds.
         Functions\when('wp_remote_post')->justReturn([
             'response' => ['code' => 201],
-            'body' => json_encode(['id' => 777, 'sku' => 'SKU-1']),
+            'body' => json_encode(['id' => 777, 'sku' => 'SKU-1', 'status' => 'publish']),
         ]);
 
+        $this->expectProductReadback(777);
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -633,7 +809,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'full_product'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame('created', $result['action']);
         $this->assertSame(777, $result['remote_id']);
     }
@@ -721,10 +897,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('wp_delete_file')->alias(fn($path) => @unlink($path));
 
         // GET (find_remote_product): not found.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => '[]',
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => '[]',
+            ];
+        });
 
         // POST: the media upload (wp/v2/media) and the product create
         // (wc/v3/products) both go through wp_remote_post — route by URL.
@@ -739,10 +917,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             $sent_product_body = json_decode($args['body'], true);
             return [
                 'response' => ['code' => 201],
-                'body' => json_encode(['id' => 777, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 777, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback(777);
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -754,7 +933,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         @unlink($source_file);
         @unlink($upload_tmp_file);
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame(
             'https://store1.com/wp-content/uploads/manual.pdf',
             $sent_product_body['downloads'][0]['file']
@@ -806,10 +985,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('wp_get_post_terms')->justReturn([]);
 
         // GET (find_remote_product): not found -> create path.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => '[]',
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => '[]',
+            ];
+        });
 
         Functions\expect('wp_remote_post')->once()->andReturnUsing(function ($url, $args) {
             $body = json_decode($args['body'], true);
@@ -855,15 +1036,18 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         $product = $this->mockPriceQuantityProduct();
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
         Functions\when('wp_remote_request')->justReturn([
             'response' => ['code' => 200],
-            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
         ]);
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -872,7 +1056,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
     }
 
     public function test_exception_in_post_sync_operations_rolls_back_transaction(): void
@@ -911,13 +1095,15 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         $product = $this->mockPriceQuantityProduct();
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
         Functions\when('wp_remote_request')->justReturn([
             'response' => ['code' => 200],
-            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
         ]);
 
         $engine = new WC_Multi_Store_Sync_Engine();
@@ -965,6 +1151,9 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         // GET (products/categories): "Shoes" already exists remotely (id 20)
         // — it was simply never attached to this product.
         Functions\when('wp_remote_get')->alias(function ($url, $args = []) {
+            if ($response = $this->readbackResponse($url)) {
+                return $response;
+            }
             if (str_contains($url, 'categories')) {
                 return [
                     'response' => ['code' => 200],
@@ -992,10 +1181,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1004,7 +1194,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity_categories'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame(
             [['id' => 20]],
             $sent_categories,
@@ -1041,6 +1231,9 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         // GET (products/tags): "Sale" already exists remotely (id 30) — it
         // was simply never attached to this product.
         Functions\when('wp_remote_get')->alias(function ($url, $args = []) {
+            if ($response = $this->readbackResponse($url)) {
+                return $response;
+            }
             if (str_contains($url, 'tags')) {
                 return [
                     'response' => ['code' => 200],
@@ -1068,10 +1261,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1080,7 +1274,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity_categories'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame(
             [['id' => 30]],
             $sent_tags,
@@ -1147,6 +1341,9 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         // hit products/tags — return a well-formed list there too so a
         // wrong "not skipped" decision doesn't fail for the wrong reason.
         Functions\when('wp_remote_get')->alias(function ($url, $args = []) {
+            if ($response = $this->readbackResponse($url)) {
+                return $response;
+            }
             if (str_contains($url, 'tags')) {
                 return [
                     'response' => ['code' => 200],
@@ -1173,10 +1370,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1185,7 +1383,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity_categories'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame(
             'not present',
             $sent_tags,
@@ -1249,10 +1447,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('wp_get_post_terms')->justReturn([]);
 
         // GET (find_remote_product): existing product found -> update path.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
 
         $sent_body = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_body) {
@@ -1260,10 +1460,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1272,7 +1473,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'full_product'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertArrayNotHasKey('description', $sent_body, 'Unchanged description must not be resent');
         $this->assertArrayNotHasKey('short_description', $sent_body, 'Unchanged short_description must not be resent');
         // Sanity: an unrelated field must still be present, proving the payload wasn't gutted entirely.
@@ -1295,10 +1496,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('get_the_terms')->justReturn([]);
         Functions\when('wp_get_post_terms')->justReturn([]);
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
 
         $sent_body = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_body) {
@@ -1306,10 +1509,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1318,7 +1522,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'full_product'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame('New description', $sent_body['description'] ?? null, 'Changed description must be resent');
     }
 
@@ -1341,10 +1545,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('get_the_terms')->justReturn([]);
         Functions\when('wp_get_post_terms')->justReturn([]);
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
 
         $sent_body = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_body) {
@@ -1352,10 +1558,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1364,7 +1571,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'full_product'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertArrayNotHasKey('attributes', $sent_body, 'Unchanged attributes must not be resent');
         $this->assertArrayHasKey('sku', $sent_body);
     }
@@ -1387,10 +1594,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         Functions\when('get_the_terms')->justReturn([]);
         Functions\when('wp_get_post_terms')->justReturn([]);
 
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
 
         $sent_body = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_body) {
@@ -1398,10 +1607,11 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1410,7 +1620,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'full_product'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertArrayHasKey('attributes', $sent_body, 'Changed attributes must be resent');
         $this->assertSame(['Red', 'Blue', 'Green'], $sent_body['attributes'][0]['options'] ?? null);
     }
@@ -1424,25 +1634,28 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $product = $this->mockPriceQuantityProduct(['name' => 'New Name']);
 
         // GET (find_remote_product): remote still has the old name.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([[
-                'id' => 555,
-                'sku' => 'SKU-1',
-                'name' => 'Old Name',
-                'slug' => 'product-1',
-            ]]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([[
+                    'id' => 555,
+                    'sku' => 'SKU-1',
+                    'name' => 'Old Name',
+                    'slug' => 'product-1',
+                ]]),
+            ];
+        });
 
         $sent_body = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_body) {
             $sent_body = json_decode($args['body'], true);
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1451,7 +1664,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame(
             'New Name',
             $sent_body['name'] ?? null,
@@ -1466,25 +1679,28 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $product = $this->mockPriceQuantityProduct(['slug' => 'new-slug']);
 
         // GET (find_remote_product): remote still has the old slug.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([[
-                'id' => 555,
-                'sku' => 'SKU-1',
-                'name' => 'Test Product',
-                'slug' => 'old-slug',
-            ]]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([[
+                    'id' => 555,
+                    'sku' => 'SKU-1',
+                    'name' => 'Test Product',
+                    'slug' => 'old-slug',
+                ]]),
+            ];
+        });
 
         $sent_body = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_body) {
             $sent_body = json_decode($args['body'], true);
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1493,7 +1709,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame(
             'new-slug',
             $sent_body['slug'] ?? null,
@@ -1508,25 +1724,28 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $product = $this->mockPriceQuantityProduct(['name' => 'Test Product', 'slug' => 'product-1']);
 
         // GET (find_remote_product): remote already matches local name/slug.
-        Functions\when('wp_remote_get')->justReturn([
-            'response' => ['code' => 200],
-            'body' => json_encode([[
-                'id' => 555,
-                'sku' => 'SKU-1',
-                'name' => 'Test Product',
-                'slug' => 'product-1',
-            ]]),
-        ]);
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([[
+                    'id' => 555,
+                    'sku' => 'SKU-1',
+                    'name' => 'Test Product',
+                    'slug' => 'product-1',
+                ]]),
+            ];
+        });
 
         $sent_body = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent_body) {
             $sent_body = json_decode($args['body'], true);
             return [
                 'response' => ['code' => 200],
-                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1']),
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
             ];
         });
 
+        $this->expectProductReadback();
         $engine = new WC_Multi_Store_Sync_Engine();
         $result = $engine->sync_product_to_store(
             $product,
@@ -1535,7 +1754,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             'price_quantity'
         );
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertArrayNotHasKey('name', $sent_body, 'name must stay out of the payload when it already matches the remote — keeps lightweight syncs lightweight');
         $this->assertArrayNotHasKey('slug', $sent_body, 'slug must stay out of the payload when it already matches the remote — keeps lightweight syncs lightweight');
     }
@@ -1552,7 +1771,9 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $product = $this->mockFullProductProduct();
         $remote = ['id' => 555, 'name' => 'Remote edit', 'description' => 'Remote description', 'sku' => 'RENAMED'];
         Functions\when('get_post_meta')->justReturn(md5(serialize(['Full description', 'Short'])));
-        Functions\expect('wp_remote_get')->once()->with(\Mockery::on(fn($url) => str_contains($url, '/products/555?')), \Mockery::any())->andReturn(['response' => ['code' => 200], 'body' => json_encode($remote)]);
+        Functions\expect('wp_remote_get')->twice()->with(\Mockery::on(fn($url) => str_contains($url, '/products/555?')), \Mockery::any())->andReturnUsing(function () use ($remote, &$sent) {
+            return ['response' => ['code' => 200], 'body' => json_encode(array_merge($remote, $sent ?? []))];
+        });
         $sent = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent, $remote) {
             $this->assertStringContainsString('/products/555?', $url);
@@ -1562,7 +1783,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($product, 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
             'resolution' => 'overwrite', 'remote_product_id' => 555,
         ]);
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame('Full description', $sent['description']);
         $this->assertSame('SKU-1', $sent['sku']);
     }
@@ -1576,7 +1797,9 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $snapshot['weight'] = '1';
         $remote['weight'] = '2'; // A remote edit made after this conflict was recorded.
         $wpdb->shouldReceive('get_var')->andReturn(json_encode($snapshot));
-        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => json_encode($remote)]);
+        Functions\expect('wp_remote_get')->twice()->andReturnUsing(function () use ($remote, &$sent) {
+            return ['response' => ['code' => 200], 'body' => json_encode(array_merge($remote, $sent ?? []))];
+        });
         $sent = null;
         Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$sent, $remote) {
             $sent = json_decode($args['body'], true);
@@ -1601,7 +1824,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
             'resolution' => 'keep_remote', 'remote_product_id' => 555,
         ]);
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame('Conflict resolved: kept remote version', $result['message']);
     }
 
@@ -1623,45 +1846,51 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
     public function test_merge_without_baseline_does_not_write(): void
     {
         $this->mockWpdbForSyncHistory();
-        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => '{"id":555}']);
-        Functions\expect('wp_remote_request')->never();
-        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
-            'resolution' => 'merge', 'remote_product_id' => 555,
-        ]);
-        $this->assertFalse($result['success']);
-        $this->assertStringContainsString('Cannot merge', $result['message']);
-    }
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? ['response' => ['code' => 200], 'body' => '{"id":555}'];
+            });
+            Functions\expect('wp_remote_request')->never();
+            $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+                'resolution' => 'merge', 'remote_product_id' => 555,
+            ]);
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString('Cannot merge', $result['message']);
+        }
 
-    public function test_custom_field_failure_fails_the_sync_instead_of_reporting_success(): void
-    {
-        $this->mockWpdbForSyncHistory();
-        Functions\when('get_post_meta')->alias(fn($id, $key = '', $single = false) => $key === '' ? ['local_note' => ['hello']] : '');
-        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => '[{"id":555,"sku":"SKU-1"}]']);
-        Functions\when('wp_remote_request')->alias(function ($url, $args) {
-            $payload = json_decode($args['body'], true);
-            return isset($payload['meta_data'])
-                ? new WP_Error('rejected', 'Custom fields rejected')
-                : ['response' => ['code' => 200], 'body' => '{"id":555,"sku":"SKU-1"}'];
-        });
-        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', [
-            'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'custom_field_mapping' => ['local_note' => 'remote_note'],
-        ], 'price_quantity');
-        $this->assertFalse($result['success']);
-        $this->assertStringContainsString('Custom fields rejected', $result['message']);
-    }
+        public function test_custom_field_failure_fails_the_sync_instead_of_reporting_success(): void
+        {
+            $this->mockWpdbForSyncHistory();
+            Functions\when('get_post_meta')->alias(fn($id, $key = '', $single = false) => $key === '' ? ['local_note' => ['hello']] : '');
+            Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? ['response' => ['code' => 200], 'body' => '[{"id":555,"sku":"SKU-1"}]'];
+            });
+            Functions\when('wp_remote_request')->alias(function ($url, $args) {
+                $payload = json_decode($args['body'], true);
+                return isset($payload['meta_data'])
+                    ? new WP_Error('rejected', 'Custom fields rejected')
+                    : ['response' => ['code' => 200], 'body' => '{"id":555,"sku":"SKU-1"}'];
+            });
+            $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', [
+                'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'custom_field_mapping' => ['local_note' => 'remote_note'],
+            ], 'price_quantity');
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString('Custom fields rejected', $result['message']);
+        }
 
-    public function test_keep_remote_does_not_report_success_when_baseline_write_fails(): void
-    {
-        $this->mockWpdbForSyncHistory();
-        global $wpdb;
-        $wpdb->shouldReceive('query')->with(\Mockery::on(fn($sql) => str_contains($sql, 'wc_mss_conflict_hashes')))->once()->andReturn(false);
-        Functions\when('wp_remote_get')->justReturn(['response' => ['code' => 200], 'body' => '{"id":555}']);
-        Functions\expect('wp_remote_request')->never();
-        $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
-            'resolution' => 'keep_remote', 'remote_product_id' => 555,
-        ]);
-        $this->assertFalse($result['success']);
-        $this->assertSame('Could not save accepted remote version', $result['message']);
-    }
+        public function test_keep_remote_does_not_report_success_when_baseline_write_fails(): void
+        {
+            $this->mockWpdbForSyncHistory();
+            global $wpdb;
+            $wpdb->shouldReceive('query')->with(\Mockery::on(fn($sql) => str_contains($sql, 'wc_mss_conflict_hashes')))->once()->andReturn(false);
+            Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? ['response' => ['code' => 200], 'body' => '{"id":555}'];
+            });
+            Functions\expect('wp_remote_request')->never();
+            $result = (new WC_Multi_Store_Sync_Engine())->sync_product_to_store($this->mockPriceQuantityProduct(), 'https://store1.com', ['consumer_key' => 'ck', 'consumer_secret' => 'cs'], 'full_product', 'conflict_resolution', [
+                'resolution' => 'keep_remote', 'remote_product_id' => 555,
+            ]);
+            $this->assertFalse($result['success']);
+            $this->assertSame('Could not save accepted remote version', $result['message']);
+        }
 
-}
+    }
