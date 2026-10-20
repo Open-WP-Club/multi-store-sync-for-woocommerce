@@ -11,6 +11,11 @@ use Brain\Monkey\Functions;
 
 class CacheManagerExtendedTest extends WC_Multi_Store_TestCase
 {
+    protected function setUp(): void {
+        parent::setUp();
+        Functions\when('get_option')->alias(static fn($name, $default = false) => $default);
+    }
+
     // ── update_remote_product_after_sync ──────────────────────────
 
     public function test_update_remote_product_after_sync_success(): void
@@ -143,51 +148,6 @@ class CacheManagerExtendedTest extends WC_Multi_Store_TestCase
         $this->assertFalse($result);
     }
 
-    // ── clear_all with wpdb ──────────────────────────────────────
-
-    public function test_clear_all_builds_correct_pattern(): void
-    {
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => addcslashes($s, '_%\\'));
-
-        $prepared_query = '';
-        $wpdb->shouldReceive('prepare')->andReturnUsing(function ($q, $p) use (&$prepared_query) {
-            $prepared_query = $q;
-            return $q;
-        });
-        $wpdb->shouldReceive('query')->andReturn(10);
-
-        WC_Multi_Store_Cache_Manager::clear_all();
-
-        // Verify the pattern searches for transient entries with our cache group
-        $this->assertStringContainsString('DELETE FROM', $prepared_query);
-        $this->assertStringContainsString('LIKE', $prepared_query);
-    }
-
-    // ── clear_store_cache with sanitize_key ──────────────────────
-
-    public function test_clear_store_cache_sanitizes_url(): void
-    {
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => addcslashes($s, '_%\\'));
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->andReturn(3);
-
-        $result = WC_Multi_Store_Cache_Manager::clear_store_cache('https://Store-With-CAPS.com');
-
-        $this->assertTrue($result);
-    }
-
     // ── set_product_not_found and negative cache flow ────────────
 
     public function test_negative_cache_full_flow(): void
@@ -274,7 +234,7 @@ class CacheManagerExtendedTest extends WC_Multi_Store_TestCase
     {
         Functions\expect('set_transient')->never();
         Functions\expect('delete_transient')->once()
-            ->with('wc_mss_cache_remote_variations_httpsstorecom_999')
+            ->with((new ReflectionMethod(WC_Multi_Store_Cache_Manager::class, 'build_cache_key'))->invoke(null, 'remote_variations', ['https://store.com', 999]))
             ->andReturn(true);
 
         $this->assertTrue(WC_Multi_Store_Cache_Manager::set_remote_variations('https://store.com', 999, null));

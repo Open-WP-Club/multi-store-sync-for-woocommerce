@@ -12,6 +12,11 @@ All notable changes to this project are documented in this file.
 - Tests: expanded coverage for asynchronous verification, bulk-action failures, remote-data escaping, and release metadata consistency.
 - Fixed: discrepancy queries prepare filters and pagination together and restrict sorting to known columns.
 - Improved: documented necessary direct database calls at their use sites and made PHPCS and Plugin Check required CI checks.
+- Fixed: distinct SKUs and store URLs no longer collide in cache keys; long URLs produce keys within WordPress's 172-character limit and store invalidation uses the same identity.
+- Fixed: remote category/tag invalidation uses the WordPress Transients API for every configured store, including disabled stores and persistent object caches.
+- Fixed: daily email summaries use the WordPress calendar day across timezone/DST changes and skip sending when statistics cannot be read.
+- Fixed: global/store cache invalidation now rotates persistent WordPress option generations, works with Redis/Memcached transients, and preserves unrelated stores and other plugins' caches.
+- Fixed: expired-transient maintenance escapes the exact plugin prefix, rechecks expiration atomically when deleting bounded pairs, and invalidates stale WordPress option-cache entries.
 
 ## 5.0.0
 

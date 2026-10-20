@@ -8,6 +8,11 @@ use Brain\Monkey\Functions;
 
 class CacheManagerTest extends WC_Multi_Store_TestCase
 {
+    protected function setUp(): void {
+        parent::setUp();
+        Functions\when('get_option')->alias(static fn($name, $default = false) => $default);
+    }
+
     /**
      * Test build_cache_key returns correct format
      */
@@ -369,70 +374,30 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
         $this->assertNull($result);
     }
 
-    // ── clear_all ────────────────────────────────────────────────
-
-    public function test_clear_all_deletes_cache_entries(): void
+    public function test_clear_all_reports_success_when_generation_is_persisted(): void
     {
-        // Logger::write needs current_time when logging deletion count
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => $s);
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->andReturn(15);
-
-        $deleted = WC_Multi_Store_Cache_Manager::clear_all();
-        $this->assertEquals(15, $deleted);
+        Functions\expect('update_option')->once()
+            ->with('wc_mss_cache_generation', \Mockery::type('string'), false)->andReturn(true);
+        $this->assertSame(1, WC_Multi_Store_Cache_Manager::clear_all());
     }
 
-    public function test_clear_all_returns_zero_when_empty(): void
+    public function test_clear_all_reports_failure_when_generation_cannot_be_persisted(): void
     {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => $s);
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->andReturn(0);
-
-        $deleted = WC_Multi_Store_Cache_Manager::clear_all();
-        $this->assertEquals(0, $deleted);
+        Functions\expect('update_option')->once()->andReturn(false);
+        $this->assertSame(0, WC_Multi_Store_Cache_Manager::clear_all());
     }
 
-    // ── clear_store_cache ────────────────────────────────────────
-
-    public function test_clear_store_cache_returns_true_when_deleted(): void
+    public function test_clear_store_cache_reports_success_when_generation_is_persisted(): void
     {
-        // Logger::write needs current_time when logging deletion count
-        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
-        Functions\when('get_option')->justReturn([]);
-
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => $s);
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->andReturn(5);
-
-        $result = WC_Multi_Store_Cache_Manager::clear_store_cache('https://store1.com');
-        $this->assertTrue($result);
+        Functions\expect('update_option')->once()
+            ->with('wc_mss_cache_store_generation_' . md5('https://store1.com'), \Mockery::type('string'), false)->andReturn(true);
+        $this->assertTrue(WC_Multi_Store_Cache_Manager::clear_store_cache('https://store1.com'));
     }
 
-    public function test_clear_store_cache_returns_false_when_nothing_deleted(): void
+    public function test_clear_store_cache_reports_failure_when_generation_cannot_be_persisted(): void
     {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => $s);
-        $wpdb->shouldReceive('prepare')->andReturn('');
-        $wpdb->shouldReceive('query')->andReturn(0);
-
-        Functions\when('sanitize_key')->alias(fn($s) => preg_replace('/[^a-z0-9_-]/', '', strtolower($s)));
-
-        $result = WC_Multi_Store_Cache_Manager::clear_store_cache('https://nonexistent.com');
-        $this->assertFalse($result);
+        Functions\expect('update_option')->once()->andReturn(false);
+        $this->assertFalse(WC_Multi_Store_Cache_Manager::clear_store_cache('https://store1.com'));
     }
 
     public function test_distinct_store_urls_skus_and_part_boundaries_do_not_share_cache_keys(): void
@@ -452,6 +417,14 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
             $keys[] = $method->invoke(null, 'remote_product', $parts);
         }
         $this->assertCount(count($keys), array_unique($keys));
+    }
+
+    public function test_empty_store_does_not_clear_every_stores_cache(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->shouldReceive('query')->never();
+        $this->assertFalse(WC_Multi_Store_Cache_Manager::clear_store_cache(''));
     }
 
 }

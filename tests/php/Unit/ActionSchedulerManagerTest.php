@@ -23,6 +23,7 @@ class ActionSchedulerManagerTest extends WC_Multi_Store_TestCase
         Functions\when('set_transient')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('wp_cache_flush')->justReturn(true);
+        Functions\when('wp_cache_delete')->justReturn(true);
     }
 
     public function test_class_exists(): void
@@ -257,6 +258,8 @@ class ActionSchedulerManagerTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->options = 'wp_options';
+        $wpdb->shouldReceive('esc_like')->andReturnUsing(static fn($value) => addcslashes($value, '_%\\'));
+        $wpdb->shouldReceive('prepare')->andReturnUsing(static fn($sql) => $sql);
 
         // Two-step query: SELECT expired rows, then DELETE in chunks.
         $rows = [
@@ -264,8 +267,7 @@ class ActionSchedulerManagerTest extends WC_Multi_Store_TestCase
             (object) ['timeout_id' => 3, 'value_id' => 4, 'value_name' => '_transient_wc_mss_b'],
         ];
         $wpdb->shouldReceive('get_results')->once()->andReturn($rows);
-        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql) => $sql);
-        // One DELETE chunk for the 4 IDs (2 rows × 2 ids each), returns rows-affected.
+        // One conditional DELETE chunk for two pairs returns four affected rows.
         $wpdb->shouldReceive('query')->once()->andReturn(4);
 
         $manager = new WC_Multi_Store_Action_Scheduler_Manager();
@@ -282,6 +284,8 @@ class ActionSchedulerManagerTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->options = 'wp_options';
+        $wpdb->shouldReceive('esc_like')->andReturnUsing(static fn($value) => addcslashes($value, '_%\\'));
+        $wpdb->shouldReceive('prepare')->andReturnUsing(static fn($sql) => $sql);
         // No expired rows found — fast-exit, no DELETE issued.
         $wpdb->shouldReceive('get_results')->once()->andReturn([]);
 

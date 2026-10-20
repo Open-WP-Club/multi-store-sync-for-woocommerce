@@ -270,22 +270,11 @@ class WC_Multi_Store_Cache_Manager {
      * @param string|null $store_url Specific store URL, or null for all stores
      */
     public static function clear_remote_terms(?string $store_url = null): void {
-        global $wpdb;
-
-        if ($store_url !== null) {
-            delete_transient(self::build_cache_key('remote_terms', [$store_url, 'categories']));
-            delete_transient(self::build_cache_key('remote_terms', [$store_url, 'tags']));
-            return;
+        $stores = $store_url !== null ? [$store_url] : array_keys(WC_Multi_Store_Settings::get_stores());
+        foreach ($stores as $url) {
+            delete_transient(self::build_cache_key('remote_terms', [$url, 'categories']));
+            delete_transient(self::build_cache_key('remote_terms', [$url, 'tags']));
         }
-
-        $pattern = $wpdb->esc_like('_transient') . '%' . $wpdb->esc_like(self::CACHE_GROUP . '_remote_terms') . '%';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
-        $wpdb->query(
-            $wpdb->prepare(
-                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-                $pattern
-            )
-        );
     }
 
     /**
@@ -349,70 +338,50 @@ class WC_Multi_Store_Cache_Manager {
      * @return string Cache key
      */
     private static function build_cache_key($type, $parts): string {
-        $key_parts = array_merge([self::CACHE_GROUP, $type], $parts);
-        $key = implode('_', array_map('sanitize_key', $key_parts));
+        // Hash the original parts separately: sanitizing SKUs/URLs merges distinct
+        // values (AB.1 and AB/1, for example) and can reuse another product's cache.
+        $key_parts = array_merge([self::CACHE_GROUP, sanitize_key($type)], array_map(
+            static fn($part): string => md5((string) $part), $parts
+        ));
+        // Options persist independently of transient eviction and are coherent
+        // through WordPress's object cache. Do not memoize them in this process:
+        // long-running workers must observe clears between cache operations.
+        $generation = [get_option(self::CACHE_GROUP . '_generation', '0')];
+        if (in_array($type, ['remote_product', 'remote_variations', 'remote_terms'], true)) {
+            $generation[] = get_option(self::CACHE_GROUP . '_store_generation_' . md5((string) $parts[0]), '0');
+        }
+        $key = implode('_', $key_parts) . '_' . md5(serialize($generation));
 
         // Ensure key is not too long (max 172 characters for WordPress transients)
         if (strlen($key) > 172) {
-            $key = substr($key, 0, 140) . '_' . md5($key);
+            $key = substr($key, 0, 139) . '_' . md5($key);
         }
 
         return $key;
     }
 
     /**
-     * Clear all plugin caches
-     * PERFORMANCE FIX: Combined single query instead of two separate patterns
+     * Invalidate every plugin cache, including local taxonomy data.
      *
-     * @return int Number of caches cleared
+     * Existing transients become unreachable and expire at their original TTL.
+     * No key enumeration or whole-site object-cache flush is required.
+     *
+     * @return int 1 if invalidated, 0 if the generation could not be persisted.
      */
     public static function clear_all(): int {
-        global $wpdb;
-
-        // PERFORMANCE FIX: Use single query to delete both transient and timeout entries
-        $pattern = $wpdb->esc_like('_transient') . '%' . $wpdb->esc_like(self::CACHE_GROUP) . '%';
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
-        $deleted = $wpdb->query(
-            $wpdb->prepare(
-                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-                $pattern
-            )
-        );
-
-        if ($deleted > 0) {
-            WC_Multi_Store_Logger::write("Cleared {$deleted} cache entries");
-        }
-
-        return $deleted;
+        return (int) update_option(self::CACHE_GROUP . '_generation', wp_generate_uuid4(), false);
     }
 
     /**
-     * Clear cache for specific store
-     * PERFORMANCE FIX: Single query pattern for better performance
+     * Invalidate remote product, variation, negative and term caches for one store.
      *
      * @param string $store_url Store URL
-     * @return bool Success
+     * @return bool Whether the new generation was persisted successfully
      */
     public static function clear_store_cache($store_url): bool {
-        global $wpdb;
-
-        $store_key = sanitize_key($store_url);
-        // PERFORMANCE FIX: Use single wildcard pattern that matches both transient and timeout
-        $pattern = $wpdb->esc_like('_transient') . '%' . $wpdb->esc_like(self::CACHE_GROUP) . '%' . $wpdb->esc_like($store_key) . '%';
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
-        $deleted = $wpdb->query(
-            $wpdb->prepare(
-                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-                $pattern
-            )
-        );
-
-        if ($deleted > 0) {
-            WC_Multi_Store_Logger::write("Cleared {$deleted} cache entries for store: {$store_url}");
+        if ((string) $store_url === '') {
+            return false;
         }
-
-        return $deleted > 0;
+        return update_option(self::CACHE_GROUP . '_store_generation_' . md5((string) $store_url), wp_generate_uuid4(), false);
     }
 }

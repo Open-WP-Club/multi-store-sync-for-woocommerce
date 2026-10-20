@@ -280,52 +280,55 @@ class WC_Multi_Store_Action_Scheduler_Manager {
     /**
      * Clean up expired plugin transients from wp_options.
      *
-     * Two-step approach instead of a single DELETE … LEFT JOIN: the join
-     * predicate (CONCAT + SUBSTRING) defeats the wp_options index, so on
-     * sites with a large options table the join scan + DELETE row-locks can
-     * spike P99 latency for unrelated writes. SELECTing option_ids first
-     * (read-only), then deleting in 500-row chunks, keeps locks short.
+     * Discover candidates without locking, then delete at most 250 pairs per
+     * statement. The bounded join rechecks expiry under the delete's row locks,
+     * so a transient refreshed after discovery survives along with its timeout.
      *
      * @return int Number of transient option rows deleted
      */
     private function cleanup_expired_transients(): int {
         global $wpdb;
 
-        // Step 1: find expired timeout rows for our prefix (read-only).
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
-        $expired = $wpdb->get_results(
-            "SELECT t.option_id  AS timeout_id,
-                    v.option_id  AS value_id,
-                    v.option_name AS value_name
+        $pattern = $wpdb->esc_like('_transient_timeout_wc_mss_') . '%';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Maintenance must discover currently expired plugin transients, not cached rows.
+        $expired = $wpdb->get_results($wpdb->prepare(
+            "SELECT t.option_id AS timeout_id, v.option_name AS value_name
              FROM {$wpdb->options} t
              INNER JOIN {$wpdb->options} v
                  ON v.option_name = CONCAT('_transient_', SUBSTRING(t.option_name, 20))
-             WHERE t.option_name LIKE '_transient_timeout_wc_mss_%'
-               AND t.option_value < UNIX_TIMESTAMP()"
-        );
+             WHERE t.option_name LIKE %s AND t.option_value < UNIX_TIMESTAMP()",
+            $pattern
+        ));
 
         if (empty($expired)) {
             return 0;
         }
 
-        $ids = [];
-        foreach ($expired as $row) {
-            $ids[] = (int) $row->timeout_id;
-            $ids[] = (int) $row->value_id;
-        }
-
-        // Step 2: delete in chunks of 500 to keep each lock window short.
         $deleted = 0;
-        foreach (array_chunk($ids, 500) as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- generated %d list from database IDs; $wpdb->options is a core table name. Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
-            $rows         = $wpdb->query($wpdb->prepare(
-                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- generated %d list from database IDs; $wpdb->options is a core table.
-                "DELETE FROM {$wpdb->options} WHERE option_id IN ($placeholders)",
-                $chunk
+        foreach (array_chunk($expired, 250) as $chunk) {
+            $ids = array_map(static fn($row): int => (int) $row->timeout_id, $chunk);
+            $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+            $values = array_merge($ids, [$pattern]);
+            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Only generated %d placeholders and core table names are interpolated; every ID and the prefix pattern are prepared separately.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomically delete expired pairs by indexed timeout IDs; cached expiry cannot protect concurrent refreshes.
+            $rows = $wpdb->query($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The generated IN list has one %d for each supplied timeout ID.
+                "DELETE t, v FROM {$wpdb->options} t
+                 INNER JOIN {$wpdb->options} v
+                     ON v.option_name = CONCAT('_transient_', SUBSTRING(t.option_name, 20))
+                 WHERE t.option_id IN ($placeholders)
+                   AND t.option_name LIKE %s AND t.option_value < UNIX_TIMESTAMP()",
+                $values
             ));
-            if ($rows) {
+            // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            if ($rows > 0) {
                 $deleted += (int) $rows;
+                foreach ($chunk as $row) {
+                    // Invalidating a refreshed candidate's option cache is safe: its
+                    // surviving database value is reloaded on the next get_option().
+                    wp_cache_delete($row->value_name, 'options');
+                    wp_cache_delete('_transient_timeout_' . substr($row->value_name, strlen('_transient_')), 'options');
+                }
             }
         }
 

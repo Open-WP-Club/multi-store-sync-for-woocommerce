@@ -31,6 +31,7 @@ class EmailNotificationsExtendedTest extends WC_Multi_Store_TestCase
         });
         Functions\when('update_option')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('2024-01-15 12:00:00', new DateTimeZone('Europe/Sofia')));
         Functions\when('get_bloginfo')->justReturn('Test Store');
         Functions\when('wp_mail')->justReturn(true);
         Functions\when('do_action')->justReturn(null);

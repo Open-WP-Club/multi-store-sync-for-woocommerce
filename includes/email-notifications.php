@@ -327,9 +327,10 @@ class WC_Multi_Store_Email_Notifications {
         global $wpdb;
 
         // Get yesterday's sync statistics
-        $yesterday_date = (new DateTimeImmutable())->sub(new DateInterval('P1D'));
+        $today_date = current_datetime();
+        $yesterday_date = $today_date->sub(new DateInterval('P1D'));
         $yesterday = $yesterday_date->format('Y-m-d');
-        $today = (new DateTimeImmutable())->format('Y-m-d');
+        $today = $today_date->format('Y-m-d');
 
         $table_name = $wpdb->prefix . 'wc_mss_sync_history';
 
@@ -347,6 +348,11 @@ class WC_Multi_Store_Email_Notifications {
             $yesterday,
             $today
         ));
+
+        if ($stats === null) {
+            WC_Multi_Store_Logger::write('Daily summary skipped: could not read sync statistics.', 'error');
+            return;
+        }
 
         $total_syncs = (int) ($stats->total_syncs ?? 0);
         $successful_syncs = (int) ($stats->successful_syncs ?? 0);

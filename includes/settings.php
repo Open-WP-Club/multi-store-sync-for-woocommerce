@@ -340,7 +340,7 @@ class WC_Multi_Store_Settings {
         // Clear cache when stores are updated
         if ($result) {
             self::$active_stores_cache = null;
-            WC_Multi_Store_Cache_Manager::clear_store_cache($store_url);
+            WC_Multi_Store_Cache_Manager::clear_store_cache($validated_url);
         }
 
         return $result;

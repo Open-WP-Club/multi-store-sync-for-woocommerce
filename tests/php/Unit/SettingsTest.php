@@ -464,6 +464,8 @@ class SettingsTest extends WC_Multi_Store_TestCase
      */
     public function test_update_store_invalidates_static_cache(): void
     {
+        Functions\expect('update_option')->once()->with('wc_mss_cache_store_generation_' . md5('https://store1.com'), \Mockery::type('string'), false)->andReturn(true);
+
         $old_stores = [
             'https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck_old'],
         ];
@@ -515,6 +517,8 @@ class SettingsTest extends WC_Multi_Store_TestCase
      */
     public function test_delete_store_invalidates_static_cache(): void
     {
+        Functions\expect('update_option')->once()->with('wc_mss_cache_store_generation_' . md5('https://store1.com'), \Mockery::type('string'), false)->andReturn(true);
+
         $stores = [
             'https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck_one'],
         ];

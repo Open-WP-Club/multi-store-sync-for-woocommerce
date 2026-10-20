@@ -233,6 +233,8 @@ class SettingsUrlValidationTest extends WC_Multi_Store_TestCase
 
     public function test_update_store_normalizes_url_key(): void
     {
+        Functions\expect('update_option')->once()->with('wc_mss_cache_store_generation_' . md5('https://store.com'), \Mockery::type('string'), false)->andReturn(true);
+
         $url = 'https://store.com/';
 
         Functions\expect('esc_url_raw')

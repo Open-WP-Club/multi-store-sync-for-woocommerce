@@ -484,4 +484,51 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
         $notifier->send_conflict_notification(999, 123, 'https://store.com', ['name']);
         $this->assertTrue(true);
     }
+    public function test_daily_summary_uses_the_wordpress_calendar_day_across_dst(): void
+    {
+        Functions\when('get_option')->alias(static fn($name, $default = false) =>
+            $name === 'wc_multi_store_sync_email_settings'
+                ? ['enabled' => true, 'daily_summary_enabled' => true, 'recipient_email' => 'admin@example.com']
+                : ($name === 'admin_email' ? 'admin@example.com' : $default)
+        );
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('2026-03-30 00:30:00', new DateTimeZone('Europe/Sofia')));
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->twice()->with(\Mockery::type('string'), '2026-03-29', '2026-03-30')->andReturn('SUMMARY');
+        $wpdb->shouldReceive('get_row')->once()->with('SUMMARY')->andReturn((object) [
+            'total_syncs' => 2, 'successful_syncs' => 1, 'failed_syncs' => 1, 'avg_duration' => 125.5, 'total_api_calls' => 4,
+        ]);
+        $wpdb->shouldReceive('get_results')->once()->with('SUMMARY', ARRAY_A)->andReturn([]);
+        $sent = [];
+        Functions\when('wp_mail')->alias(static function ($to, $subject, $message, $headers) use (&$sent): bool {
+            $sent[] = compact('to', 'subject', 'message');
+            return true;
+        });
+        (new WC_Multi_Store_Email_Notifications())->send_daily_summary();
+        $this->assertCount(1, $sent);
+        $this->assertStringContainsString('March 29, 2026', $sent[0]['subject']);
+        $this->assertStringContainsString('126', $sent[0]['message']);
+    }
+
+    public function test_daily_summary_does_not_send_a_misleading_empty_report_when_database_fails(): void
+    {
+        Functions\when('get_option')->alias(static fn($name, $default = false) =>
+            $name === 'wc_multi_store_sync_email_settings'
+                ? ['enabled' => true, 'daily_summary_enabled' => true, 'recipient_email' => 'admin@example.com']
+                : ($name === 'admin_email' ? 'admin@example.com' : $default)
+        );
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('2026-03-30 00:30:00', new DateTimeZone('Europe/Sofia')));
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturn('SUMMARY');
+        $wpdb->shouldReceive('get_row')->once()->andReturn(null);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $sent = false;
+        Functions\when('wp_mail')->alias(static function () use (&$sent): bool { $sent = true; return true; });
+        (new WC_Multi_Store_Email_Notifications())->send_daily_summary();
+        $this->assertFalse($sent);
+    }
+
 }

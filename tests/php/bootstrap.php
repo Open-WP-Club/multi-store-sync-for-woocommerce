@@ -163,6 +163,11 @@ abstract class WC_Multi_Store_TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function setUpWpMocks(): void
     {
+        $cache_generation = 0;
+        Monkey\Functions\when('wp_generate_uuid4')->alias(static function () use (&$cache_generation): string {
+            return 'test-cache-generation-' . ++$cache_generation;
+        });
+
         Monkey\Functions\when('sanitize_key')->alias(
             fn($key) => preg_replace('/[^a-z0-9_\-]/', '', strtolower($key))
         );
