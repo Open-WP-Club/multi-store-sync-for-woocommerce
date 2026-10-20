@@ -29,7 +29,8 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         // Our sections contain independent filters and action forms. Render them
         // after WooCommerce's mainform to avoid nested forms and mixed nonces.
-        remove_action('woocommerce_settings_' . $this->id, $this->output(...));
+        // Core registers [$this, 'output']; a fresh closure would not match it.
+        remove_action('woocommerce_settings_' . $this->id, [$this, 'output']);
         add_action('woocommerce_settings_' . $this->id, static function (): void {
             $GLOBALS['hide_save_button'] = true;
         });
