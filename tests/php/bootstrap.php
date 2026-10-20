@@ -536,6 +536,7 @@ if (!class_exists('WP_List_Table')) {
         public array $_args = [];
         public $items = [];
         public $_column_headers = [];
+        protected array $_pagination_args = [];
 
         public function __construct(array $args = []) {
             $this->_args = wp_parse_args($args, [
@@ -551,7 +552,8 @@ if (!class_exists('WP_List_Table')) {
         protected function column_cb($item): string { return ''; }
         public function get_items_per_page(string $option, int $default = 20): int { return $default; }
         public function get_pagenum(): int { return 1; }
-        public function set_pagination_args(array $args): void {}
+        public function set_pagination_args(array $args): void { $this->_pagination_args = $args; }
+        public function get_pagination_arg(string $key): mixed { return $this->_pagination_args[$key] ?? null; }
         protected function row_actions(array $actions, bool $always_visible = false): string {
             return implode(' | ', $actions);
         }

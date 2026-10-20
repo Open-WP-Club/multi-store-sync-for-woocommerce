@@ -49,7 +49,7 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
         </div>
     <?php else: ?>
 
-        <div style="margin: 1rem 0;">
+        <div class="wc-mss-toolbar">
             <label for="wc-mss-attr-map-store-select"><strong><?php esc_html_e('Store:', 'multi-store-sync-for-woocommerce'); ?></strong></label>
             <select id="wc-mss-attr-map-store-select">
                 <option value=""><?php esc_html_e('— Select a store —', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -78,7 +78,7 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
                 <button type="button" class="button button-primary" id="wc-mss-attr-map-save-names">
                     <?php esc_html_e('Save Name Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
-                <span class="wc-mss-attr-map-save-status" data-for="names"></span>
+                <div class="wc-mss-attr-map-save-status" data-for="names"></div>
             </p>
 
             <h2><?php esc_html_e('Attribute Value Mapping', 'multi-store-sync-for-woocommerce'); ?></h2>
@@ -90,7 +90,7 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
                 <button type="button" class="button button-primary" id="wc-mss-attr-map-save-values">
                     <?php esc_html_e('Save Value Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
-                <span class="wc-mss-attr-map-save-status" data-for="values"></span>
+                <div class="wc-mss-attr-map-save-status" data-for="values"></div>
             </p>
         </div>
 
@@ -100,45 +100,3 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
 
     <?php endif; ?>
 </div>
-
-<style>
-.wc-mss-attribute-mapping-page select.wc-mss-attr-map-remote-select {
-    width: 100%;
-    max-width: 25rem;
-}
-
-.wc-mss-attribute-mapping-page input.wc-mss-attr-map-value-input {
-    width: 100%;
-    max-width: 20rem;
-}
-
-.wc-mss-attr-map-save-status {
-    margin-left: 0.75rem;
-    font-weight: 600;
-}
-
-.wc-mss-attr-map-save-status.success {
-    color: #00a32a;
-}
-
-.wc-mss-attr-map-save-status.error {
-    color: #d63638;
-}
-
-.wc-mss-attribute-mapping-page details.wc-mss-attr-map-value-group {
-    background: #fff;
-    border: 1px solid #dcdcde;
-    border-radius: 4px;
-    margin-bottom: 0.75rem;
-    padding: 0.75rem 1rem;
-}
-
-.wc-mss-attribute-mapping-page details.wc-mss-attr-map-value-group summary {
-    cursor: pointer;
-    font-weight: 600;
-}
-
-.wc-mss-attribute-mapping-page table.wc-mss-attr-map-value-table {
-    margin-top: 0.75rem;
-}
-</style>

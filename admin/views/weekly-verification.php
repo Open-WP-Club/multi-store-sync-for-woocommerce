@@ -126,7 +126,7 @@ foreach ($active_stores as $store_url => $store_config) {
         <!-- Left column: Main content -->
         <div class="wc-mss-main-content">
 
-    <div class="wc-mss-card">
+    <div class="card wc-mss-card">
         <h2><?php esc_html_e('Verification Settings', 'multi-store-sync-for-woocommerce'); ?></h2>
 
         <form method="post" action="">
@@ -180,11 +180,11 @@ foreach ($active_stores as $store_url => $store_config) {
                         <label><?php esc_html_e('What to Check', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
-                        <label style="display: block; margin-bottom: 5px;">
+                        <label>
                             <input type="checkbox" name="check_stock" value="1" <?php checked($settings['check_stock'], true); ?>>
                             <?php esc_html_e('Stock Quantities', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
-                        <label style="display: block; margin-bottom: 5px;">
+                        <label>
                             <input type="checkbox" name="check_prices" value="1" <?php checked($settings['check_prices'], true); ?>>
                             <?php esc_html_e('Prices (Regular & Sale)', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
@@ -242,7 +242,7 @@ foreach ($active_stores as $store_url => $store_config) {
                     </td>
                 </tr>
 
-                <tr id="auto_correct_limit_row" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
+                <tr id="auto_correct_limit_row" <?php echo !$settings['auto_correct'] ? 'hidden' : ''; ?>>
                     <th scope="row">
                         <label for="auto_correct_limit"><?php esc_html_e('Auto-Correct Limit', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
@@ -265,7 +265,7 @@ foreach ($active_stores as $store_url => $store_config) {
                 $weekly_category_auto_create = isset($settings['weekly_category_auto_create']) ? $settings['weekly_category_auto_create'] : 'use_default';
                 ?>
 
-                <tr id="auto_correct_sync_type_row" class="auto-correct-option" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
+                <tr id="auto_correct_sync_type_row" class="auto-correct-option" <?php echo !$settings['auto_correct'] ? 'hidden' : ''; ?>>
                     <th scope="row">
                         <label for="weekly_sync_type"><?php esc_html_e('Auto-Correct Sync Type', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
@@ -287,7 +287,7 @@ foreach ($active_stores as $store_url => $store_config) {
                     </td>
                 </tr>
 
-                <tr id="auto_correct_stock_sync_row" class="auto-correct-option" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
+                <tr id="auto_correct_stock_sync_row" class="auto-correct-option" <?php echo !$settings['auto_correct'] ? 'hidden' : ''; ?>>
                     <th scope="row">
                         <label for="weekly_stock_sync"><?php esc_html_e('Stock Synchronization', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
@@ -309,7 +309,7 @@ foreach ($active_stores as $store_url => $store_config) {
                     </td>
                 </tr>
 
-                <tr id="auto_correct_category_row" class="auto-correct-option" style="<?php echo !$settings['auto_correct'] ? 'display:none;' : ''; ?>">
+                <tr id="auto_correct_category_row" class="auto-correct-option" <?php echo !$settings['auto_correct'] ? 'hidden' : ''; ?>>
                     <th scope="row">
                         <label for="weekly_category_auto_create"><?php esc_html_e('Auto-create Categories', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
@@ -331,26 +331,12 @@ foreach ($active_stores as $store_url => $store_config) {
                     </td>
                 </tr>
 
-                <script>
-                jQuery(document).ready(function($) {
-                    $('#auto_correct').on('change', function() {
-                        if ($(this).is(':checked')) {
-                            $('#auto_correct_limit_row').show();
-                            $('.auto-correct-option').show();
-                        } else {
-                            $('#auto_correct_limit_row').hide();
-                            $('.auto-correct-option').hide();
-                        }
-                    });
-                });
-                </script>
-
                 <tr>
                     <th scope="row">
                         <label for="email_enabled"><?php esc_html_e('Email Notifications', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
-                        <label style="display: block; margin-bottom: 10px;">
+                        <label class="wc-mss-field-group">
                             <input type="checkbox" name="email_enabled" id="email_enabled" value="1"
                                    <?php checked($settings['email_enabled'], true); ?>>
                             <?php esc_html_e('Send email when discrepancies are found', 'multi-store-sync-for-woocommerce'); ?>
@@ -371,7 +357,7 @@ foreach ($active_stores as $store_url => $store_config) {
         </form>
     </div>
 
-    <div class="wc-mss-card">
+    <div class="card wc-mss-card">
         <h2><?php esc_html_e('Manual Verification & Sync Control', 'multi-store-sync-for-woocommerce'); ?></h2>
 
         <?php if ($next_run): ?>
@@ -384,209 +370,40 @@ foreach ($active_stores as $store_url => $store_config) {
             <p><em><?php esc_html_e('No verification scheduled. Enable weekly verification above to schedule.', 'multi-store-sync-for-woocommerce'); ?></em></p>
         <?php endif; ?>
 
-        <div style="margin: 15px 0;">
+        <div class="wc-mss-toolbar">
             <button type="button" id="wc-mss-start-verification-page" class="button button-secondary">
                 <?php esc_html_e('Run Verification Now', 'multi-store-sync-for-woocommerce'); ?>
             </button>
-            <button type="button" id="wc-mss-cancel-verification-page" class="button" style="display: none; margin-left: 10px;">
+            <button type="button" id="wc-mss-cancel-verification-page" class="button" hidden>
                 <?php esc_html_e('Cancel', 'multi-store-sync-for-woocommerce'); ?>
             </button>
-            <span class="description" style="margin-left: 10px;"><?php esc_html_e('Runs verification in the background.', 'multi-store-sync-for-woocommerce'); ?></span>
+            <span class="description"><?php esc_html_e('Runs verification in the background.', 'multi-store-sync-for-woocommerce'); ?></span>
         </div>
 
         <h3><?php esc_html_e('Stop Synchronization', 'multi-store-sync-for-woocommerce'); ?></h3>
         <p class="description"><?php esc_html_e('Use these buttons to stop sync operations. Products queued by auto-correct will be removed.', 'multi-store-sync-for-woocommerce'); ?></p>
-        <div style="margin: 15px 0;">
-            <button type="button" id="stop-weekly-sync" class="button button-secondary" style="color: #d63638; border-color: #d63638;">
-                <span class="dashicons dashicons-controls-pause" style="margin-top: 4px;"></span>
+        <div class="wc-mss-toolbar">
+            <button type="button" id="stop-weekly-sync" class="button button-secondary">
+                <span class="dashicons dashicons-controls-pause"></span>
                 <?php esc_html_e('Stop Weekly Verification', 'multi-store-sync-for-woocommerce'); ?>
             </button>
-            <button type="button" id="stop-all-sync" class="button button-secondary" style="color: #fff; background-color: #d63638; border-color: #d63638; margin-left: 10px;">
-                <span class="dashicons dashicons-no" style="margin-top: 4px;"></span>
+            <button type="button" id="stop-all-sync" class="button button-secondary">
+                <span class="dashicons dashicons-no"></span>
                 <?php esc_html_e('Stop All Sync & Clear Queue', 'multi-store-sync-for-woocommerce'); ?>
             </button>
         </div>
-        <div id="sync-stop-status" style="margin-top: 10px; display: none;"></div>
-        <div id="wc-mss-verification-progress-page" style="display: none; margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <span id="wc-mss-verification-status-page"><?php esc_html_e('Starting...', 'multi-store-sync-for-woocommerce'); ?></span>
-                <span id="wc-mss-verification-percent-page">0%</span>
-            </div>
-            <div class="wc-mss-progress-container">
-                <div class="wc-mss-progress-bar" id="wc-mss-verification-bar-page" style="width: 0%;"></div>
-            </div>
-            <div style="margin-top: 10px; font-size: 12px; color: #646970;">
-                <span id="wc-mss-verification-details-page"></span>
-            </div>
+        <div id="sync-stop-status" aria-live="polite"></div>
+        <div id="wc-mss-verification-progress-page" class="notice notice-info inline" role="status" hidden>
+            <p><span id="wc-mss-verification-status-page"></span> <span id="wc-mss-verification-percent-page">0%</span></p>
+            <progress id="wc-mss-verification-bar-page" max="100" value="0"><?php esc_html_e('Verification progress', 'multi-store-sync-for-woocommerce'); ?></progress>
+            <p id="wc-mss-verification-details-page"></p>
         </div>
-        <div id="wc-mss-verification-result-page" style="margin-top: 10px;"></div>
+        <div id="wc-mss-verification-result-page" aria-live="polite"></div>
 
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var startBtn = document.getElementById('wc-mss-start-verification-page');
-            var cancelBtn = document.getElementById('wc-mss-cancel-verification-page');
-            var progressDiv = document.getElementById('wc-mss-verification-progress-page');
-            var resultDiv = document.getElementById('wc-mss-verification-result-page');
-            var statusSpan = document.getElementById('wc-mss-verification-status-page');
-            var percentSpan = document.getElementById('wc-mss-verification-percent-page');
-            var progressBar = document.getElementById('wc-mss-verification-bar-page');
-            var detailsSpan = document.getElementById('wc-mss-verification-details-page');
-            var ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
-            var nonce = '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>';
-            var pollInterval = null;
-            var verificationJustStarted = false;
-            var idleCount = 0; // Count consecutive idle responses before resetting
-
-            function showResult(message, isError) {
-                resultDiv.textContent = '';
-                var notice = document.createElement('div');
-                notice.className = 'notice inline ' + (isError ? 'notice-error' : 'notice-success');
-                var p = document.createElement('p');
-                p.textContent = message;
-                notice.appendChild(p);
-                resultDiv.appendChild(notice);
-            }
-
-            function startVerification() {
-                startBtn.disabled = true;
-                startBtn.textContent = '<?php echo esc_js(__('Starting...', 'multi-store-sync-for-woocommerce')); ?>';
-                resultDiv.textContent = '';
-                verificationJustStarted = true;
-                idleCount = 0;
-
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'action=wc_mss_start_verification&nonce=' + nonce
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data.success) {
-                        progressDiv.style.display = 'block';
-                        cancelBtn.style.display = 'inline-block';
-                        startBtn.style.display = 'none';
-                        statusSpan.textContent = data.data.message;
-                        // Wait a bit before first poll to allow transient to be set
-                        setTimeout(function() {
-                            pollProgress();
-                            pollInterval = setInterval(pollProgress, 3000);
-                        }, 1000);
-                    } else {
-                        verificationJustStarted = false;
-                        startBtn.disabled = false;
-                        startBtn.textContent = '<?php echo esc_js(__('Run Verification Now', 'multi-store-sync-for-woocommerce')); ?>';
-                        showResult(data.data.message || 'Error', true);
-                    }
-                });
-            }
-
-            function pollProgress() {
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'action=wc_mss_get_verification_progress&nonce=' + nonce
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data.success && data.data) {
-                        var d = data.data;
-                        if (d.status === 'running') {
-                            idleCount = 0; // Reset idle counter
-                            verificationJustStarted = false;
-                            percentSpan.textContent = d.percent + '%';
-                            progressBar.style.width = d.percent + '%';
-                            statusSpan.textContent = '<?php echo esc_js(__('Verifying...', 'multi-store-sync-for-woocommerce')); ?>';
-                            detailsSpan.textContent = d.processed + '/' + d.total + ' | <?php echo esc_js(__('Batch', 'multi-store-sync-for-woocommerce')); ?> ' + d.current_batch + '/' + d.total_batches;
-                        } else if (d.status === 'completed') {
-                            clearInterval(pollInterval);
-                            verificationJustStarted = false;
-                            percentSpan.textContent = '100%';
-                            progressBar.style.width = '100%';
-                            statusSpan.textContent = '<?php echo esc_js(__('Completed!', 'multi-store-sync-for-woocommerce')); ?>';
-                            detailsSpan.textContent = d.discrepancies + ' <?php echo esc_js(__('discrepancies found', 'multi-store-sync-for-woocommerce')); ?>';
-                            showResult('<?php echo esc_js(__('Verification completed. Refresh page to see results.', 'multi-store-sync-for-woocommerce')); ?>', false);
-                            setTimeout(function() { window.location.reload(); }, 3000);
-                        } else if (d.status === 'cancelled') {
-                            clearInterval(pollInterval);
-                            verificationJustStarted = false;
-                            resetUI();
-                        } else if (d.status === 'idle') {
-                            // Only reset after many consecutive idle responses
-                            // Action Scheduler may take up to 1-2 minutes to start processing
-                            idleCount++;
-                            if (verificationJustStarted && idleCount < 40) {
-                                // Still waiting for Action Scheduler to pick up the task (up to 2 min)
-                                var waitTime = idleCount * 3;
-                                statusSpan.textContent = '<?php echo esc_js(__('Waiting for Action Scheduler...', 'multi-store-sync-for-woocommerce')); ?> (' + waitTime + 's)';
-                                detailsSpan.textContent = '<?php echo esc_js(__('Action Scheduler processes tasks in the background. This may take up to 1-2 minutes.', 'multi-store-sync-for-woocommerce')); ?>';
-                            } else if (idleCount >= 40) {
-                                // After 40 consecutive idle responses (~2 minutes), stop polling but don't reset
-                                clearInterval(pollInterval);
-                                verificationJustStarted = false;
-                                statusSpan.textContent = '<?php echo esc_js(__('Verification scheduled', 'multi-store-sync-for-woocommerce')); ?>';
-                                detailsSpan.textContent = '<?php echo esc_js(__('The verification is running in the background. Refresh this page to check progress.', 'multi-store-sync-for-woocommerce')); ?>';
-                                progressBar.style.width = '5%';
-                                progressBar.style.background = '#ffb900';
-                                cancelBtn.style.display = 'none';
-                                // Don't reset UI - keep progress div visible
-                            }
-                        } else if (d.status === 'pending') {
-                            // Action is scheduled but not yet running
-                            idleCount = 0;
-                            statusSpan.textContent = '<?php echo esc_js(__('Scheduled, waiting to start...', 'multi-store-sync-for-woocommerce')); ?>';
-                            detailsSpan.textContent = '<?php echo esc_js(__('Action Scheduler will process this soon.', 'multi-store-sync-for-woocommerce')); ?>';
-                            progressBar.style.width = '2%';
-                        }
-                    }
-                });
-            }
-
-            function cancelVerification() {
-                cancelBtn.disabled = true;
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'action=wc_mss_cancel_verification&nonce=' + nonce
-                }).then(function() {
-                    clearInterval(pollInterval);
-                    statusSpan.textContent = '<?php echo esc_js(__('Cancelling...', 'multi-store-sync-for-woocommerce')); ?>';
-                });
-            }
-
-            function resetUI() {
-                progressDiv.style.display = 'none';
-                cancelBtn.style.display = 'none';
-                cancelBtn.disabled = false;
-                startBtn.style.display = 'inline-block';
-                startBtn.disabled = false;
-                startBtn.textContent = '<?php echo esc_js(__('Run Verification Now', 'multi-store-sync-for-woocommerce')); ?>';
-            }
-
-            startBtn.addEventListener('click', startVerification);
-            cancelBtn.addEventListener('click', cancelVerification);
-
-            // Check if already running
-            fetch(ajaxUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=wc_mss_get_verification_progress&nonce=' + nonce
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.success && data.data && data.data.status === 'running') {
-                    progressDiv.style.display = 'block';
-                    cancelBtn.style.display = 'inline-block';
-                    startBtn.style.display = 'none';
-                    pollProgress();
-                    pollInterval = setInterval(pollProgress, 3000);
-                }
-            });
-        });
-        </script>
     </div>
 
     <?php if ($latest_report): ?>
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Latest Verification Report', 'multi-store-sync-for-woocommerce'); ?></h2>
 
             <div class="wc-mss-report-summary">
@@ -595,29 +412,17 @@ foreach ($active_stores as $store_url => $store_config) {
                     <?php echo esc_html(date('F j, Y \a\t g:i A', strtotime($latest_report['started_at']))); ?>
                 </p>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
-                    <div style="background: #f0f0f1; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 24px; font-weight: bold; color: #2271b1;"><?php echo number_format($latest_report['products_checked']); ?></div>
-                        <div style="color: #646970;"><?php esc_html_e('Products Checked', 'multi-store-sync-for-woocommerce'); ?></div>
-                    </div>
-                    <div style="background: #f0f0f1; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 24px; font-weight: bold; color: #2271b1;"><?php echo number_format($latest_report['stores_checked']); ?></div>
-                        <div style="color: #646970;"><?php esc_html_e('Stores Checked', 'multi-store-sync-for-woocommerce'); ?></div>
-                    </div>
-                    <div style="background: <?php echo $latest_report['discrepancies_found'] > 0 ? '#fff3cd' : '#d1f0d1'; ?>; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 24px; font-weight: bold; color: <?php echo $latest_report['discrepancies_found'] > 0 ? '#856404' : '#0f5c0f'; ?>;">
-                            <?php echo number_format($latest_report['discrepancies_found']); ?>
-                        </div>
-                        <div style="color: #646970;"><?php esc_html_e('Discrepancies Found', 'multi-store-sync-for-woocommerce'); ?></div>
-                    </div>
-                    <div style="background: #f0f0f1; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 24px; font-weight: bold; color: #2271b1;"><?php echo number_format($latest_report['duration_seconds'], 1); ?>s</div>
-                        <div style="color: #646970;"><?php esc_html_e('Duration', 'multi-store-sync-for-woocommerce'); ?></div>
-                    </div>
-                </div>
+                <table class="widefat striped">
+                    <tbody>
+                        <tr><th scope="row"><?php esc_html_e('Products Checked', 'multi-store-sync-for-woocommerce'); ?></th><td><?php echo esc_html(number_format_i18n($latest_report['products_checked'])); ?></td></tr>
+                        <tr><th scope="row"><?php esc_html_e('Stores Checked', 'multi-store-sync-for-woocommerce'); ?></th><td><?php echo esc_html(number_format_i18n($latest_report['stores_checked'])); ?></td></tr>
+                        <tr><th scope="row"><?php esc_html_e('Discrepancies Found', 'multi-store-sync-for-woocommerce'); ?></th><td><?php echo esc_html(number_format_i18n($latest_report['discrepancies_found'])); ?></td></tr>
+                        <tr><th scope="row"><?php esc_html_e('Duration (seconds)', 'multi-store-sync-for-woocommerce'); ?></th><td><?php echo esc_html(number_format_i18n($latest_report['duration_seconds'], 1)); ?></td></tr>
+                    </tbody>
+                </table>
 
                 <?php if ($latest_report['discrepancies_found'] > 0): ?>
-                    <div style="margin-top: 15px;">
+                    <div>
                         <h3><?php esc_html_e('Breakdown', 'multi-store-sync-for-woocommerce'); ?></h3>
                         <ul>
                             <li><strong><?php esc_html_e('Missing Products:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['missing_products']); ?></li>
@@ -626,13 +431,13 @@ foreach ($active_stores as $store_url => $store_config) {
                             $orphan_count = isset($report_data_temp['orphan_products']) ? $report_data_temp['orphan_products'] : 0;
                             if ($orphan_count > 0):
                             ?>
-                            <li style="color: #d63638;">
+                            <li>
                                 <strong><?php esc_html_e('Orphan Products:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($orphan_count); ?>
                                 <em>(<?php esc_html_e('exist on remote but should be excluded', 'multi-store-sync-for-woocommerce'); ?>)</em>
-                                <button type="button" id="wc-mss-queue-orphans" class="button button-small" style="margin-left: 10px; background: #d63638; border-color: #d63638; color: #fff;">
+                                <button type="button" id="wc-mss-queue-orphans" class="button button-small">
                                     <?php esc_html_e('Queue for Deletion', 'multi-store-sync-for-woocommerce'); ?>
                                 </button>
-                                <span id="wc-mss-orphan-status" style="margin-left: 10px;"></span>
+                                <div id="wc-mss-orphan-status" aria-live="polite"></div>
                             </li>
                             <?php endif; ?>
                             <li><strong><?php esc_html_e('Stock Mismatches:', 'multi-store-sync-for-woocommerce'); ?></strong> <?php echo number_format($latest_report['stock_mismatches']); ?></li>
@@ -679,7 +484,7 @@ foreach ($active_stores as $store_url => $store_config) {
                         <?php endif; ?>
                     </div>
                 <?php else: ?>
-                    <div style="background: #d1f0d1; border-left: 4px solid #46b450; padding: 15px; margin: 15px 0;">
+                    <div class="notice notice-success inline">
                         <strong><?php esc_html_e('All products are in sync!', 'multi-store-sync-for-woocommerce'); ?></strong>
                         <p><?php esc_html_e('No discrepancies were found during this verification.', 'multi-store-sync-for-woocommerce'); ?></p>
                     </div>
@@ -689,7 +494,7 @@ foreach ($active_stores as $store_url => $store_config) {
     <?php endif; ?>
 
     <?php if (!empty($reports)): ?>
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Recent Verification Reports', 'multi-store-sync-for-woocommerce'); ?></h2>
 
             <table class="wp-list-table widefat fixed striped">
@@ -710,7 +515,7 @@ foreach ($active_stores as $store_url => $store_config) {
                             <td><?php echo number_format($report['products_checked']); ?></td>
                             <td><?php echo number_format($report['stores_checked']); ?></td>
                             <td>
-                                <span style="<?php echo esc_attr($report['discrepancies_found'] > 0 ? 'color: #856404; font-weight: bold;' : 'color: #0f5c0f;'); ?>">
+                                <span>
                                     <?php echo number_format($report['discrepancies_found']); ?>
                                 </span>
                                 <?php if ($report['discrepancies_found'] > 0): ?>
@@ -718,17 +523,17 @@ foreach ($active_stores as $store_url => $store_config) {
                                         <?php
                                         $parts = [];
                                         if ($report['missing_products'] > 0) {
-                                            $parts[] = number_format($report['missing_products']) . ' missing';
+                                            $parts[] = number_format_i18n($report['missing_products']) . ' ' . __('missing', 'multi-store-sync-for-woocommerce');
                                         }
                                         $rd = maybe_unserialize($report['report_data']);
                                         if (isset($rd['orphan_products']) && $rd['orphan_products'] > 0) {
-                                            $parts[] = '<span style="color:#d63638;">' . number_format($rd['orphan_products']) . ' orphan</span>';
+                                            $parts[] = number_format_i18n($rd['orphan_products']) . ' ' . __('orphan', 'multi-store-sync-for-woocommerce');
                                         }
                                         if ($report['stock_mismatches'] > 0) {
-                                            $parts[] = number_format($report['stock_mismatches']) . ' stock';
+                                            $parts[] = number_format_i18n($report['stock_mismatches']) . ' ' . __('stock', 'multi-store-sync-for-woocommerce');
                                         }
                                         if ($report['price_mismatches'] > 0) {
-                                            $parts[] = number_format($report['price_mismatches']) . ' price';
+                                            $parts[] = number_format_i18n($report['price_mismatches']) . ' ' . __('price', 'multi-store-sync-for-woocommerce');
                                         }
                                         echo wp_kses_post('(' . implode(', ', $parts) . ')');
                                         ?>
@@ -757,415 +562,54 @@ foreach ($active_stores as $store_url => $store_config) {
 
         <!-- Right sidebar: System Health -->
         <div class="wc-mss-sidebar">
-            <div class="wc-mss-sidebar-card">
+            <div class="card wc-mss-card">
                 <h3><?php esc_html_e('System Health', 'multi-store-sync-for-woocommerce'); ?></h3>
 
-                <div class="wc-mss-health-local">
-                    <span class="dashicons dashicons-store"></span>
-                    <strong><?php esc_html_e('Local Store', 'multi-store-sync-for-woocommerce'); ?></strong>
-                    <div class="wc-mss-health-stats">
-                        <span class="stat"><?php echo esc_html($local_cat_count); ?> <?php esc_html_e('Cat', 'multi-store-sync-for-woocommerce'); ?></span>
-                        <span class="stat"><?php echo esc_html($local_tag_count); ?> <?php esc_html_e('Tags', 'multi-store-sync-for-woocommerce'); ?></span>
-                    </div>
-                </div>
-
+                <table class="widefat striped">
+                    <thead><tr>
+                        <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Categories', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Tags', 'multi-store-sync-for-woocommerce'); ?></th>
+                        <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
+                    </tr></thead>
+                    <tbody>
+                        <tr>
+                            <th scope="row"><?php esc_html_e('Local Store', 'multi-store-sync-for-woocommerce'); ?></th>
+                            <td><?php echo esc_html($local_cat_count); ?></td>
+                            <td><?php echo esc_html($local_tag_count); ?></td>
+                            <td>&mdash;</td>
+                        </tr>
+                        <?php foreach ($store_health as $health):
+                            $cat_missing = count($health['categories']['missing']);
+                            $tag_missing = count($health['tags']['missing']);
+                            $no_cache = !$health['categories']['cached'] && !$health['tags']['cached'];
+                        ?>
+                        <tr>
+                            <th scope="row"><?php echo esc_html($health['name']); ?></th>
+                            <td title="<?php echo esc_attr(implode(', ', array_slice($health['categories']['missing'], 0, 10))); ?>"><?php echo $health['categories']['cached'] ? esc_html(($local_cat_count - $cat_missing) . '/' . $local_cat_count) : '&mdash;'; ?></td>
+                            <td title="<?php echo esc_attr(implode(', ', array_slice($health['tags']['missing'], 0, 10))); ?>"><?php echo $health['tags']['cached'] ? esc_html(($local_tag_count - $tag_missing) . '/' . $local_tag_count) : '&mdash;'; ?></td>
+                            <td><?php
+                                if ($no_cache) {
+                                    esc_html_e('No cache yet', 'multi-store-sync-for-woocommerce');
+                                } elseif ($cat_missing || $tag_missing || !$health['categories']['cached'] || !$health['tags']['cached']) {
+                                    esc_html_e('Needs attention', 'multi-store-sync-for-woocommerce');
+                                } else {
+                                    esc_html_e('In sync', 'multi-store-sync-for-woocommerce');
+                                }
+                            ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
                 <?php if (empty($store_health)): ?>
-                    <p class="wc-mss-no-stores">
-                        <span class="dashicons dashicons-warning"></span>
-                        <?php esc_html_e('No active stores', 'multi-store-sync-for-woocommerce'); ?>
-                    </p>
-                <?php else: ?>
-                    <?php foreach ($store_health as $health):
-                        $cat_missing = count($health['categories']['missing']);
-                        $tag_missing = count($health['tags']['missing']);
-                        $cat_synced = $local_cat_count - $cat_missing;
-                        $tag_synced = $local_tag_count - $tag_missing;
-                        $no_cache = !$health['categories']['cached'] && !$health['tags']['cached'];
-                        $all_good = $cat_missing === 0 && $tag_missing === 0 && !$no_cache;
-
-                        if ($all_good) {
-                            $status_class = 'status-ok';
-                            $status_icon = 'yes-alt';
-                        } elseif ($no_cache) {
-                            $status_class = 'status-pending';
-                            $status_icon = 'clock';
-                        } else {
-                            $status_class = 'status-warning';
-                            $status_icon = 'warning';
-                        }
-                    ?>
-                    <div class="wc-mss-health-store <?php echo esc_attr($status_class); ?>">
-                        <div class="store-header">
-                            <span class="dashicons dashicons-<?php echo esc_attr($status_icon); ?>"></span>
-                            <strong><?php echo esc_html($health['name']); ?></strong>
-                        </div>
-                        <?php if ($no_cache): ?>
-                            <small class="store-status"><?php esc_html_e('No cache yet', 'multi-store-sync-for-woocommerce'); ?></small>
-                        <?php else: ?>
-                            <div class="store-counts">
-                                <div class="sync-row" title="<?php echo $cat_missing > 0 ? esc_attr(__('Missing: ', 'multi-store-sync-for-woocommerce') . implode(', ', array_slice($health['categories']['missing'], 0, 10))) : ''; ?>">
-                                    <span class="sync-label"><?php esc_html_e('Categories:', 'multi-store-sync-for-woocommerce'); ?></span>
-                                    <span class="sync-status <?php echo $cat_missing === 0 ? 'synced' : 'partial'; ?>">
-                                        <?php echo esc_html($cat_synced); ?>/<?php echo esc_html($local_cat_count); ?>
-                                        <?php if ($cat_missing === 0): ?>
-                                            <span class="dashicons dashicons-yes"></span>
-                                        <?php else: ?>
-                                            <em class="missing">(<?php echo esc_html($cat_missing); ?> <?php esc_html_e('missing', 'multi-store-sync-for-woocommerce'); ?>)</em>
-                                        <?php endif; ?>
-                                    </span>
-                                </div>
-                                <div class="sync-row">
-                                    <span class="sync-label"><?php esc_html_e('Tags:', 'multi-store-sync-for-woocommerce'); ?></span>
-                                    <span class="sync-status <?php echo $tag_missing === 0 ? 'synced' : 'partial'; ?>">
-                                        <?php echo esc_html($tag_synced); ?>/<?php echo esc_html($local_tag_count); ?>
-                                        <?php if ($tag_missing === 0): ?>
-                                            <span class="dashicons dashicons-yes"></span>
-                                        <?php else: ?>
-                                            <em class="missing">(<?php echo esc_html($tag_missing); ?> <?php esc_html_e('missing', 'multi-store-sync-for-woocommerce'); ?>)</em>
-                                        <?php endif; ?>
-                                    </span>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                    <?php endforeach; ?>
-
-                    <p class="wc-mss-health-note">
-                        <small>
-                            <?php /* translators: %s: product matching method. */ echo esc_html(sprintf(esc_html__('Match: %s', 'multi-store-sync-for-woocommerce'), $match_by)); ?><br>
-                            <?php esc_html_e('Cache: 24h', 'multi-store-sync-for-woocommerce'); ?>
-                        </small>
-                    </p>
+                    <p><?php esc_html_e('No active stores', 'multi-store-sync-for-woocommerce'); ?></p>
                 <?php endif; ?>
+                <p class="description">
+                    <?php /* translators: %s: product matching method. */ echo esc_html(sprintf(esc_html__('Match: %s', 'multi-store-sync-for-woocommerce'), $match_by)); ?><br>
+                    <?php esc_html_e('Cache: 24h', 'multi-store-sync-for-woocommerce'); ?>
+                </p>
             </div>
         </div><!-- /.wc-mss-sidebar -->
 
     </div><!-- /.wc-mss-two-column-layout -->
 </div>
-
-<style>
-/* Two-column layout */
-.wc-mss-two-column-layout {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-}
-
-.wc-mss-main-content {
-    flex: 1;
-    min-width: 0;
-}
-
-.wc-mss-sidebar {
-    width: 280px;
-    flex-shrink: 0;
-    position: sticky;
-    top: 32px;
-}
-
-@media (max-width: 1200px) {
-    .wc-mss-two-column-layout {
-        flex-direction: column;
-    }
-    .wc-mss-sidebar {
-        width: 100%;
-        position: static;
-    }
-}
-
-/* Sidebar card */
-.wc-mss-sidebar-card {
-    background: #fff;
-    border: 1px solid #c3c4c7;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
-    padding: 15px;
-    border-radius: 4px;
-}
-
-.wc-mss-sidebar-card h3 {
-    margin: 0 0 15px 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #dcdcde;
-    font-size: 14px;
-}
-
-/* Health local */
-.wc-mss-health-local {
-    background: #f0f6fc;
-    border-left: 3px solid #0073aa;
-    padding: 10px;
-    margin-bottom: 15px;
-    border-radius: 0 4px 4px 0;
-}
-
-.wc-mss-health-local .dashicons {
-    color: #0073aa;
-    margin-right: 5px;
-}
-
-.wc-mss-health-stats {
-    margin-top: 5px;
-    font-size: 13px;
-}
-
-.wc-mss-health-stats .stat {
-    display: inline-block;
-    background: #fff;
-    padding: 2px 8px;
-    border-radius: 3px;
-    margin-right: 5px;
-}
-
-/* Health stores */
-.wc-mss-health-store {
-    padding: 8px 10px;
-    margin-bottom: 8px;
-    border-radius: 4px;
-    font-size: 12px;
-}
-
-.wc-mss-health-store.status-ok {
-    background: #edfaef;
-    border-left: 3px solid #00a32a;
-}
-
-.wc-mss-health-store.status-warning {
-    background: #fcf9e8;
-    border-left: 3px solid #dba617;
-}
-
-.wc-mss-health-store.status-pending {
-    background: #f6f7f7;
-    border-left: 3px solid #999;
-}
-
-.wc-mss-health-store .store-header {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.wc-mss-health-store .store-header .dashicons {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
-}
-
-.status-ok .dashicons { color: #00a32a; }
-.status-warning .dashicons { color: #dba617; }
-.status-pending .dashicons { color: #999; }
-
-.wc-mss-health-store .store-counts {
-    margin-top: 6px;
-    padding-left: 21px;
-    color: #666;
-}
-
-.wc-mss-health-store .sync-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 3px;
-    font-size: 11px;
-}
-
-.wc-mss-health-store .sync-row:last-child {
-    margin-bottom: 0;
-}
-
-.wc-mss-health-store .sync-label {
-    color: #666;
-}
-
-.wc-mss-health-store .sync-status {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-}
-
-.wc-mss-health-store .sync-status.synced {
-    color: #00a32a;
-    font-weight: 500;
-}
-
-.wc-mss-health-store .sync-status.synced .dashicons {
-    font-size: 14px;
-    width: 14px;
-    height: 14px;
-}
-
-.wc-mss-health-store .sync-status.partial {
-    color: #996800;
-}
-
-.wc-mss-health-store .missing {
-    color: #d63638;
-    font-style: normal;
-    font-size: 10px;
-}
-
-.wc-mss-health-store .store-status {
-    color: #666;
-    display: block;
-    padding-left: 21px;
-}
-
-.wc-mss-health-note {
-    margin: 10px 0 0 0;
-    padding-top: 10px;
-    border-top: 1px solid #dcdcde;
-    color: #666;
-}
-
-.wc-mss-no-stores {
-    color: #d63638;
-    margin: 0;
-}
-
-/* Main cards */
-.wc-mss-card {
-    background: #fff;
-    border: 1px solid #c3c4c7;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
-    margin: 20px 0;
-    padding: 20px;
-}
-
-.wc-mss-card h2 {
-    margin-top: 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #dcdcde;
-}
-
-.wc-mss-report-summary {
-    margin-top: 15px;
-}
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var button = document.getElementById('wc-mss-queue-orphans');
-    var status = document.getElementById('wc-mss-orphan-status');
-
-    if (!button) return;
-
-    function setStatus(message, isSuccess) {
-        status.textContent = message;
-        status.style.color = isSuccess ? '#46b450' : '#dc3232';
-    }
-
-    button.addEventListener('click', function() {
-        if (!confirm('<?php echo esc_js(__('This will queue all orphan products for deletion from their respective remote stores. Are you sure?', 'multi-store-sync-for-woocommerce')); ?>')) {
-            return;
-        }
-
-        button.disabled = true;
-        button.textContent = '<?php echo esc_js(__('Queuing...', 'multi-store-sync-for-woocommerce')); ?>';
-        status.textContent = '';
-
-        var formData = new FormData();
-        formData.append('action', 'wc_mss_queue_orphans_for_deletion');
-        formData.append('nonce', '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>');
-
-        fetch(ajaxurl, {
-            method: 'POST',
-            body: formData
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(response) {
-            if (response.success) {
-                setStatus(response.data.message, true);
-                // Hide button after successful queuing
-                setTimeout(function() {
-                    button.style.display = 'none';
-                }, 1500);
-                button.textContent = '<?php echo esc_js(__('Queued!', 'multi-store-sync-for-woocommerce')); ?>';
-                button.style.background = '#46b450';
-                button.style.borderColor = '#46b450';
-            } else {
-                setStatus(response.data.message, false);
-                button.disabled = false;
-                button.textContent = '<?php echo esc_js(__('Queue for Deletion', 'multi-store-sync-for-woocommerce')); ?>';
-            }
-        })
-        .catch(function() {
-            setStatus('<?php echo esc_js(__('Request failed. Please try again.', 'multi-store-sync-for-woocommerce')); ?>', false);
-            button.disabled = false;
-            button.textContent = '<?php echo esc_js(__('Queue for Deletion', 'multi-store-sync-for-woocommerce')); ?>';
-        });
-    });
-});
-</script>
-
-<script>
-jQuery(document).ready(function($) {
-    var $stopWeeklyBtn = $('#stop-weekly-sync');
-    var $stopAllBtn = $('#stop-all-sync');
-    var $stopStatus = $('#sync-stop-status');
-
-    // Stop Weekly Verification
-    $stopWeeklyBtn.on('click', function() {
-        if (!confirm('<?php echo esc_js(__('Are you sure you want to disable weekly verification? You can re-enable it in the settings above.', 'multi-store-sync-for-woocommerce')); ?>')) {
-            return;
-        }
-
-        $stopWeeklyBtn.prop('disabled', true).text('<?php echo esc_js(__('Stopping...', 'multi-store-sync-for-woocommerce')); ?>');
-        $stopStatus.show().html('<span style="color: #666;"><?php echo esc_js(__('Disabling weekly verification...', 'multi-store-sync-for-woocommerce')); ?></span>');
-
-        $.ajax({
-            url: ajaxurl,
-            type: 'POST',
-            data: {
-                action: 'wc_mss_stop_weekly_verification',
-                nonce: '<?php echo esc_js(wp_create_nonce('wc_mss_stop_sync')); ?>'
-            },
-            success: function(response) {
-                if (response.success) {
-                    $stopStatus.html('<span style="color: #00a32a;">✓ ' + response.data.message + '</span>');
-                    $('#verification_enabled').prop('checked', false);
-                } else {
-                    $stopStatus.html('<span style="color: #d63638;">✗ ' + response.data.message + '</span>');
-                }
-            },
-            error: function() {
-                $stopStatus.html('<span style="color: #d63638;">✗ <?php echo esc_js(__('Request failed. Please try again.', 'multi-store-sync-for-woocommerce')); ?></span>');
-            },
-            complete: function() {
-                $stopWeeklyBtn.prop('disabled', false).html('<span class="dashicons dashicons-controls-pause" style="margin-top: 4px;"></span> <?php echo esc_js(__('Stop Weekly Verification', 'multi-store-sync-for-woocommerce')); ?>');
-            }
-        });
-    });
-
-    // Stop All Sync & Clear Queue
-    $stopAllBtn.on('click', function() {
-        if (!confirm('<?php echo esc_js(__('WARNING: This will clear the entire queue and cancel pending sync jobs. The plugin will remain active. Products currently waiting to sync will be removed. Are you sure?', 'multi-store-sync-for-woocommerce')); ?>')) {
-            return;
-        }
-
-        $stopAllBtn.prop('disabled', true).text('<?php echo esc_js(__('Stopping...', 'multi-store-sync-for-woocommerce')); ?>');
-        $stopStatus.show().html('<span style="color: #666;"><?php echo esc_js(__('Stopping all sync operations...', 'multi-store-sync-for-woocommerce')); ?></span>');
-
-        $.ajax({
-            url: ajaxurl,
-            type: 'POST',
-            data: {
-                action: 'wc_mss_stop_all_sync',
-                nonce: '<?php echo esc_js(wp_create_nonce('wc_mss_stop_sync')); ?>'
-            },
-            success: function(response) {
-                if (response.success) {
-                    $stopStatus.html('<span style="color: #00a32a;">✓ ' + response.data.message + '</span>');
-                } else {
-                    $stopStatus.html('<span style="color: #d63638;">✗ ' + response.data.message + '</span>');
-                }
-            },
-            error: function() {
-                $stopStatus.html('<span style="color: #d63638;">✗ <?php echo esc_js(__('Request failed. Please try again.', 'multi-store-sync-for-woocommerce')); ?></span>');
-            },
-            complete: function() {
-                $stopAllBtn.prop('disabled', false).html('<span class="dashicons dashicons-no" style="margin-top: 4px;"></span> <?php echo esc_js(__('Stop All Sync & Clear Queue', 'multi-store-sync-for-woocommerce')); ?>');
-            }
-        });
-    });
-});
-</script>

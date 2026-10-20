@@ -181,109 +181,100 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
 
     <!-- Existing Stores List -->
     <?php if (!$editing_store && !$show_add_form): ?>
-    <div class="wc-mss-card">
+    <div class="card wc-mss-card">
         <h2><?php esc_html_e('Configured Stores', 'multi-store-sync-for-woocommerce'); ?></h2>
         <?php if (!empty($stores)): ?>
         <p>
             <button type="button" id="wc-mss-run-health-check" class="button">
                 <?php esc_html_e('Run Health Check', 'multi-store-sync-for-woocommerce'); ?>
             </button>
-            <button type="button" id="wc-mss-export-exclusions" class="button" style="margin-left: 10px;">
+            <button type="button" id="wc-mss-export-exclusions" class="button">
                 <?php esc_html_e('Export Exclusions', 'multi-store-sync-for-woocommerce'); ?>
             </button>
-            <span id="wc-mss-health-check-result" style="margin-left: 10px;"></span>
+            <div id="wc-mss-health-check-result"></div>
         </p>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th><?php esc_html_e('Store URL', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Health', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Exclusions', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Added Date', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th style="width: 150px;"><?php esc_html_e('Actions', 'multi-store-sync-for-woocommerce'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($stores as $url => $store): ?>
-                <tr>
-                    <td>
-                        <strong><?php echo esc_html($url); ?></strong>
-                    </td>
-                    <td>
-                        <?php
-                        $status = isset($store['status']) ? $store['status'] : 'inactive';
-                        if ($status === 'active') {
-                            echo '<span class="status-active"><span class="wc-mss-status-dot active"></span>Active</span>';
-                        } else {
-                            echo '<span class="status-inactive"><span class="wc-mss-status-dot inactive"></span>Inactive</span>';
-                        }
-                        ?>
-                    </td>
-                    <td>
-                        <?php
-                        if (isset($store['health_status'])) {
-                            $health = $store['health_status'];
-                            if ($health['healthy']) {
-                                echo '<span class="status-active"><span class="wc-mss-status-dot active"></span>' . esc_html($health['message']) . '</span>';
-                            } else {
-                                echo '<span class="status-inactive"><span class="wc-mss-status-dot inactive"></span>' . esc_html($health['message']) . '</span>';
-                            }
-                            echo '<br><small style="color: #666;">Last: ' . esc_html($health['checked_at']) . '</small>';
-                        } else {
-                            echo '<span style="color: #999;">Not checked</span>';
-                        }
-                        ?>
-                    </td>
-                    <td>
-                        <?php
-                        $exc_cats = $store['exclude_categories'] ?? [];
-                        $exc_tags = $store['exclude_tags'] ?? [];
-                        $sync_count = WC_Multi_Store_Settings::get_sync_product_count($exc_cats, $exc_tags);
-                        $excluded_count = $total_products - $sync_count;
+        <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('stores', [
+            'stores-store-url' => __('Store URL', 'multi-store-sync-for-woocommerce'),
+            'stores-status' => __('Status', 'multi-store-sync-for-woocommerce'),
+            'stores-health' => __('Health', 'multi-store-sync-for-woocommerce'),
+            'stores-exclusions' => __('Exclusions', 'multi-store-sync-for-woocommerce'),
+            'stores-added-date' => __('Added Date', 'multi-store-sync-for-woocommerce'),
+            'stores-actions' => __('Actions', 'multi-store-sync-for-woocommerce')
+        ], array_map(static fn($key, $value): array => ['key' => $key, 'value' => $value], array_keys($stores), array_values($stores)), static function (array $row) use ($total_products): void {
+            $url = $row['key'];
+            $store = $row['value'];
+            ?>
+            <td>
+                <strong><?php echo esc_html($url); ?></strong>
+            </td>
+            <td>
+                <?php
+                $status = isset($store['status']) ? $store['status'] : 'inactive';
+                echo esc_html($status === 'active' ? __('Active', 'multi-store-sync-for-woocommerce') : __('Inactive', 'multi-store-sync-for-woocommerce'));
+                ?>
+            </td>
+            <td>
+                <?php
+                if (isset($store['health_status'])) {
+                    $health = $store['health_status'];
+                    echo esc_html($health['message']);
+                    /* translators: %s: date and time of the last health check. */
+                    echo '<br><small>' . sprintf(esc_html__('Last: %s', 'multi-store-sync-for-woocommerce'), esc_html($health['checked_at'])) . '</small>';
+                } else {
+                    esc_html_e('Not checked', 'multi-store-sync-for-woocommerce');
+                }
+                ?>
+            </td>
+            <td>
+                <?php
+                $exc_cats = $store['exclude_categories'] ?? [];
+                $exc_tags = $store['exclude_tags'] ?? [];
+                $sync_count = WC_Multi_Store_Settings::get_sync_product_count($exc_cats, $exc_tags);
+                $excluded_count = $total_products - $sync_count;
 
-                        if (!empty($exc_cats) || !empty($exc_tags)) {
-                            $exclusions = [];
-                            if (!empty($exc_cats)) {
-                                /* translators: %d: number of excluded categories. */
-                                $exclusions[] = sprintf(_n('%d cat', '%d cats', count($exc_cats), 'multi-store-sync-for-woocommerce'), count($exc_cats));
-                            }
-                            if (!empty($exc_tags)) {
-                                /* translators: %d: number of excluded tags. */
-                                $exclusions[] = sprintf(_n('%d tag', '%d tags', count($exc_tags), 'multi-store-sync-for-woocommerce'), count($exc_tags));
-                            }
-                            echo '<span style="color:#b32d2e;">' . esc_html(implode(', ', $exclusions)) . '</span>';
-                            /* translators: 1: products selected for sync, 2: total products. */
-                            echo '<br><strong style="color:#2271b1;">' . sprintf(esc_html__('%1$d / %2$d products', 'multi-store-sync-for-woocommerce'), absint($sync_count), absint($total_products)) . '</strong>';
-                        } else {
-                            echo '<span style="color:#999;">None</span>';
-                            /* translators: %d: total number of products. */
-                            echo '<br><strong style="color:#2271b1;">' . sprintf(esc_html__('%d products', 'multi-store-sync-for-woocommerce'), absint($total_products)) . '</strong>';
-                        }
-                        ?>
-                    </td>
-                    <td><?php echo isset($store['added_date']) ? esc_html(date('M j, Y', strtotime($store['added_date']))) : '-'; ?></td>
-                    <td>
-                        <a href="<?php echo esc_url(add_query_arg('edit_store', urlencode($url))); ?>" class="button button-small">
-                            <?php esc_html_e('Edit', 'multi-store-sync-for-woocommerce'); ?>
-                        </a>
-                        <button type="button" class="button button-small wc-mss-check-store-btn"
-                                data-store-url="<?php echo esc_attr($url); ?>">
-                            <?php esc_html_e('Check', 'multi-store-sync-for-woocommerce'); ?>
-                        </button>
-                        <form method="post" style="display: inline;">
-                            <?php wp_nonce_field('wc_mss_delete_store'); ?>
-                            <input type="hidden" name="store_url" value="<?php echo esc_attr($url); ?>">
-                            <button type="submit" name="wc_mss_delete_store" class="button button-small" style="color: #b32d2e;"
-                                    onclick="return confirm('<?php esc_attr_e('Are you sure you want to delete this store?', 'multi-store-sync-for-woocommerce'); ?>')">
-                                <?php esc_html_e('Delete', 'multi-store-sync-for-woocommerce'); ?>
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                if (!empty($exc_cats) || !empty($exc_tags)) {
+                    $exclusions = [];
+                    if (!empty($exc_cats)) {
+                        /* translators: %d: number of excluded categories. */
+                        $exclusions[] = sprintf(_n('%d cat', '%d cats', count($exc_cats), 'multi-store-sync-for-woocommerce'), count($exc_cats));
+                    }
+                    if (!empty($exc_tags)) {
+                        /* translators: %d: number of excluded tags. */
+                        $exclusions[] = sprintf(_n('%d tag', '%d tags', count($exc_tags), 'multi-store-sync-for-woocommerce'), count($exc_tags));
+                    }
+                    echo '<span>' . esc_html(implode(', ', $exclusions)) . '</span>';
+                    /* translators: 1: products selected for sync, 2: total products. */
+                    echo '<br><strong>' . sprintf(esc_html__('%1$d / %2$d products', 'multi-store-sync-for-woocommerce'), absint($sync_count), absint($total_products)) . '</strong>';
+                } else {
+                    esc_html_e('None', 'multi-store-sync-for-woocommerce');
+                    /* translators: %d: total number of products. */
+                    echo '<br><strong>' . sprintf(esc_html__('%d products', 'multi-store-sync-for-woocommerce'), absint($total_products)) . '</strong>';
+                }
+                ?>
+            </td>
+            <td><?php echo isset($store['added_date']) ? esc_html(date('M j, Y', strtotime($store['added_date']))) : '-'; ?></td>
+            <td>
+                <a href="<?php echo esc_url(add_query_arg('edit_store', urlencode($url))); ?>" class="button button-small">
+                    <?php esc_html_e('Edit', 'multi-store-sync-for-woocommerce'); ?>
+                </a>
+                <button type="button" class="button button-small wc-mss-check-store-btn"
+                        data-store-url="<?php echo esc_attr($url); ?>">
+                    <?php esc_html_e('Check', 'multi-store-sync-for-woocommerce'); ?>
+                </button>
+                <form method="post">
+                    <?php wp_nonce_field('wc_mss_delete_store'); ?>
+                    <input type="hidden" name="store_url" value="<?php echo esc_attr($url); ?>">
+                    <button type="submit" name="wc_mss_delete_store" class="button button-small"
+                            onclick="return confirm('<?php esc_attr_e('Are you sure you want to delete this store?', 'multi-store-sync-for-woocommerce'); ?>')">
+                        <?php esc_html_e('Delete', 'multi-store-sync-for-woocommerce'); ?>
+                    </button>
+                </form>
+            </td>
+            <?php
+        });
+        $list_table->display();
+        ?>
         <?php else: ?>
         <!-- Empty State -->
         <div class="wc-mss-empty-state">
@@ -296,7 +287,7 @@ $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $sto
     </div>
     <?php endif; ?>
 
-    <div class="wc-mss-card">
+    <div class="card wc-mss-card">
         <h3><?php esc_html_e('How to get WooCommerce API Keys', 'multi-store-sync-for-woocommerce'); ?></h3>
         <ol>
             <li><?php esc_html_e('Go to your remote WooCommerce store admin panel', 'multi-store-sync-for-woocommerce'); ?></li>

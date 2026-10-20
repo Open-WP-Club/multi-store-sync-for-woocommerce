@@ -17,7 +17,7 @@ $stats = WC_Multi_Store_Conflict_Detector::get_stats();
     <h1>
         <?php esc_html_e('Sync Conflicts', 'multi-store-sync-for-woocommerce'); ?>
         <?php if ($stats['unresolved'] > 0): ?>
-            <span class="wc-mss-count-badge wc-mss-count-badge-error"><?php echo esc_html($stats['unresolved']); ?></span>
+            <span class="description">(<?php echo esc_html($stats['unresolved']); ?>)</span>
         <?php endif; ?>
     </h1>
 

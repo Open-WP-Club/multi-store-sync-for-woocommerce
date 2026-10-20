@@ -1,6 +1,6 @@
 <?php
 /**
- * Native WordPress tables for actionable sync records.
+ * Native WordPress tables for sync records and reports.
  *
  * WordPress owns selection, select-all, bulk controls, headers and pagination.
  * Views only supply their existing, escaped row cells.
@@ -20,15 +20,17 @@ class WC_Multi_Store_Admin_List_Table extends WP_List_Table {
     private string $list_type;
     private array $list_columns;
     private Closure $render_cells;
-    private Closure $selectable;
+    private ?Closure $selectable;
+    private ?Closure $row_id;
 
-    public function __construct(string $type, array $columns, array $items, callable $render_cells, callable $selectable, ?int $total = null) {
+    public function __construct(string $type, array $columns, array $items, callable $render_cells, ?callable $selectable = null, ?int $total = null, ?callable $row_id = null) {
         parent::__construct(['singular' => 'wc-mss-record', 'plural' => 'wc-mss-' . $type, 'ajax' => false]);
         $this->list_type = $type;
-        $this->list_columns = ['cb' => '<input type="checkbox" />'] + $columns;
+        $this->list_columns = $selectable ? ['cb' => '<input type="checkbox" />'] + $columns : $columns;
         $this->items = $items;
         $this->render_cells = Closure::fromCallable($render_cells);
-        $this->selectable = Closure::fromCallable($selectable);
+        $this->selectable = $selectable ? Closure::fromCallable($selectable) : null;
+        $this->row_id = $row_id ? Closure::fromCallable($row_id) : null;
         $this->_column_headers = [$this->get_columns(), [], [], array_key_first($columns)];
         if ($total !== null) {
             $this->set_pagination_args(['total_items' => $total, 'per_page' => 50]);
@@ -41,6 +43,20 @@ class WC_Multi_Store_Admin_List_Table extends WP_List_Table {
 
     protected function get_bulk_actions(): array {
         return self::actions_for($this->list_type);
+    }
+
+    /** Read-only reports need pagination, but no bulk-action nonce or empty toolbar. */
+    protected function display_tablenav($which): void {
+        if ($this->selectable) {
+            parent::display_tablenav($which);
+            return;
+        }
+        if (!$this->get_pagination_arg('total_items')) {
+            return;
+        }
+        echo '<div class="tablenav ' . esc_attr($which) . '">';
+        $this->pagination($which);
+        echo '<br class="clear" /></div>';
     }
 
     public static function actions_for(string $type): array {
@@ -66,22 +82,37 @@ class WC_Multi_Store_Admin_List_Table extends WP_List_Table {
     }
 
     public function single_row($item): void {
-        echo '<tr><th scope="row" class="check-column">';
-        if (($this->selectable)($item)) {
-            printf(
-                '<input type="checkbox" name="wc_mss_ids[]" value="%1$d" aria-label="%2$s" />',
-                absint($item['id']),
-                /* translators: %d: record ID. */
-                esc_attr(sprintf(__('Select item %d', 'multi-store-sync-for-woocommerce'), $item['id']))
-            );
+        echo '<tr' . ($this->row_id ? ' id="' . esc_attr(($this->row_id)($item)) . '"' : '') . '>';
+        if ($this->selectable) {
+            echo '<th scope="row" class="check-column">';
+            if (($this->selectable)($item)) {
+                printf(
+                    '<input type="checkbox" name="wc_mss_ids[]" value="%1$d" aria-label="%2$s" />',
+                    absint($item['id']),
+                    /* translators: %d: record ID. */
+                    esc_attr(sprintf(__('Select item %d', 'multi-store-sync-for-woocommerce'), $item['id']))
+                );
+            }
+            echo '</th>';
         }
-        echo '</th>';
         ($this->render_cells)($item);
         echo '</tr>';
     }
 
     public function display(): void {
-        echo '<input type="hidden" name="wc_mss_list" value="' . esc_attr($this->list_type) . '" />';
+        $pagination_form = !$this->selectable && $this->get_pagination_arg('total_items');
+        if ($pagination_form) {
+            echo '<form method="get">';
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Preserve read-only route/filter query parameters for the native page input.
+            foreach ($_GET as $key => $value) {
+                if (is_scalar($value) && !in_array($key, ['paged', '_wpnonce', '_wp_http_referer'], true)) {
+                    echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr(wp_unslash($value)) . '" />';
+                }
+            }
+        }
+        if ($this->selectable) {
+            echo '<input type="hidden" name="wc_mss_list" value="' . esc_attr($this->list_type) . '" />';
+        }
         // Core uses fixed control IDs. Namespace them when several native tables
         // share a page (stock discrepancies plus per-store category scan results).
         static $instance = 0;
@@ -101,7 +132,12 @@ class WC_Multi_Store_Admin_List_Table extends WP_List_Table {
         }, $html);
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markup is rendered and escaped by WP_List_Table; only fixed control IDs are suffixed above.
         echo $html;
-        echo '<p class="description">' . esc_html__('Select all selects the actionable records on this page.', 'multi-store-sync-for-woocommerce') . '</p>';
+        if ($this->selectable) {
+            echo '<p class="description">' . esc_html__('Select all selects the actionable records on this page.', 'multi-store-sync-for-woocommerce') . '</p>';
+        }
+        if ($pagination_form) {
+            echo '</form>';
+        }
     }
 
     /** Read both pagination links (GET) and the native page input (POST). */

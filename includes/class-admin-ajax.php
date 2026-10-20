@@ -115,6 +115,7 @@ class WC_Multi_Store_Admin_Ajax {
 
         // Category row action (product_cat taxonomy list)
         add_filter('product_cat_row_actions', $this->add_category_row_action(...), 10, 2);
+        add_action('admin_enqueue_scripts', $this->enqueue_category_assets(...));
         add_action('admin_footer-edit-tags.php',    $this->category_row_action_script(...));
     }
 
@@ -436,6 +437,12 @@ class WC_Multi_Store_Admin_Ajax {
                 $log['status_badge'] = WC_Multi_Store_Webhook_Logger::get_status_badge($log['status']);
             }
 
+            unset($log);
+            require_once WC_MSS_PLUGIN_DIR . 'includes/admin-list-table.php';
+            $webhook_logs = $result['logs'];
+            ob_start();
+            include WC_MSS_PLUGIN_DIR . 'admin/views/webhook-logs-results.php';
+            $result['table_html'] = ob_get_clean();
             wp_send_json_success($result);
             }
         );
@@ -1302,6 +1309,24 @@ class WC_Multi_Store_Admin_Ajax {
         }
     }
 
+    /** Load the same request and feedback helpers on product-category row actions. */
+    public function enqueue_category_assets(string $hook): void {
+        $screen = get_current_screen();
+        if ($hook !== 'edit-tags.php' || !$screen || $screen->taxonomy !== 'product_cat') {
+            return;
+        }
+        wp_enqueue_script('wc-mss-admin-ui', WC_MSS_PLUGIN_URL . 'admin/js/admin-ui.js', ['wp-util', 'wp-i18n'], WC_MSS_VERSION, true);
+        wp_set_script_translations('wc-mss-admin-ui', 'multi-store-sync-for-woocommerce', WC_MSS_PLUGIN_DIR . 'languages');
+        wp_localize_script('wc-mss-admin-ui', 'wcMssAdmin', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('wc_mss_admin'),
+            'i18n' => [
+                'request_failed' => __('Request failed', 'multi-store-sync-for-woocommerce'),
+                'dismiss_notice' => __('Dismiss this notice.', 'multi-store-sync-for-woocommerce'),
+            ],
+        ]);
+    }
+
     /**
      * Inline script for the category row action — only on product_cat screen.
      */
@@ -1327,23 +1352,17 @@ class WC_Multi_Store_Admin_Ajax {
 
                 $link.text('<?php echo esc_js(__('Queuing…', 'multi-store-sync-for-woocommerce')); ?>');
 
-                $.post(ajaxurl, {
-                    action:           'wc_mss_sync_by_category',
+                window.wcMssRequest('wc_mss_sync_by_category', {
                     nonce:            nonce,
                     category_id:      catId,
                     sync_type:        'full_product',
                     include_children: 1,
-                }, function (resp) {
-                    if (resp.success) {
-                        $link.text('<?php echo esc_js(__('Queued ✓', 'multi-store-sync-for-woocommerce')); ?>');
-                        alert(resp.data.message);
-                    } else {
-                        $link.text('<?php echo esc_js(__('Sync to stores', 'multi-store-sync-for-woocommerce')); ?>');
-                        alert(resp.data.message || '<?php echo esc_js(__('Error', 'multi-store-sync-for-woocommerce')); ?>');
-                    }
-                }).fail(function () {
+                }).then(function (data) {
+                    $link.text('<?php echo esc_js(__('Queued', 'multi-store-sync-for-woocommerce')); ?>');
+                    window.wcMssNotice(null, data.message, 'success');
+                }).catch(function (error) {
                     $link.text('<?php echo esc_js(__('Sync to stores', 'multi-store-sync-for-woocommerce')); ?>');
-                    alert('<?php echo esc_js(__('Request failed', 'multi-store-sync-for-woocommerce')); ?>');
+                    window.wcMssNotice(null, error.message, 'error');
                 });
             });
         });

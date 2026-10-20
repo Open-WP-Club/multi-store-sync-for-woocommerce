@@ -1,39 +1,25 @@
 /**
  * WooCommerce Multi-Store Sync - Admin Scripts
- * Native JavaScript (no jQuery)
+ * Uses WordPress admin APIs for requests and feedback.
  */
 
 (function() {
     'use strict';
 
+    var __ = wp.i18n.__;
+    var sprintf = wp.i18n.sprintf;
+
     /**
      * Utility: AJAX request helper
      */
     function ajax(options) {
-        var xhr = new XMLHttpRequest();
-        xhr.open(options.method || 'POST', options.url, true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-
-        xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                    var response = JSON.parse(xhr.responseText);
-                    if (options.success) options.success(response);
-                } catch (e) {
-                    if (options.error) options.error(e);
-                }
-            } else {
-                if (options.error) options.error(xhr.statusText);
-            }
+        return wcMssAdminUI.response(options.data).then(function (response) {
+            if (options.success) options.success(response);
+        }).catch(function (error) {
+            if (options.error) options.error(error.message);
+        }).finally(function () {
             if (options.complete) options.complete();
-        };
-
-        xhr.onerror = function() {
-            if (options.error) options.error('Network error');
-            if (options.complete) options.complete();
-        };
-
-        xhr.send(options.data);
+        });
     }
 
     /**
@@ -66,116 +52,28 @@
                 if (submitButton) {
                     submitButton.click();
 
-                    var feedback = document.createElement('div');
-                    feedback.className = 'wc-mss-save-feedback';
-                    feedback.textContent = 'Saving...';
-                    document.body.appendChild(feedback);
-
-                    setTimeout(function() {
-                        feedback.classList.add('show');
-                    }, 10);
-
-                    setTimeout(function() {
-                        feedback.classList.remove('show');
-                        setTimeout(function() {
-                            feedback.remove();
-                        }, 300);
-                    }, 1500);
+                    wcMssNotice(null, __('Saving...', 'multi-store-sync-for-woocommerce'), 'info');
                 }
             }
 
-            if (e.key === 'Escape') {
-                var feedbacks = document.querySelectorAll('.wc-mss-save-feedback');
-                feedbacks.forEach(function(f) { f.remove(); });
-            }
+
         });
 
-        /**
-         * Force Sync All Products
-         */
+        /** Queue a full sync, with the same request and notice handling as other actions. */
         var forceSyncBtn = document.getElementById('wc-mss-force-sync-all');
         if (forceSyncBtn) {
-            var result = document.getElementById('wc-mss-force-sync-result');
-            var progressContainer = document.getElementById('wc-mss-sync-progress-container');
-            var progressBar = document.getElementById('wc-mss-sync-progress-bar');
-            var progressText = document.getElementById('wc-mss-sync-progress-text');
-
-            forceSyncBtn.addEventListener('click', function() {
-                if (!confirm(wcMssAdmin.i18n.confirm_sync_all || 'Are you sure you want to force sync ALL products?')) {
-                    return;
-                }
-
+            forceSyncBtn.addEventListener('click', function () {
+                if (!confirm(wcMssAdmin.i18n.confirm_sync_all)) return;
                 var originalText = forceSyncBtn.textContent;
                 forceSyncBtn.disabled = true;
-                forceSyncBtn.textContent = wcMssAdmin.i18n.syncing || 'Syncing...';
-                if (result) result.textContent = '';
-                if (progressContainer) progressContainer.style.display = 'block';
-
-                var progress = 10;
-                if (progressBar) progressBar.style.width = progress + '%';
-                if (progressText) progressText.textContent = progress + '%';
-
-                var progressInterval = setInterval(function() {
-                    if (progress < 90) {
-                        progress += Math.random() * 15;
-                        if (progress > 90) progress = 90;
-                        if (progressBar) progressBar.style.width = progress + '%';
-                        if (progressText) progressText.textContent = Math.floor(progress) + '%';
-                    }
-                }, 500);
-
-                ajax({
-                    url: wcMssAdmin.ajax_url,
-                    data: serialize({
-                        action: 'wc_mss_force_sync_all',
-                        nonce: wcMssAdmin.force_sync_nonce
-                    }),
-                    success: function(response) {
-                        clearInterval(progressInterval);
-                        if (progressBar) progressBar.style.width = '100%';
-                        if (progressText) progressText.textContent = '100%';
-
-                        setTimeout(function() {
-                            if (result) {
-                                while (result.firstChild) result.removeChild(result.firstChild);
-                                var p = document.createElement('p');
-                                if (response.success) {
-                                    p.style.color = '#46b450';
-                                    p.textContent = '\u2713 ' + response.data.message;
-                                } else {
-                                    p.style.color = '#dc3232';
-                                    p.textContent = '\u2717 ' + (response.data ? response.data.message : 'Error');
-                                }
-                                result.appendChild(p);
-                            }
-                            forceSyncBtn.disabled = false;
-                            forceSyncBtn.textContent = originalText;
-
-                            setTimeout(function() {
-                                if (progressContainer) {
-                                    progressContainer.style.opacity = '0';
-                                    setTimeout(function() {
-                                        progressContainer.style.display = 'none';
-                                        progressContainer.style.opacity = '1';
-                                    }, 300);
-                                }
-                            }, 2000);
-                        }, 500);
-                    },
-                    error: function() {
-                        clearInterval(progressInterval);
-                        if (result) {
-                            while (result.firstChild) result.removeChild(result.firstChild);
-                            var p = document.createElement('p');
-                            p.style.color = '#dc3232';
-                            p.textContent = '\u2717 ' + (wcMssAdmin.i18n.request_failed || 'Request failed');
-                            result.appendChild(p);
-                        }
+                forceSyncBtn.textContent = wcMssAdmin.i18n.syncing;
+                wcMssRequest('wc_mss_force_sync_all', { nonce: wcMssAdmin.force_sync_nonce })
+                    .then(function (data) { wcMssNotice('#wc-mss-force-sync-result', data.message, 'success'); })
+                    .catch(function (error) { wcMssNotice('#wc-mss-force-sync-result', error.message, 'error'); })
+                    .finally(function () {
                         forceSyncBtn.disabled = false;
                         forceSyncBtn.textContent = originalText;
-                        if (progressContainer) progressContainer.style.display = 'none';
-                    }
-                });
+                    });
             });
         }
 
@@ -193,13 +91,13 @@
 
                 if (!storeUrl || !consumerKey || !consumerSecret ||
                     !storeUrl.value || !consumerKey.value || !consumerSecret.value) {
-                    alert('Please fill in all fields before testing the connection.');
+                    wcMssNotice(null, __('Please fill in all fields before testing the connection.', 'multi-store-sync-for-woocommerce'), 'error');
                     return;
                 }
 
                 testConnectionBtn.disabled = true;
                 var originalText = testConnectionBtn.textContent;
-                testConnectionBtn.textContent = 'Testing...';
+                testConnectionBtn.textContent = __('Testing...', 'multi-store-sync-for-woocommerce');
 
                 ajax({
                     url: wcMssAdmin.ajax_url,
@@ -212,13 +110,13 @@
                     }),
                     success: function(response) {
                         if (response.success) {
-                            alert('Success: ' + response.data);
+                            wcMssNotice(null, wcMssAdminUI.message(response.data), 'success');
                         } else {
-                            alert('Error: ' + response.data);
+                            wcMssNotice(null, wcMssAdminUI.message(response.data), 'error');
                         }
                     },
                     error: function(error) {
-                        alert('Connection test failed: ' + error);
+                        wcMssNotice(null, sprintf(__('Connection test failed: %s', 'multi-store-sync-for-woocommerce'), wcMssAdminUI.message(error)), 'error');
                     },
                     complete: function() {
                         testConnectionBtn.disabled = false;
@@ -239,13 +137,13 @@
                 var syncType = this.dataset.syncType || 'full_product';
 
                 if (!productId) {
-                    alert('Product ID not found.');
+                    wcMssNotice(null, __('Product ID not found.', 'multi-store-sync-for-woocommerce'), 'error');
                     return;
                 }
 
                 this.disabled = true;
                 var originalText = this.textContent;
-                this.textContent = 'Syncing...';
+                this.textContent = __('Syncing...', 'multi-store-sync-for-woocommerce');
                 var btn = this;
 
                 ajax({
@@ -258,13 +156,13 @@
                     }),
                     success: function(response) {
                         if (response.success) {
-                            alert('Product synced successfully!');
+                            wcMssNotice(null, __('Product synced successfully!', 'multi-store-sync-for-woocommerce'));
                         } else {
-                            alert('Sync failed: ' + response.data);
+                            wcMssNotice(null, sprintf(__('Sync failed: %s', 'multi-store-sync-for-woocommerce'), wcMssAdminUI.message(response.data)), 'error');
                         }
                     },
                     error: function(error) {
-                        alert('Sync failed: ' + error);
+                        wcMssNotice(null, sprintf(__('Sync failed: %s', 'multi-store-sync-for-woocommerce'), wcMssAdminUI.message(error)), 'error');
                     },
                     complete: function() {
                         btn.disabled = false;
@@ -286,8 +184,8 @@
 
                 var originalText = healthCheckBtn.textContent;
                 healthCheckBtn.disabled = true;
-                healthCheckBtn.textContent = 'Running health check...';
-                if (healthResult) healthResult.textContent = 'Checking all stores...';
+                healthCheckBtn.textContent = __("Running health check...", 'multi-store-sync-for-woocommerce');
+                if (healthResult) healthResult.textContent = __("Checking all stores...", 'multi-store-sync-for-woocommerce');
 
                 ajax({
                     url: wcMssAdmin.ajax_url,
@@ -297,19 +195,15 @@
                     }),
                     success: function(response) {
                         if (response.success && healthResult) {
-                            var color = response.data.healthy_count === response.data.total_count ? '#46b450' : '#dc3232';
-                            healthResult.style.color = color;
-                            healthResult.textContent = '\u2713 ' + response.data.message;
+                            wcMssNotice(healthResult, response.data.message, response.data.healthy_count === response.data.total_count ? 'success' : 'warning');
                             setTimeout(function() { location.reload(); }, 2000);
                         } else if (healthResult) {
-                            healthResult.style.color = '#dc3232';
-                            healthResult.textContent = '\u2717 ' + response.data.message;
+                            wcMssNotice(healthResult, wcMssAdminUI.message(response.data), 'error');
                         }
                     },
                     error: function() {
                         if (healthResult) {
-                            healthResult.style.color = '#dc3232';
-                            healthResult.textContent = '\u2717 Health check failed';
+                            wcMssNotice(healthResult, wcMssAdmin.i18n.request_failed, 'error');
                         }
                     },
                     complete: function() {
@@ -344,10 +238,9 @@
                     success: function(response) {
                         if (response.success && healthCell) {
                             var r = response.data.result;
-                            var color = r.healthy ? '#46b450' : '#dc3232';
-                            healthCell.innerHTML =
-                                '<span style="color:' + color + ';">' + r.message + '</span>' +
-                                '<br><small style="color:#666;">Last: ' + r.checked_at + '</small>';
+                            healthCell.textContent = r.message + '\n' + sprintf(__('Last checked: %s', 'multi-store-sync-for-woocommerce'), r.checked_at);
+                        } else {
+                            wcMssNotice(null, wcMssAdminUI.message(response.data), 'error');
                         }
                     },
                     complete: function() {
@@ -370,12 +263,12 @@
                 var resultEl  = document.getElementById('wc-mss-test-app-password-result');
 
                 if (!storeUrl || !username || !password) {
-                    if (resultEl) { resultEl.style.color = '#dc3232'; resultEl.textContent = 'Fill in Store URL, username and password first.'; }
+                    if (resultEl) { wcMssNotice(resultEl, __("Fill in Store URL, username and password first.", 'multi-store-sync-for-woocommerce'), 'error'); }
                     return;
                 }
 
                 this.disabled = true;
-                if (resultEl) { resultEl.style.color = '#646970'; resultEl.textContent = 'Testing...'; }
+                if (resultEl) { wcMssNotice(resultEl, __('Testing...', 'multi-store-sync-for-woocommerce'), 'info'); }
 
                 var btn = this;
                 ajax({
@@ -389,12 +282,11 @@
                     }),
                     success: function(response) {
                         if (resultEl) {
-                            resultEl.style.color = response.success ? '#46b450' : '#dc3232';
-                            resultEl.textContent = (response.success ? '✓ ' : '✗ ') + response.data.message;
+                            wcMssNotice(resultEl, wcMssAdminUI.message(response.data), response.success ? 'success' : 'error');
                         }
                     },
                     error: function() {
-                        if (resultEl) { resultEl.style.color = '#dc3232'; resultEl.textContent = '✗ Request failed'; }
+                        if (resultEl) { wcMssNotice(resultEl, __("Request failed", 'multi-store-sync-for-woocommerce'), 'error'); }
                     },
                     complete: function() { btn.disabled = false; }
                 });
@@ -415,16 +307,16 @@
                 var resultEl     = document.getElementById('wc-mss-test-app-password-edit-result');
 
                 if (!password && !hasSaved) {
-                    if (resultEl) { resultEl.style.color = '#dc3232'; resultEl.textContent = 'Enter an application password first.'; }
+                    if (resultEl) { wcMssNotice(resultEl, __("Enter an application password first.", 'multi-store-sync-for-woocommerce'), 'error'); }
                     return;
                 }
                 if (!username) {
-                    if (resultEl) { resultEl.style.color = '#dc3232'; resultEl.textContent = 'Enter a username first.'; }
+                    if (resultEl) { wcMssNotice(resultEl, __("Enter a username first.", 'multi-store-sync-for-woocommerce'), 'error'); }
                     return;
                 }
 
                 this.disabled = true;
-                if (resultEl) { resultEl.style.color = '#646970'; resultEl.textContent = 'Testing...'; }
+                if (resultEl) { wcMssNotice(resultEl, __('Testing...', 'multi-store-sync-for-woocommerce'), 'info'); }
 
                 var btn = this;
                 var postData = {
@@ -444,12 +336,11 @@
                     data: serialize(postData),
                     success: function(response) {
                         if (resultEl) {
-                            resultEl.style.color = response.success ? '#46b450' : '#dc3232';
-                            resultEl.textContent = (response.success ? '✓ ' : '✗ ') + response.data.message;
+                            wcMssNotice(resultEl, wcMssAdminUI.message(response.data), response.success ? 'success' : 'error');
                         }
                     },
                     error: function() {
-                        if (resultEl) { resultEl.style.color = '#dc3232'; resultEl.textContent = '✗ Request failed'; }
+                        if (resultEl) { wcMssNotice(resultEl, __("Request failed", 'multi-store-sync-for-woocommerce'), 'error'); }
                     },
                     complete: function() { btn.disabled = false; }
                 });
@@ -492,7 +383,7 @@
                         btn.textContent = originalText;
                     }, 2000);
                 }).catch(function() {
-                    alert(wcMssAdmin.i18n.copy_failed || 'Failed to copy. Please copy manually.');
+                    wcMssNotice(null, wcMssAdmin.i18n.copy_failed || __("Failed to copy. Please copy manually.", 'multi-store-sync-for-woocommerce'), 'error');
                 });
             });
         });
@@ -523,80 +414,53 @@
             if (!modal) {
                 modal = createWebhookLogsModal();
                 document.body.appendChild(modal);
+                jQuery(modal).dialog({
+                    autoOpen: false, modal: true, dialogClass: 'wp-dialog',
+                    title: __('Webhook Logs', 'multi-store-sync-for-woocommerce'),
+                    width: Math.min(window.innerWidth - 40, 1200),
+                    maxHeight: window.innerHeight - 60
+                });
             }
-            modal.style.display = 'block';
+            jQuery(modal).dialog('open');
             loadWebhookLogs(1);
         }
 
         function createWebhookLogsModal() {
             var modal = document.createElement('div');
             modal.id = 'wc-mss-webhook-logs-modal';
-            modal.className = 'wc-mss-modal';
-            modal.innerHTML = '<div class="wc-mss-modal-content wc-mss-modal-large">' +
-                '<div class="wc-mss-modal-header">' +
-                    '<h2>Webhook Logs</h2>' +
-                    '<span class="wc-mss-modal-close">&times;</span>' +
-                '</div>' +
-                '<div class="wc-mss-modal-body">' +
-                    '<div class="wc-mss-webhook-filters" style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">' +
+            modal.innerHTML = '<div id="wc-mss-webhook-notices"></div>' +
+                    '<div class="wc-mss-webhook-filters">' +
                         '<select id="webhook-log-type-filter" class="regular-text">' +
-                            '<option value="">Всички типове</option>' +
-                            '<option value="order_received">Получена поръчка</option>' +
-                            '<option value="stock_deducted">Намалена наличност</option>' +
-                            '<option value="stock_synced">Синхронизирана наличност</option>' +
-                            '<option value="auth_failed">Неуспешна автентикация</option>' +
-                            '<option value="validation_error">Грешка при валидация</option>' +
-                            '<option value="product_not_found">Продукт не е намерен</option>' +
-                            '<option value="rate_limited">Надвишен лимит</option>' +
+                            "<option value=\"\">" + escapeHtml(__("All types", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"order_received\">" + escapeHtml(__("Order received", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"stock_deducted\">" + escapeHtml(__("Stock deducted", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"stock_synced\">" + escapeHtml(__("Stock synced", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"auth_failed\">" + escapeHtml(__("Authentication failed", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"validation_error\">" + escapeHtml(__("Validation error", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"product_not_found\">" + escapeHtml(__("Product not found", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"rate_limited\">" + escapeHtml(__("Rate limited", 'multi-store-sync-for-woocommerce')) + "</option>" +
                         '</select>' +
                         '<select id="webhook-log-status-filter" class="regular-text">' +
-                            '<option value="">Всички статуси</option>' +
-                            '<option value="success">Успех</option>' +
-                            '<option value="failed">Грешка</option>' +
+                            "<option value=\"\">" + escapeHtml(__("All statuses", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"success\">" + escapeHtml(__("Success", 'multi-store-sync-for-woocommerce')) + "</option>" +
+                            "<option value=\"failed\">" + escapeHtml(__("Error", 'multi-store-sync-for-woocommerce')) + "</option>" +
                         '</select>' +
-                        '<input type="text" id="webhook-log-sku-filter" placeholder="SKU..." class="regular-text" style="width: 120px;" />' +
+                        '<input type="text" id="webhook-log-sku-filter" placeholder="SKU..." class="regular-text" />' +
                         '<input type="date" id="webhook-log-date-from" class="regular-text" />' +
                         '<input type="date" id="webhook-log-date-to" class="regular-text" />' +
-                        '<button type="button" id="apply-webhook-filters" class="button">Филтрирай</button>' +
+                        "<button type=\"button\" id=\"apply-webhook-filters\" class=\"button\">" + escapeHtml(__("Filter", 'multi-store-sync-for-woocommerce')) + "</button>" +
                     '</div>' +
-                    '<div id="webhook-logs-stats" style="margin-bottom: 15px; padding: 10px; background: #f0f0f1; border-radius: 4px;"></div>' +
-                    '<div class="wc-mss-delete-actions" style="margin-bottom: 15px; padding: 10px; background: #fff8e5; border: 1px solid #ffb900; border-radius: 4px;">' +
-                        '<strong>Изтриване:</strong> ' +
-                        '<button type="button" class="button delete-webhook-logs" data-type="errors" style="margin-left: 10px;">Само грешки</button> ' +
-                        '<button type="button" class="button delete-webhook-logs" data-type="success">Само успешни</button> ' +
-                        '<button type="button" class="button delete-webhook-logs" data-type="older_than" data-days="30">По-стари от 30 дни</button> ' +
-                        '<button type="button" class="button delete-webhook-logs" data-type="older_than" data-days="7">По-стари от 7 дни</button> ' +
-                        '<button type="button" class="button button-link-delete delete-webhook-logs" data-type="all" style="color: #b32d2e;">Изтрий всички</button>' +
+                    '<div id="webhook-logs-stats"></div>' +
+                    '<div class="wc-mss-delete-actions">' +
+                        "<strong>" + escapeHtml(__("Delete:", 'multi-store-sync-for-woocommerce')) + "</strong> " +
+                        "<button type=\"button\" class=\"button delete-webhook-logs\" data-type=\"errors\">" + escapeHtml(__("Errors only", 'multi-store-sync-for-woocommerce')) + "</button> " +
+                        "<button type=\"button\" class=\"button delete-webhook-logs\" data-type=\"success\">" + escapeHtml(__("Successful only", 'multi-store-sync-for-woocommerce')) + "</button> " +
+                        "<button type=\"button\" class=\"button delete-webhook-logs\" data-type=\"older_than\" data-days=\"30\">" + escapeHtml(__("Older than 30 days", 'multi-store-sync-for-woocommerce')) + "</button> " +
+                        "<button type=\"button\" class=\"button delete-webhook-logs\" data-type=\"older_than\" data-days=\"7\">" + escapeHtml(__("Older than 7 days", 'multi-store-sync-for-woocommerce')) + "</button> " +
+                        "<button type=\"button\" class=\"button button-link-delete delete-webhook-logs\" data-type=\"all\">" + escapeHtml(__("Delete all", 'multi-store-sync-for-woocommerce')) + "</button>" +
                     '</div>' +
-                    '<div id="webhook-logs-container" style="max-height: 400px; overflow-y: auto;">' +
-                        '<table class="wp-list-table widefat fixed striped">' +
-                            '<thead><tr>' +
-                                '<th style="width: 140px;">Дата/Час</th>' +
-                                '<th style="width: 150px;">Тип</th>' +
-                                '<th style="width: 100px;">SKU</th>' +
-                                '<th style="width: 80px;">Наличност</th>' +
-                                '<th>Причина</th>' +
-                                '<th style="width: 80px;">Статус</th>' +
-                                '<th style="width: 70px;">Детайли</th>' +
-                            '</tr></thead>' +
-                            '<tbody id="webhook-logs-body"></tbody>' +
-                        '</table>' +
-                    '</div>' +
-                    '<div id="webhook-logs-pagination" style="margin-top: 15px; text-align: center;"></div>' +
-                '</div>' +
-            '</div>';
-
-            // Close button handler
-            modal.querySelector('.wc-mss-modal-close').addEventListener('click', function() {
-                modal.style.display = 'none';
-            });
-
-            // Click outside to close
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    modal.style.display = 'none';
-                }
-            });
+                    '<div id="webhook-logs-container"></div>' +
+                    '<div id="webhook-logs-pagination" class="tablenav"></div>';
 
             // Filter button handler
             modal.querySelector('#apply-webhook-filters').addEventListener('click', function() {
@@ -609,21 +473,13 @@
                     var deleteType = this.dataset.type;
                     var days = this.dataset.days;
 
-                    var confirmMsg = 'Сигурни ли сте, че искате да изтриете ';
-                    switch (deleteType) {
-                        case 'all':
-                            confirmMsg += 'ВСИЧКИ логове?';
-                            break;
-                        case 'errors':
-                            confirmMsg += 'всички записи с грешки?';
-                            break;
-                        case 'success':
-                            confirmMsg += 'всички успешни записи?';
-                            break;
-                        case 'older_than':
-                            confirmMsg += 'всички записи по-стари от ' + days + ' дни?';
-                            break;
-                    }
+                    var confirmations = {
+                        all: __('Delete all webhook logs?', 'multi-store-sync-for-woocommerce'),
+                        errors: __('Delete all failed webhook logs?', 'multi-store-sync-for-woocommerce'),
+                        success: __('Delete all successful webhook logs?', 'multi-store-sync-for-woocommerce'),
+                        older_than: sprintf(__('Delete webhook logs older than %d days?', 'multi-store-sync-for-woocommerce'), days)
+                    };
+                    var confirmMsg = confirmations[deleteType];
 
                     if (!confirm(confirmMsg)) {
                         return;
@@ -637,13 +493,13 @@
         }
 
         function loadWebhookLogs(page) {
-            var body = document.getElementById('webhook-logs-body');
+            var body = document.getElementById('webhook-logs-container');
             var pagination = document.getElementById('webhook-logs-pagination');
             var stats = document.getElementById('webhook-logs-stats');
 
             if (!body) return;
 
-            body.innerHTML = '<tr><td colspan="7" style="text-align: center;">Зареждане...</td></tr>';
+            body.textContent = __('Loading...', 'multi-store-sync-for-woocommerce');
 
             var filters = {
                 action: 'wc_mss_get_webhook_logs',
@@ -662,52 +518,19 @@
                 data: serialize(filters),
                 success: function(response) {
                     if (response.success) {
-                        renderWebhookLogs(response.data.logs, body);
+                        body.innerHTML = response.data.table_html;
+                        body.querySelectorAll('.view-webhook-detail').forEach(function (button) {
+                            button.addEventListener('click', function () { showWebhookLogDetail(this.dataset.id); });
+                        });
                         renderWebhookPagination(response.data, pagination, page);
                         loadWebhookStats(stats);
                     } else {
-                        body.innerHTML = '<tr><td colspan="7" style="text-align: center; color: red;">Грешка при зареждане</td></tr>';
+                        wcMssNotice(body, wcMssAdmin.i18n.request_failed, 'error');
                     }
                 },
                 error: function() {
-                    body.innerHTML = '<tr><td colspan="7" style="text-align: center; color: red;">Грешка при връзката</td></tr>';
+                    wcMssNotice(body, wcMssAdmin.i18n.request_failed, 'error');
                 }
-            });
-        }
-
-        function renderWebhookLogs(logs, container) {
-            if (!logs || logs.length === 0) {
-                container.innerHTML = '<tr><td colspan="7" style="text-align: center;">Няма записи</td></tr>';
-                return;
-            }
-
-            var html = '';
-            logs.forEach(function(log) {
-                var stockChange = '';
-                if (log.old_stock !== null && log.new_stock !== null) {
-                    stockChange = log.old_stock + ' → ' + log.new_stock;
-                    if (log.quantity_changed) {
-                        stockChange += ' (' + (log.quantity_changed > 0 ? '+' : '') + log.quantity_changed + ')';
-                    }
-                }
-
-                html += '<tr>' +
-                    '<td>' + (log.created_at || '') + '</td>' +
-                    '<td>' + (log.type_label || log.log_type) + '</td>' +
-                    '<td>' + (log.product_sku || '-') + '</td>' +
-                    '<td>' + (stockChange || '-') + '</td>' +
-                    '<td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapeHtml(log.change_reason || '') + '">' + (log.change_reason || '-') + '</td>' +
-                    '<td>' + (log.status_badge || log.status) + '</td>' +
-                    '<td><button type="button" class="button button-small view-webhook-detail" data-id="' + log.id + '">Виж</button></td>' +
-                '</tr>';
-            });
-            container.innerHTML = html;
-
-            // Add detail view handlers
-            container.querySelectorAll('.view-webhook-detail').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    showWebhookLogDetail(this.dataset.id);
-                });
             });
         }
 
@@ -717,13 +540,13 @@
                 return;
             }
 
-            var html = '<span>Страница ' + data.page + ' от ' + data.pages + ' (общо ' + data.total + ' записа)</span> ';
+            var html = '<span>' + escapeHtml(sprintf(__('Page %1$d of %2$d (%3$d records)', 'multi-store-sync-for-woocommerce'), data.page, data.pages, data.total)) + '</span> ';
 
             if (currentPage > 1) {
-                html += '<button type="button" class="button" data-page="' + (currentPage - 1) + '">« Предишна</button> ';
+                html += '<button type="button" class="button" data-page="' + (currentPage - 1) + "\">" + escapeHtml(__("Previous", 'multi-store-sync-for-woocommerce')) + "</button> ";
             }
             if (currentPage < data.pages) {
-                html += '<button type="button" class="button" data-page="' + (currentPage + 1) + '">Следваща »</button>';
+                html += '<button type="button" class="button" data-page="' + (currentPage + 1) + "\">" + escapeHtml(__("Next", 'multi-store-sync-for-woocommerce')) + "</button>";
             }
 
             container.innerHTML = html;
@@ -750,11 +573,10 @@
                         var failed = stats.status_counts.failed || 0;
                         var stockChanges = stats.stock_stats?.total_quantity_changed || 0;
 
-                        container.innerHTML = '<strong>Последни 30 дни:</strong> ' +
-                            'Общо: ' + total + ' събития | ' +
-                            'Промени в наличност: ' + (stats.type_counts.stock_deducted || 0) + ' | ' +
-                            'Общо променени бройки: ' + stockChanges + ' | ' +
-                            'Грешки: ' + failed;
+                        container.textContent = sprintf(
+                            __('Last 30 days: %1$d events | Stock changes: %2$d | Units changed: %3$d | Errors: %4$d', 'multi-store-sync-for-woocommerce'),
+                            total, stats.type_counts.stock_deducted || 0, stockChanges, failed
+                        );
                     }
                 }
             });
@@ -771,22 +593,24 @@
                 success: function(response) {
                     if (response.success) {
                         var log = response.data;
-                        var details = 'ID: ' + log.id + '\n' +
-                            'Дата: ' + log.created_at + '\n' +
-                            'Тип: ' + log.type_label + '\n' +
-                            'Статус: ' + log.status + '\n' +
-                            'Магазин: ' + (log.store_url || '-') + '\n' +
-                            'Поръчка #: ' + (log.remote_order_id || '-') + '\n' +
-                            'Продукт ID: ' + (log.product_id || '-') + '\n' +
-                            'SKU: ' + (log.product_sku || '-') + '\n' +
-                            'Стара наличност: ' + (log.old_stock !== null ? log.old_stock : '-') + '\n' +
-                            'Нова наличност: ' + (log.new_stock !== null ? log.new_stock : '-') + '\n' +
-                            'Промяна: ' + (log.quantity_changed || '-') + '\n' +
-                            'IP: ' + (log.request_ip || '-') + '\n' +
-                            'Причина: ' + (log.change_reason || '-') + '\n' +
-                            (log.error_message ? 'Грешка: ' + log.error_message + '\n' : '') +
-                            (log.request_data ? '\nДанни от заявката:\n' + JSON.stringify(log.request_data, null, 2) : '');
-                        alert(details);
+                        var details = [
+                            ['ID', log.id],
+                            [__('Date', 'multi-store-sync-for-woocommerce'), log.created_at],
+                            [__('Type', 'multi-store-sync-for-woocommerce'), log.type_label],
+                            [__('Status', 'multi-store-sync-for-woocommerce'), log.status],
+                            [__('Store', 'multi-store-sync-for-woocommerce'), log.store_url],
+                            [__('Order', 'multi-store-sync-for-woocommerce'), log.remote_order_id],
+                            [__('Product ID', 'multi-store-sync-for-woocommerce'), log.product_id],
+                            ['SKU', log.product_sku],
+                            [__('Previous stock', 'multi-store-sync-for-woocommerce'), log.old_stock],
+                            [__('Current stock', 'multi-store-sync-for-woocommerce'), log.new_stock],
+                            [__('Change', 'multi-store-sync-for-woocommerce'), log.quantity_changed],
+                            ['IP', log.request_ip],
+                            [__('Reason', 'multi-store-sync-for-woocommerce'), log.change_reason]
+                        ].map(function (entry) { return entry[0] + ': ' + (entry[1] == null ? '—' : entry[1]); }).join('\n');
+                        if (log.error_message) details += '\n' + log.error_message;
+                        if (log.request_data) details += '\n' + JSON.stringify(log.request_data, null, 2);
+                        wcMssNotice('#wc-mss-webhook-notices', details, 'info');
                     }
                 }
             });
@@ -817,11 +641,11 @@
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
                     } else {
-                        alert('Грешка при експортиране');
+                        wcMssNotice('#wc-mss-webhook-notices', __('Export failed', 'multi-store-sync-for-woocommerce'), 'error');
                     }
                 },
                 error: function() {
-                    alert('Грешка при връзката');
+                    wcMssNotice('#wc-mss-webhook-notices', wcMssAdmin.i18n.request_failed, 'error');
                 }
             });
         }
@@ -848,14 +672,14 @@
                 data: serialize(data),
                 success: function(response) {
                     if (response.success) {
-                        alert(response.data.message + '\nОставащи записи: ' + response.data.remaining);
+                        wcMssNotice(null, response.data.message + "\n" + __("Remaining records: ", 'multi-store-sync-for-woocommerce') + response.data.remaining);
                         loadWebhookLogs(1);
                     } else {
-                        alert('Грешка: ' + (response.data.message || 'Неизвестна грешка'));
+                        wcMssNotice(null, __("Error", 'multi-store-sync-for-woocommerce') + ": " + (response.data.message || __("Unknown error", 'multi-store-sync-for-woocommerce')));
                     }
                 },
                 error: function() {
-                    alert('Грешка при връзката със сървъра');
+                    wcMssNotice('#wc-mss-webhook-notices', wcMssAdmin.i18n.request_failed, 'error');
                 }
             });
         }
@@ -894,12 +718,7 @@
         function wcMssDlqAction(action, data, callback) {
             data.action = action;
             data.nonce = wcMssAdmin.nonce;
-            fetch(wcMssAdmin.ajax_url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: new URLSearchParams(data).toString()
-            })
-            .then(function(r) { return r.json(); })
+            wcMssAdminUI.response(new URLSearchParams(data).toString())
             .then(function(result) {
                 if (result.success) {
                     callback(true, result.data.message);
@@ -918,7 +737,7 @@
                 if (!confirm(dlqRetryAllBtn.dataset.confirm)) return;
                 this.disabled = true;
                 wcMssDlqAction('wc_mss_dlq_retry_all', {}, function(ok, msg) {
-                    alert(msg);
+                    wcMssNotice(null, msg, ok ? 'success' : 'error');
                     if (ok) location.reload();
                 });
             });
@@ -930,7 +749,7 @@
                 if (!confirm(dlqClearAllBtn.dataset.confirm)) return;
                 this.disabled = true;
                 wcMssDlqAction('wc_mss_dlq_clear_all', {}, function(ok, msg) {
-                    alert(msg);
+                    wcMssNotice(null, msg, ok ? 'success' : 'error');
                     if (ok) location.reload();
                 });
             });
@@ -950,12 +769,7 @@
 
                 var includeKeys = document.getElementById('wc-mss-export-include-keys').checked;
 
-                fetch(wcMssAdmin.ajax_url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'action=wc_mss_export_config&nonce=' + wcMssAdmin.nonce + '&include_keys=' + (includeKeys ? '1' : '0')
-                })
-                .then(function(r) { return r.json(); })
+                wcMssAdminUI.response('action=wc_mss_export_config&nonce=' + wcMssAdmin.nonce + '&include_keys=' + (includeKeys ? '1' : '0'))
                 .then(function(data) {
                     if (data.success) {
                         // Download as file
@@ -969,9 +783,9 @@
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
 
-                        document.getElementById('wc-mss-export-result').innerHTML = '<div class="notice inline notice-success"><p>' + btn.dataset.successMessage + '</p></div>';
+                        wcMssNotice('#wc-mss-export-result', btn.dataset.successMessage, 'success');
                     } else {
-                        document.getElementById('wc-mss-export-result').innerHTML = '<div class="notice inline notice-error"><p>' + (data.data.message || 'Error') + '</p></div>';
+                        wcMssNotice('#wc-mss-export-result', (data.data.message || 'Error'), 'error');
                     }
                     btn.disabled = false;
                     btn.textContent = configExportLabel;
@@ -1000,22 +814,22 @@
 
                 var reader = new FileReader();
                 reader.onload = function(e) {
-                    fetch(wcMssAdmin.ajax_url, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                        body: 'action=wc_mss_import_config&nonce=' + wcMssAdmin.nonce + '&config=' + encodeURIComponent(e.target.result)
-                    })
-                    .then(function(r) { return r.json(); })
+                    wcMssAdminUI.response('action=wc_mss_import_config&nonce=' + wcMssAdmin.nonce + '&config=' + encodeURIComponent(e.target.result))
                     .then(function(data) {
                         if (data.success) {
-                            document.getElementById('wc-mss-import-result').innerHTML = '<div class="notice inline notice-success"><p>' + data.data.message + '</p></div>';
+                            wcMssNotice('#wc-mss-import-result', data.data.message, 'success');
                             setTimeout(function() { location.reload(); }, 1500);
                         } else {
-                            document.getElementById('wc-mss-import-result').innerHTML = '<div class="notice inline notice-error"><p>' + (data.data.message || 'Error') + '</p></div>';
+                            wcMssNotice('#wc-mss-import-result', (data.data.message || 'Error'), 'error');
                         }
                         btn.disabled = false;
                         btn.textContent = configImportLabel;
                     });
+                };
+                reader.onerror = function () {
+                    wcMssNotice('#wc-mss-import-result', wcMssAdmin.i18n.request_failed, 'error');
+                    btn.disabled = false;
+                    btn.textContent = configImportLabel;
                 };
                 reader.readAsText(file);
             });
@@ -1060,36 +874,31 @@
                     var $result   = $('#wc-mss-cat-sync-result');
 
                     if (!catId) {
-                        $result.text($btn.data('msg-select-category')).css('color', '#d63638');
+                        wcMssNotice($result, $btn.data('msg-select-category'), 'warning');
                         return;
                     }
 
                     $btn.prop('disabled', true);
-                    $result.text($btn.data('msg-queuing')).css('color', '');
+                    wcMssNotice($result, $btn.data('msg-queuing'), 'info');
 
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action:           'wc_mss_sync_by_category',
                             nonce:            wcMssAdmin.nonce,
                             category_id:      catId,
                             sync_type:        syncType,
                             include_children: children,
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function (resp) {
                             $btn.prop('disabled', false);
                             if (resp.success) {
-                                $result.text(resp.data.message).css('color', '#00a32a');
+                                wcMssNotice($result, resp.data.message, 'success');
                             } else {
-                                $result.text(resp.data.message || $btn.data('msg-error')).css('color', '#d63638');
+                                wcMssNotice($result, resp.data.message || $btn.data('msg-error'), 'error');
                             }
                         })
                         .catch(function () {
                             $btn.prop('disabled', false);
-                            $result.text(wcMssAdmin.i18n.request_failed).css('color', '#d63638');
+                            wcMssNotice($result, wcMssAdmin.i18n.request_failed, 'error');
                         });
                 });
             });
@@ -1107,24 +916,15 @@
 
                     $checkbox.prop('disabled', true);
 
-                    fetch(wcMssAdmin.ajax_url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action: action,
                             enabled: enabled,
                             nonce: wcMssAdmin.nonce
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function (response) {
                             $checkbox.prop('disabled', false);
                             if (response.success) {
-                                // Flash green briefly
-                                $checkbox.closest('td').css('background-color', '#d4edda').delay(800).queue(function(next) {
-                                    $(this).css('background-color', '');
-                                    next();
-                                });
+                                wcMssNotice(null, wcMssAdminUI.message(response.data), 'success');
 
                                 // These specific toggles show/hide their own settings tab
                                 // (see get_sections() in wc-settings-integration.php) —
@@ -1141,13 +941,13 @@
                             } else {
                                 // Revert on failure
                                 $checkbox.prop('checked', !enabled);
-                                alert((response.data && response.data.message) || wcMssAdmin.i18n.failed_to_update);
+                                wcMssNotice(null, (response.data && response.data.message) || wcMssAdmin.i18n.failed_to_update, 'error');
                             }
                         })
                         .catch(function () {
                             $checkbox.prop('disabled', false);
                             $checkbox.prop('checked', !enabled);
-                            alert(wcMssAdmin.i18n.request_failed);
+                            wcMssNotice(null, wcMssAdmin.i18n.request_failed, 'error');
                         });
                 });
             });
@@ -1161,12 +961,7 @@
                 var i18n = wcMssSyncProfilesData.i18n;
 
                 function showNotice(message, type) {
-                    type = type || 'success';
-                    var cls = type === 'error' ? 'notice-error' : 'notice-success';
-                    $('#wc-mss-profiles-notices').html(
-                        '<div class="notice ' + cls + ' is-dismissible"><p>' + $('<span>').text(message).html() + '</p></div>'
-                    );
-                    $('html, body').animate({ scrollTop: 0 }, 200);
+                    wcMssNotice('#wc-mss-profiles-notices', message, type);
                 }
 
                 // Save current settings as profile
@@ -1179,17 +974,12 @@
 
                     var $btn = $(this).prop('disabled', true).text(i18n.saving);
 
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action: 'wc_mss_profile_save',
                             nonce: wcMssAdmin.nonce,
                             name: name,
                             description: $('#wc-mss-profile-description').val()
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function (response) {
                             if (response.success) {
                                 showNotice(response.data.message);
@@ -1212,16 +1002,11 @@
 
                     var $btn = $(this).prop('disabled', true);
 
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action: 'wc_mss_profile_apply',
                             nonce: wcMssAdmin.nonce,
                             preset_key: presetKey
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function (response) {
                             if (response.success) {
                                 showNotice(response.data.message);
@@ -1243,16 +1028,11 @@
 
                     var $btn = $(this).prop('disabled', true);
 
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action: 'wc_mss_profile_apply',
                             nonce: wcMssAdmin.nonce,
                             profile_id: profileId
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function (response) {
                             if (response.success) {
                                 showNotice(response.data.message);
@@ -1283,16 +1063,11 @@
                     var $row = $('#wc-mss-profile-row-' + profileId);
                     var $btn = $(this).prop('disabled', true);
 
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action: 'wc_mss_profile_delete',
                             nonce: wcMssAdmin.nonce,
                             profile_id: profileId
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function (response) {
                             if (response.success) {
                                 $row.fadeOut(300, function() { $(this).remove(); });
@@ -1333,14 +1108,14 @@
                         : allStores;
 
                     if (!storesToScan.length) {
-                        results.html('<div class="notice notice-warning inline"><p>' + i18n.no_active_stores + '</p></div>');
+                        wcMssNotice(results, i18n.no_active_stores, 'warning');
                         return;
                     }
 
                     btn.prop('disabled', true);
                     results.html('');
                     progress.show();
-                    bar.css('width', '0%');
+                    bar.val(0);
                     label.text(i18n.starting_scan);
 
                     var allMismatches = [];
@@ -1350,7 +1125,7 @@
                         if (index >= storesToScan.length) {
                             // Done
                             btn.prop('disabled', false);
-                            bar.css('width', '100%');
+                            bar.val(100);
                             label.text(i18n.scan_complete);
                             renderResults(allMismatches);
                             return;
@@ -1358,19 +1133,14 @@
 
                         var store = storesToScan[index];
                         var pct   = Math.round((index / storesToScan.length) * 100);
-                        bar.css('width', pct + '%');
+                        bar.val(pct);
                         label.text(i18n.scanning + ' ' + store.name + ' (' + (index + 1) + '/' + storesToScan.length + ')');
 
-                        fetch(ajaxurl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: new URLSearchParams({
+                        wcMssAdminUI.response(new URLSearchParams({
                                 action:    'wc_mss_scan_categories',
                                 nonce:     wcMssAdmin.scan_categories_nonce,
                                 store_url: store.url,
-                            }),
-                        })
-                            .then(function (res) { return res.json(); })
+                            }))
                             .then(function (resp) {
                                 if (resp.success && resp.data.count > 0) {
                                     allMismatches.push(resp.data);
@@ -1407,7 +1177,7 @@
                     var hasAny = list.some(function (s) { return s.count > 0 || s.error; });
 
                     if (!hasAny) {
-                        results.html('<div class="notice notice-success inline"><p>' + i18n.all_match + '</p></div>');
+                        wcMssNotice(results, i18n.all_match, 'success');
                         return;
                     }
 
@@ -1422,7 +1192,7 @@
                         }
 
                         html += '<h3>' + escapeHtml(store.store_name) + ' — ' + store.count + ' ' + i18n.mismatch_count_label;
-                        html += ' <small style="font-weight:normal;color:#666;">(' + store.total_local + ' ' + i18n.local + ' / ' + store.total_remote + ' ' + i18n.remote + ')</small></h3>';
+                        html += ' <small>(' + store.total_local + ' ' + i18n.local + ' / ' + store.total_remote + ' ' + i18n.remote + ')</small></h3>';
                         html += store.table_html;
                     });
 
@@ -1448,15 +1218,7 @@
                 var tagBody     = $('#wc-mss-map-tag-table tbody');
 
                 function ajaxPost(action, extraParams) {
-                    var params = new URLSearchParams({ action: action, nonce: wcMssAdmin.nonce });
-                    Object.keys(extraParams || {}).forEach(function (key) {
-                        params.append(key, extraParams[key]);
-                    });
-                    return fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: params,
-                    }).then(function (res) { return res.json(); });
+                    return wcMssAdminUI.response(Object.assign({ action: action }, extraParams));
                 }
 
                 function buildRemoteOptions(remoteTerms, currentValue) {
@@ -1503,14 +1265,14 @@
                         .then(function (resp) {
                             button.prop('disabled', false);
                             if (resp.success) {
-                                statusEl.addClass('success').text(i18n.saved);
+                                wcMssNotice(statusEl, i18n.saved, 'success');
                             } else {
-                                statusEl.addClass('error').text((resp.data && resp.data.message) || i18n.save_failed);
+                                wcMssNotice(statusEl, (resp.data && resp.data.message) || i18n.save_failed, 'error');
                             }
                         })
                         .catch(function () {
                             button.prop('disabled', false);
-                            statusEl.addClass('error').text(i18n.save_failed);
+                            wcMssNotice(statusEl, i18n.save_failed, 'error');
                         });
                 }
 
@@ -1583,15 +1345,7 @@
                 var valueGroups   = $('#wc-mss-attr-map-value-groups');
 
                 function ajaxPost(action, extraParams) {
-                    var params = new URLSearchParams({ action: action, nonce: wcMssAdmin.nonce });
-                    Object.keys(extraParams || {}).forEach(function (key) {
-                        params.append(key, extraParams[key]);
-                    });
-                    return fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: params,
-                    }).then(function (res) { return res.json(); });
+                    return wcMssAdminUI.response(Object.assign({ action: action }, extraParams));
                 }
 
                 function buildRemoteNameOptions(remoteAttributes, currentValue) {
@@ -1663,14 +1417,14 @@
                         .then(function (resp) {
                             button.prop('disabled', false);
                             if (resp.success) {
-                                statusEl.addClass('success').text(i18n.saved);
+                                wcMssNotice(statusEl, i18n.saved, 'success');
                             } else {
-                                statusEl.addClass('error').text((resp.data && resp.data.message) || i18n.save_failed);
+                                wcMssNotice(statusEl, (resp.data && resp.data.message) || i18n.save_failed, 'error');
                             }
                         })
                         .catch(function () {
                             button.prop('disabled', false);
-                            statusEl.addClass('error').text(i18n.save_failed);
+                            wcMssNotice(statusEl, i18n.save_failed, 'error');
                         });
                 }
 
@@ -1706,13 +1460,11 @@
                         .then(function (results) {
                             button.prop('disabled', false);
                             var failed = results.some(function (r) { return !r.success; });
-                            statusEl
-                                .addClass(failed ? 'error' : 'success')
-                                .text(failed ? i18n.save_failed : i18n.saved);
+                            wcMssNotice(statusEl, failed ? i18n.save_failed : i18n.saved, failed ? 'error' : 'success');
                         })
                         .catch(function () {
                             button.prop('disabled', false);
-                            statusEl.addClass('error').text(i18n.save_failed);
+                            wcMssNotice(statusEl, i18n.save_failed, 'error');
                         });
                 }
 
@@ -1784,21 +1536,16 @@
                     var $btn = $(this);
                     $btn.prop('disabled', true);
 
-                    fetch(wcMssAdmin.ajax_url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action: 'wc_mss_clear_sync_log',
                             nonce:  wcMssAdmin.nonce
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function (response) {
                             if (response.success) {
                                 $('#wc-mss-log-content').text('');
-                                $('#wc-mss-log-viewer').html('<p style="padding: 15px; color: #888;">' + i18n.no_log_entries + '</p>');
+                                $('#wc-mss-log-viewer').html('<p>' + i18n.no_log_entries + '</p>');
                             } else {
-                                alert((response.data && response.data.message) || i18n.failed_to_clear_logs);
+                                wcMssNotice(null, (response.data && response.data.message) || i18n.failed_to_clear_logs, 'error');
                             }
                         })
                         .finally(function() {
@@ -1827,8 +1574,7 @@
                         $count.text('(' + issues.length + ')');
 
                         issues.forEach(function(line) {
-                            var color = line.indexOf('[ERROR]') !== -1 ? '#f87171' : '#fbbf24';
-                            var $div = $('<div>').css({color: color, 'word-break': 'break-all', 'padding': '1px 0'}).text(line);
+                            var $div = $('<div>').text(line);
                             $viewer.append($div);
                         });
 
@@ -1845,26 +1591,21 @@
                             $btn.prop('disabled', true);
                             $result.text('');
 
-                            fetch(wcMssAdmin.ajax_url, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: new URLSearchParams({
+                            wcMssAdminUI.response(new URLSearchParams({
                                     action: 'wc_mss_clear_warnings_errors',
                                     nonce:  wcMssAdmin.nonce
-                                }),
-                            })
-                                .then(function (res) { return res.json(); })
+                                }))
                                 .then(function (response) {
                                     if (response.success) {
-                                        $viewer.html('<p style="color:#888;padding:0;margin:0;">' + i18n.no_warnings_errors + '</p>');
+                                        $viewer.html('<p>' + i18n.no_warnings_errors + '</p>');
                                         $count.text('(0)');
-                                        $result.css('color', '#2e7d32').text(response.data.message);
+                                        wcMssNotice($result, response.data.message, 'success');
                                     } else {
-                                        $result.css('color', '#c62828').text((response.data && response.data.message) || i18n.failed_to_clear);
+                                        wcMssNotice($result, (response.data && response.data.message) || i18n.failed_to_clear, 'error');
                                     }
                                 })
                                 .catch(function() {
-                                    $result.css('color', '#c62828').text(wcMssAdmin.i18n.request_failed);
+                                    wcMssNotice($result, wcMssAdmin.i18n.request_failed, 'error');
                                 })
                                 .finally(function() {
                                     $btn.prop('disabled', false);
@@ -1877,9 +1618,8 @@
                 $('#wc-mss-force-sync-btn').on('click', function() {
                     var raw = $('#wc-mss-test-sku').val().trim();
                     if (!raw) {
-                        $('#wc-mss-force-sync-result')
-                            .show()
-                            .html('<div class="notice notice-warning inline" style="margin:0;"><p>' + i18n.please_enter_sku + '</p></div>');
+                        wcMssNotice('#wc-mss-force-sync-result', i18n.please_enter_sku, 'warning');
+                        $('#wc-mss-force-sync-result').show();
                         return;
                     }
 
@@ -1894,34 +1634,23 @@
                     skus.forEach(function (sku) { params.append('skus[]', sku); });
                     params.append('nonce', wcMssAdmin.nonce);
 
-                    fetch(wcMssAdmin.ajax_url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: params,
-                    })
-                        .then(function (res) { return res.json(); })
+                    wcMssAdminUI.response(params)
                         .then(function(response) {
-                            var html;
+                            var message = wcMssAdminUI.message(response.data);
+                            var type = response.success ? 'success' : 'error';
                             if (response.success) {
-                                var lines = response.data.results.map(function(r) {
-                                    if (r.success) {
-                                        return '<li style="color:#2e7d32;">&#10003; ' + r.message + '</li>';
-                                    } else {
-                                        return '<li style="color:#c62828;">&#10007; ' + r.message + '</li>';
-                                    }
-                                }).join('');
-                                html = '<div class="notice notice-success inline" style="margin:0;"><p><strong>' + response.data.message + '</strong></p>'
-                                     + '<ul style="margin:6px 0 4px 16px;">' + lines + '</ul>'
-                                     + '<p style="margin:4px 0 0;color:#666;font-size:12px;">' + i18n.refresh_to_see_logs + '</p></div>';
-                            } else {
-                                html = '<div class="notice notice-error inline" style="margin:0;"><p>' + ((response.data && response.data.message) || i18n.an_error_occurred) + '</p></div>';
+                                var results = response.data.results || [];
+                                if (results.some(function (item) { return !item.success; })) type = 'warning';
+                                message += '\n' + results.map(function (item) {
+                                    return (item.success ? '✓ ' : '✗ ') + item.message;
+                                }).join('\n') + '\n' + i18n.refresh_to_see_logs;
                             }
-                            $('#wc-mss-force-sync-result').html(html).show();
+                            wcMssNotice('#wc-mss-force-sync-result', message, type);
+                            $('#wc-mss-force-sync-result').show();
                         })
-                        .catch(function() {
-                            $('#wc-mss-force-sync-result')
-                                .html('<div class="notice notice-error inline" style="margin:0;"><p>' + wcMssAdmin.i18n.request_failed + '</p></div>')
-                                .show();
+                        .catch(function (error) {
+                            wcMssNotice('#wc-mss-force-sync-result', error.message, 'error');
+                            $('#wc-mss-force-sync-result').show();
                         })
                         .finally(function() {
                             $btn.prop('disabled', false).text(i18n.force_full_sync);
@@ -1938,9 +1667,8 @@
                 $('#wc-mss-force-sync-category-btn').on('click', function() {
                     var categoryId = $('#wc-mss-category-select').val();
                     if (!categoryId) {
-                        $('#wc-mss-force-sync-category-result')
-                            .show()
-                            .html('<div class="notice notice-warning inline" style="margin:0;"><p>' + i18n.please_select_category + '</p></div>');
+                        wcMssNotice('#wc-mss-force-sync-category-result', i18n.please_select_category, 'warning');
+                        $('#wc-mss-force-sync-category-result').show();
                         return;
                     }
 
@@ -1948,32 +1676,20 @@
                     $btn.prop('disabled', true).text(i18n.queuing);
                     $('#wc-mss-force-sync-category-result').hide();
 
-                    fetch(wcMssAdmin.ajax_url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
+                    wcMssAdminUI.response(new URLSearchParams({
                             action:      'wc_mss_force_sync_by_category',
                             category_id: categoryId,
                             nonce:       wcMssAdmin.nonce
-                        }),
-                    })
-                        .then(function (res) { return res.json(); })
+                        }))
                         .then(function(response) {
-                            var html;
-                            if (response.success) {
-                                html = '<div class="notice notice-success inline" style="margin:0;">'
-                                     + '<p>' + response.data.message + '</p>'
-                                     + '<p style="margin:4px 0 0;color:#666;font-size:12px;">' + i18n.refresh_to_see_logs + '</p>'
-                                     + '</div>';
-                            } else {
-                                html = '<div class="notice notice-error inline" style="margin:0;"><p>' + ((response.data && response.data.message) || i18n.an_error_occurred) + '</p></div>';
-                            }
-                            $('#wc-mss-force-sync-category-result').html(html).show();
+                            var message = wcMssAdminUI.message(response.data);
+                            if (response.success) message += '\n' + i18n.refresh_to_see_logs;
+                            wcMssNotice('#wc-mss-force-sync-category-result', message, response.success ? 'success' : 'error');
+                            $('#wc-mss-force-sync-category-result').show();
                         })
-                        .catch(function() {
-                            $('#wc-mss-force-sync-category-result')
-                                .html('<div class="notice notice-error inline" style="margin:0;"><p>' + wcMssAdmin.i18n.request_failed + '</p></div>')
-                                .show();
+                        .catch(function (error) {
+                            wcMssNotice('#wc-mss-force-sync-category-result', error.message, 'error');
+                            $('#wc-mss-force-sync-category-result').show();
                         })
                         .finally(function() {
                             $btn.prop('disabled', false).text(i18n.force_full_sync);
@@ -2060,35 +1776,6 @@
         }
 
         /**
-         * Deletion Audit - View Details Toggle
-         */
-        document.querySelectorAll('.view-details').forEach(function(button) {
-            button.addEventListener('click', function() {
-                var logId = this.dataset.logId;
-                var detailsRow = document.getElementById('details-' + logId);
-
-                if (!detailsRow) return;
-
-                var isVisible = detailsRow.style.display !== 'none';
-
-                if (isVisible) {
-                    detailsRow.style.display = 'none';
-                    this.textContent = wcMssAdmin.i18n.view_details || 'View Details';
-                } else {
-                    document.querySelectorAll('.audit-details').forEach(function(row) {
-                        row.style.display = 'none';
-                    });
-                    document.querySelectorAll('.view-details').forEach(function(btn) {
-                        btn.textContent = wcMssAdmin.i18n.view_details || 'View Details';
-                    });
-
-                    detailsRow.style.display = 'table-row';
-                    this.textContent = wcMssAdmin.i18n.hide_details || 'Hide Details';
-                }
-            });
-        });
-
-        /**
          * API Usage Chart (if Chart.js is loaded)
          */
         var chartEl = document.getElementById('wc-mss-trend-chart');
@@ -2102,7 +1789,7 @@
                     labels: trendData.map(function(item) { return item.date; }),
                     datasets: [
                         {
-                            label: wcMssAdmin.i18n.total_requests || 'Total Requests',
+                            label: wcMssAdmin.i18n.total_requests || __("Total Requests", 'multi-store-sync-for-woocommerce'),
                             data: trendData.map(function(item) { return item.total_requests; }),
                             borderColor: '#2271b1',
                             backgroundColor: 'rgba(34, 113, 177, 0.1)',
@@ -2262,27 +1949,9 @@
         // Update preview using safe DOM methods
         var previewSpan = document.getElementById(previewId);
         if (previewSpan) {
-            // Clear existing content
-            previewSpan.textContent = '';
-
-            // Create elements safely
-            var strong = document.createElement('strong');
-            strong.style.color = '#2271b1';
-            strong.style.fontSize = '16px';
-
-            if (excludedProducts > 0) {
-                strong.textContent = '~' + syncCount;
-                previewSpan.appendChild(strong);
-                previewSpan.appendChild(document.createTextNode(' of ' + wcMssStoreData.totalProducts + ' products will be synced '));
-                var small = document.createElement('small');
-                small.style.color = '#666';
-                small.textContent = '(approximate)';
-                previewSpan.appendChild(small);
-            } else {
-                strong.textContent = wcMssStoreData.totalProducts;
-                previewSpan.appendChild(strong);
-                previewSpan.appendChild(document.createTextNode(' of ' + wcMssStoreData.totalProducts + ' products will be synced'));
-            }
+            previewSpan.textContent = excludedProducts > 0
+                ? sprintf(__('Approximately %1$d of %2$d products will be synced', 'multi-store-sync-for-woocommerce'), syncCount, wcMssStoreData.totalProducts)
+                : sprintf(__('%d products will be synced', 'multi-store-sync-for-woocommerce'), wcMssStoreData.totalProducts);
         }
     }
 

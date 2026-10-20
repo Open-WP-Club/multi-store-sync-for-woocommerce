@@ -48,7 +48,7 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
         </div>
     <?php else: ?>
 
-        <div style="margin: 1rem 0;">
+        <div class="wc-mss-toolbar">
             <label for="wc-mss-map-store-select"><strong><?php esc_html_e('Store:', 'multi-store-sync-for-woocommerce'); ?></strong></label>
             <select id="wc-mss-map-store-select">
                 <option value=""><?php esc_html_e('— Select a store —', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -77,7 +77,7 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
                 <button type="button" class="button button-primary" id="wc-mss-map-save-categories">
                     <?php esc_html_e('Save Category Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
-                <span class="wc-mss-map-save-status" data-for="categories"></span>
+                <div class="wc-mss-map-save-status" data-for="categories"></div>
             </p>
 
             <h2><?php esc_html_e('Tag Mapping', 'multi-store-sync-for-woocommerce'); ?></h2>
@@ -94,7 +94,7 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
                 <button type="button" class="button button-primary" id="wc-mss-map-save-tags">
                     <?php esc_html_e('Save Tag Mappings', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
-                <span class="wc-mss-map-save-status" data-for="tags"></span>
+                <div class="wc-mss-map-save-status" data-for="tags"></div>
             </p>
         </div>
 
@@ -104,23 +104,3 @@ $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&secti
 
     <?php endif; ?>
 </div>
-
-<style>
-.wc-mss-category-mapping-page select.wc-mss-map-remote-select {
-    width: 100%;
-    max-width: 25rem;
-}
-
-.wc-mss-map-save-status {
-    margin-left: 0.75rem;
-    font-weight: 600;
-}
-
-.wc-mss-map-save-status.success {
-    color: #00a32a;
-}
-
-.wc-mss-map-save-status.error {
-    color: #d63638;
-}
-</style>

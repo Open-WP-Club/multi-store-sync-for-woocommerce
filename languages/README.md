@@ -3,7 +3,7 @@
 This directory contains translation files for WooCommerce Multi-Store Sync.
 
 ## Text Domain
-- **Text Domain**: `wc-multi-store-sync`
+- **Text Domain**: `multi-store-sync-for-woocommerce`
 - **Domain Path**: `/languages`
 
 ## Generating POT File
@@ -12,25 +12,33 @@ To generate a POT file for translation:
 
 ### Using WP-CLI
 ```bash
-wp i18n make-pot . languages/wc-multi-store-sync.pot
+wp i18n make-pot . languages/multi-store-sync-for-woocommerce.pot
 ```
 
 ### Using Poedit
 1. Open Poedit
 2. Create new translation from PHP sources
 3. Select plugin directory
-4. Save as `wc-multi-store-sync.pot`
+4. Save as `multi-store-sync-for-woocommerce.pot`
 
 ## Creating Translations
 
-1. Copy `wc-multi-store-sync.pot` to `wc-multi-store-sync-{locale}.po`
+1. Copy `multi-store-sync-for-woocommerce.pot` to `multi-store-sync-for-woocommerce-{locale}.po`
 2. Translate strings
 3. Compile to `.mo` file
 
 ### Example for German
 ```
-wc-multi-store-sync-de_DE.po  (translation file)
-wc-multi-store-sync-de_DE.mo  (compiled file)
+multi-store-sync-for-woocommerce-de_DE.po  (translation file)
+multi-store-sync-for-woocommerce-de_DE.mo  (compiled file)
+```
+
+## JavaScript translations
+
+Admin scripts use WordPress `wp.i18n` and `wp_set_script_translations()` with the same text domain. Include JavaScript strings when extracting the POT file. After translating the PO files, generate the JSON catalogs used by WordPress:
+
+```bash
+wp i18n make-json languages --no-purge
 ```
 
 ## Translation Guidelines

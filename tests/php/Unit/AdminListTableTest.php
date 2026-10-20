@@ -34,6 +34,18 @@ class AdminListTableTest extends WC_Multi_Store_TestCase {
         $this->assertStringNotContainsString('type="checkbox"', $processing);
     }
 
+    public function test_read_only_table_has_no_selection_and_preserves_row_action_target(): void {
+        $table = new WC_Multi_Store_Admin_List_Table('saved-profiles', ['name' => 'Name'], [],
+            static function (array $row): void { echo '<td>Profile</td>'; },
+            null, null, static fn(array $row): string => 'wc-mss-profile-row-' . $row['id']
+        );
+        ob_start();
+        $table->single_row(['id' => 'profile-42']);
+        $row = ob_get_clean();
+        $this->assertSame(['name' => 'Name'], $table->get_columns());
+        $this->assertSame('<tr id="wc-mss-profile-row-profile-42"><td>Profile</td></tr>', $row);
+    }
+
     public function test_bulk_uses_nonce_selected_ids_and_reports_partial_failure(): void {
         global $wpdb;
         $wpdb = Mockery::mock('wpdb');
@@ -113,6 +125,7 @@ class AdminListTableTest extends WC_Multi_Store_TestCase {
     }
 
     public function test_page_input_is_clamped_after_records_are_processed(): void {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Preserve the simulated pagination request in this unit test.
         $request = $_REQUEST;
         try {
             $_REQUEST = ['paged' => '3'];
@@ -123,6 +136,89 @@ class AdminListTableTest extends WC_Multi_Store_TestCase {
             $this->assertSame(1, WC_Multi_Store_Admin_List_Table::page_number(101));
         } finally {
             $_REQUEST = $request;
+        }
+    }
+
+    public function test_readonly_pagination_preserves_route_and_filters_without_nonces(): void {
+        $query = $_GET;
+        $_GET = ['page' => 'wc-settings', 'tab' => 'multi_store_sync', 'section' => 'history', 'filter_store' => 'https://store.test?a=1&b=2', '_wpnonce' => 'omit-me', 'paged' => '2'];
+        try {
+            $table = new WC_Multi_Store_Admin_List_Table('history', ['product' => 'Product'], [], static function (): void {}, null, 51);
+            ob_start();
+            $table->display();
+            $html = ob_get_clean();
+            $this->assertStringContainsString('<form method="get">', $html);
+            $this->assertStringContainsString('name="section" value="history"', $html);
+            $this->assertStringContainsString('name="filter_store" value="https://store.test?a=1&amp;b=2"', $html);
+            $this->assertStringNotContainsString('omit-me', $html);
+            $this->assertStringNotContainsString('name="paged"', $html);
+        } finally {
+            $_GET = $query;
+        }
+    }
+
+    public function test_exception_in_one_record_does_not_block_the_rest_and_is_escaped(): void {
+        global $wpdb;
+        $wpdb = Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        foreach ([7, 8] as $id) {
+            $wpdb->shouldReceive('prepare')->once()->with(Mockery::type('string'), $id)->andReturn('ROW' . $id);
+        }
+        $wpdb->shouldReceive('get_var')->with('ROW7')->andThrow(new RuntimeException('<script>remote error</script>'));
+        $wpdb->shouldReceive('get_var')->with('ROW8')->andReturn('pending');
+        $wpdb->shouldReceive('update')->once()->with('wp_wc_multi_store_stock_discrepancies', ['status' => 'ignored'], ['id' => 8], ['%s'], ['%d'])->andReturn(1);
+        Functions\expect('check_admin_referer')->once()->with('bulk-wc-mss-discrepancies')->andReturn(1);
+        $_POST = ['wc_mss_list' => 'discrepancies', 'action' => 'mark_ignored', 'wc_mss_ids' => [7, 8]];
+        ob_start();
+        try {
+            WC_Multi_Store_Admin_List_Table::process_bulk_action('discrepancies');
+            $notice = ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+        $this->assertStringContainsString('Processed: 1. Failed: 1.', $notice);
+        $this->assertStringContainsString('&lt;script&gt;remote error&lt;/script&gt;', $notice);
+        $this->assertStringNotContainsString('<script>', $notice);
+    }
+
+    public function test_auto_correction_error_is_reported_without_counting_it_as_processed(): void {
+        global $wpdb;
+        $wpdb = Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->twice()->with(Mockery::type('string'), 7)->andReturn('ROW7');
+        $wpdb->shouldReceive('get_var')->with('ROW7')->andReturn('pending');
+        $wpdb->shouldReceive('get_row')->with('ROW7', ARRAY_A)->andReturn(null);
+        $wpdb->shouldReceive('update')->never();
+        Functions\expect('check_admin_referer')->once()->with('bulk-wc-mss-discrepancies')->andReturn(1);
+        $_POST = ['wc_mss_list' => 'discrepancies', 'action' => 'auto_correct', 'wc_mss_ids' => [7]];
+        ob_start();
+        try {
+            WC_Multi_Store_Admin_List_Table::process_bulk_action('discrepancies');
+            $notice = ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+        $this->assertStringContainsString('Processed: 0. Failed: 1.', $notice);
+        $this->assertStringContainsString('Discrepancy not found', $notice);
+    }
+
+    public function test_empty_selection_and_unknown_action_do_not_mutate_records(): void {
+        global $wpdb;
+        $wpdb = Mockery::mock('wpdb');
+        $wpdb->shouldReceive('update')->never();
+        $wpdb->shouldReceive('get_var')->never();
+        Functions\expect('check_admin_referer')->twice()->with('bulk-wc-mss-discrepancies')->andReturn(1);
+        foreach ([['action' => 'mark_ignored', 'wc_mss_ids' => []], ['action' => 'delete', 'wc_mss_ids' => [7]]] as $input) {
+            $_POST = ['wc_mss_list' => 'discrepancies'] + $input;
+            ob_start();
+            try {
+                WC_Multi_Store_Admin_List_Table::process_bulk_action('discrepancies');
+                $notice = ob_get_contents();
+            } finally {
+                ob_end_clean();
+            }
+            $this->assertStringContainsString('notice-warning', $notice);
+            $this->assertStringNotContainsString('Processed:', $notice);
         }
     }
 

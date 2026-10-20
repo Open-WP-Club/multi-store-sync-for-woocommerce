@@ -13,9 +13,13 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        if (!defined('WC_MSS_PLUGIN_URL')) {
+            define('WC_MSS_PLUGIN_URL', 'http://example.com/wp-content/plugins/wc-multi-store-sync/');
+        }
 
         Functions\when('add_action')->justReturn(true);
         Functions\when('add_filter')->justReturn(true);
+        Functions\when('wp_set_script_translations')->justReturn(true);
         Functions\when('get_option')->justReturn([]);
         Functions\when('update_option')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-06-15 12:00:00');
@@ -46,6 +50,12 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
         // Prevent message state from leaking across tests
         WC_Admin_Settings::reset();
+    }
+
+    protected function tearDown(): void
+    {
+        $_GET = [];
+        parent::tearDown();
     }
 
     // ─── Class structure ───────────────────────────
@@ -216,18 +226,18 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
     public function test_enqueue_admin_scripts_loads_on_correct_tab(): void
     {
-        if (!defined('WC_MSS_PLUGIN_URL')) {
-            define('WC_MSS_PLUGIN_URL', 'http://example.com/wp-content/plugins/wc-multi-store-sync/');
-        }
-        if (!defined('WC_MSS_VERSION')) {
-            define('WC_MSS_VERSION', '2.0.0');
-        }
-
         $_GET = ['tab' => 'multi_store_sync'];
 
         Functions\expect('wp_enqueue_style')
             ->once()
             ->with('wc-mss-admin', \Mockery::type('string'), [], \Mockery::any());
+
+        Functions\expect('wp_enqueue_script')->once()->with(
+            'wc-mss-admin-ui', \Mockery::type('string'), ['wp-util', 'wp-i18n'], \Mockery::any(), true
+        );
+        Functions\expect('wp_enqueue_script')->once()->with(
+            'wc-mss-verification', \Mockery::type('string'), ['wc-mss-admin'], \Mockery::any(), true
+        );
 
         // The default dashboard also loads Chart.js for the activity chart.
         Functions\expect('wp_enqueue_script')
@@ -236,7 +246,7 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
         Functions\expect('wp_enqueue_script')
             ->once()
-            ->with('wc-mss-admin', \Mockery::type('string'), ['wc-mss-chartjs'], \Mockery::any(), true);
+            ->with('wc-mss-admin', \Mockery::type('string'), ['wc-mss-admin-ui', 'wp-i18n', 'wc-mss-chartjs'], \Mockery::any(), true);
 
         Functions\expect('wp_localize_script')
             ->atLeast()
@@ -254,6 +264,20 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
         $this->integration->enqueue_admin_scripts('woocommerce_page_wc-settings');
 
         $this->assertTrue(true);
+    }
+
+    public function test_settings_load_native_dialog_without_verification_or_chart(): void
+    {
+        $_GET = ['tab' => 'multi_store_sync', 'section' => 'settings'];
+        Functions\expect('wp_enqueue_style')->once()->with('wc-mss-admin', \Mockery::type('string'), [], \Mockery::any());
+        Functions\expect('wp_enqueue_style')->once()->with('wp-jquery-ui-dialog');
+        Functions\expect('wp_enqueue_script')->once()->with('wc-mss-admin-ui', \Mockery::type('string'), ['wp-util', 'wp-i18n'], \Mockery::any(), true);
+        Functions\expect('wp_enqueue_script')->once()->with('wc-mss-admin', \Mockery::type('string'), ['wc-mss-admin-ui', 'wp-i18n', 'jquery-ui-dialog'], \Mockery::any(), true);
+        Functions\expect('wp_localize_script')->once()->with('wc-mss-admin', 'wcMssAdmin', \Mockery::type('array'));
+        Functions\when('admin_url')->justReturn('https://main.test/wp-admin/admin-ajax.php');
+        Functions\when('wp_create_nonce')->justReturn('nonce');
+        $this->integration->enqueue_admin_scripts('woocommerce_page_wc-settings');
+        $this->addToAssertionCount(1);
     }
 
     // ─── handle_add_store (private) ────────────────

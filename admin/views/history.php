@@ -17,8 +17,7 @@ $filter_store = isset($_GET['filter_store']) ? sanitize_text_field(wp_unslash($_
 $filter_status = isset($_GET['filter_status']) ? sanitize_text_field(wp_unslash($_GET['filter_status'])) : '';
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only history filter.
 $filter_days = isset($_GET['filter_days']) ? absint(wp_unslash($_GET['filter_days'])) : 7;
-// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only history pagination.
-$page_num = isset($_GET['paged']) ? absint(wp_unslash($_GET['paged'])) : 1;
+$page_num = WC_Multi_Store_Admin_List_Table::page_number();
 $per_page = 50;
 
 // Get history
@@ -46,8 +45,6 @@ $stats = WC_Multi_Store_Sync_History::get_statistics([
 // Get all stores for filter dropdown
 $stores = WC_Multi_Store_Settings::get_stores();
 
-// Calculate pagination
-$total_pages = ceil($history_data['total'] / $per_page);
 ?>
 
 <?php
@@ -63,24 +60,24 @@ $table_size_formatted = size_format($table_size, 2);
     <h1><?php esc_html_e('Sync History & Statistics', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <!-- Statistics Overview with integrated History Management -->
-    <div class="wc-mss-stats-overview" style="margin: 20px 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-            <h2 style="margin: 0;"><?php /* translators: %d: number of days in the statistics period. */ printf(esc_html__('Statistics (Last %d Days)', 'multi-store-sync-for-woocommerce'), absint($filter_days)); ?></h2>
-            <div style="font-size: 13px; color: #666;">
+    <div class="wc-mss-stats-overview">
+        <div class="wc-mss-toolbar">
+            <h2><?php /* translators: %d: number of days in the statistics period. */ printf(esc_html__('Statistics (Last %d Days)', 'multi-store-sync-for-woocommerce'), absint($filter_days)); ?></h2>
+            <div>
                 <span id="wc-mss-total-records"><?php echo esc_html(number_format($total_records)); ?></span> <?php esc_html_e('records', 'multi-store-sync-for-woocommerce'); ?>
-                (<span style="color: #46b450;"><?php echo esc_html(number_format($success_records)); ?></span> /
-                <span style="color: #dc3232;"><?php echo esc_html(number_format($error_records)); ?></span>)
+                (<span><?php echo esc_html(number_format($success_records)); ?></span> /
+                <span><?php echo esc_html(number_format($error_records)); ?></span>)
                 &bull; <?php echo esc_html($table_size_formatted); ?>
-                <button type="button" id="wc-mss-toggle-cleanup" class="button button-small" style="margin-left: 10px;">
+                <button type="button" id="wc-mss-toggle-cleanup" class="button button-small">
                     <?php esc_html_e('Cleanup', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
             </div>
         </div>
 
         <!-- Compact Cleanup Controls (hidden by default) -->
-        <div id="wc-mss-cleanup-controls" style="display: none; margin-top: 15px; padding: 12px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                <select id="wc-mss-delete-type" style="min-width: 200px;">
+        <div id="wc-mss-cleanup-controls" style="display: none;">
+            <div class="wc-mss-toolbar">
+                <select id="wc-mss-delete-type">
                     <option value=""><?php esc_html_e('-- Select action --', 'multi-store-sync-for-woocommerce'); ?></option>
                     <option value="errors"><?php esc_html_e('Delete error records only', 'multi-store-sync-for-woocommerce'); ?></option>
                     <option value="successful"><?php esc_html_e('Delete successful records only', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -88,7 +85,7 @@ $table_size_formatted = size_format($table_size, 2);
                     <?php if (!empty($stores)): ?>
                     <option value="by_store"><?php esc_html_e('Delete records for store...', 'multi-store-sync-for-woocommerce'); ?></option>
                     <?php endif; ?>
-                    <option value="all" style="color: #dc3232;"><?php esc_html_e('Delete ALL records', 'multi-store-sync-for-woocommerce'); ?></option>
+                    <option value="all"><?php esc_html_e('Delete ALL records', 'multi-store-sync-for-woocommerce'); ?></option>
                 </select>
                 <select id="wc-mss-delete-days" style="display: none;">
                     <option value="7">7 <?php esc_html_e('days', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -105,26 +102,26 @@ $table_size_formatted = size_format($table_size, 2);
                 <button type="button" id="wc-mss-delete-history" class="button" disabled>
                     <?php esc_html_e('Delete', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
-                <span id="wc-mss-delete-status" style="display: none;"></span>
+                <div id="wc-mss-delete-status" aria-live="polite"></div>
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px;">
-            <div class="wc-mss-stat-card" style="background: #fff; padding: 15px; border: 1px solid #ccc; border-radius: 4px; text-align: center;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;"><?php esc_html_e('Total Syncs', 'multi-store-sync-for-woocommerce'); ?></div>
-                <div style="font-size: 28px; font-weight: bold;"><?php echo number_format($stats['overall']['total_syncs'] ?? 0); ?></div>
+        <div class="wc-mss-toolbar">
+            <div class="card wc-mss-stat-card">
+                <div><?php esc_html_e('Total Syncs', 'multi-store-sync-for-woocommerce'); ?></div>
+                <div><?php echo number_format($stats['overall']['total_syncs'] ?? 0); ?></div>
             </div>
-            <div class="wc-mss-stat-card" style="background: #fff; padding: 15px; border: 1px solid #ccc; border-radius: 4px; text-align: center;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;"><?php esc_html_e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></div>
-                <div style="font-size: 28px; font-weight: bold; color: #46b450;"><?php echo esc_html($stats['overall']['success_rate'] ?? 0); ?>%</div>
+            <div class="card wc-mss-stat-card">
+                <div><?php esc_html_e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></div>
+                <div><?php echo esc_html($stats['overall']['success_rate'] ?? 0); ?>%</div>
             </div>
-            <div class="wc-mss-stat-card" style="background: #fff; padding: 15px; border: 1px solid #ccc; border-radius: 4px; text-align: center;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;"><?php esc_html_e('Avg Duration', 'multi-store-sync-for-woocommerce'); ?></div>
-                <div style="font-size: 28px; font-weight: bold;"><?php echo esc_html(round($stats['overall']['avg_duration_ms'] ?? 0)); ?>ms</div>
+            <div class="card wc-mss-stat-card">
+                <div><?php esc_html_e('Avg Duration', 'multi-store-sync-for-woocommerce'); ?></div>
+                <div><?php echo esc_html(round($stats['overall']['avg_duration_ms'] ?? 0)); ?>ms</div>
             </div>
-            <div class="wc-mss-stat-card" style="background: #fff; padding: 15px; border: 1px solid #ccc; border-radius: 4px; text-align: center;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;"><?php esc_html_e('API Calls', 'multi-store-sync-for-woocommerce'); ?></div>
-                <div style="font-size: 28px; font-weight: bold;"><?php echo number_format($stats['overall']['total_api_calls'] ?? 0); ?></div>
+            <div class="card wc-mss-stat-card">
+                <div><?php esc_html_e('API Calls', 'multi-store-sync-for-woocommerce'); ?></div>
+                <div><?php echo number_format($stats['overall']['total_api_calls'] ?? 0); ?></div>
             </div>
         </div>
     </div>
@@ -139,7 +136,7 @@ $table_size_formatted = size_format($table_size, 2);
         'section' => 'history',
     ], admin_url('admin.php')));
     ?>
-    <div class="wc-mss-filters" style="background: #fff; padding: 15px; margin: 20px 0; border: 1px solid #ccc;">
+    <div class="wc-mss-filters wc-mss-toolbar">
         <label><?php esc_html_e('Store:', 'multi-store-sync-for-woocommerce'); ?></label>
         <select id="wc-mss-filter-store">
             <option value=""><?php esc_html_e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -150,14 +147,14 @@ $table_size_formatted = size_format($table_size, 2);
             <?php endforeach; ?>
         </select>
 
-        <label style="margin-left: 15px;"><?php esc_html_e('Status:', 'multi-store-sync-for-woocommerce'); ?></label>
+        <label><?php esc_html_e('Status:', 'multi-store-sync-for-woocommerce'); ?></label>
         <select id="wc-mss-filter-status">
             <option value=""><?php esc_html_e('All Statuses', 'multi-store-sync-for-woocommerce'); ?></option>
             <option value="success" <?php selected($filter_status, 'success'); ?>><?php esc_html_e('Success', 'multi-store-sync-for-woocommerce'); ?></option>
             <option value="error" <?php selected($filter_status, 'error'); ?>><?php esc_html_e('Error', 'multi-store-sync-for-woocommerce'); ?></option>
         </select>
 
-        <label style="margin-left: 15px;"><?php esc_html_e('Stats Period:', 'multi-store-sync-for-woocommerce'); ?></label>
+        <label><?php esc_html_e('Stats Period:', 'multi-store-sync-for-woocommerce'); ?></label>
         <select id="wc-mss-filter-days">
             <option value="1" <?php selected($filter_days, 1); ?>>1 <?php esc_html_e('Day', 'multi-store-sync-for-woocommerce'); ?></option>
             <option value="7" <?php selected($filter_days, 7); ?>>7 <?php esc_html_e('Days', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -165,7 +162,7 @@ $table_size_formatted = size_format($table_size, 2);
             <option value="90" <?php selected($filter_days, 90); ?>>90 <?php esc_html_e('Days', 'multi-store-sync-for-woocommerce'); ?></option>
         </select>
 
-        <button type="button" id="wc-mss-apply-filters" class="button" style="margin-left: 15px;">
+        <button type="button" id="wc-mss-apply-filters" class="button">
             <?php esc_html_e('Filter', 'multi-store-sync-for-woocommerce'); ?>
         </button>
     </div>
@@ -234,40 +231,20 @@ $table_size_formatted = size_format($table_size, 2);
             if (!confirm(confirmMsg)) return;
 
             deleteBtn.disabled = true;
-            statusSpan.style.display = 'inline';
-            statusSpan.style.color = '#666';
-            statusSpan.textContent = '<?php echo esc_js(__('Deleting...', 'multi-store-sync-for-woocommerce')); ?>';
+            window.wcMssNotice(statusSpan, '<?php echo esc_js(__('Deleting...', 'multi-store-sync-for-woocommerce')); ?>', 'info');
 
-            var formData = new FormData();
-            formData.append('action', 'wc_mss_delete_history');
-            formData.append('nonce', '<?php echo esc_js(wp_create_nonce('wc_mss_admin')); ?>');
-            formData.append('delete_type', type);
-
+            var data = {delete_type: type};
             if (type === 'older_than') {
-                formData.append('days', daysSelect.value);
+                data.days = daysSelect.value;
             } else if (type === 'by_store') {
-                formData.append('store_url', storeSelect.value);
+                data.store_url = storeSelect.value;
             }
 
-            fetch(ajaxurl, {
-                method: 'POST',
-                body: formData
-            })
-            .then(function(res) { return res.json(); })
-            .then(function(response) {
-                if (response.success) {
-                    statusSpan.style.color = '#46b450';
-                    statusSpan.textContent = response.data.message;
-                    setTimeout(function() { window.location.reload(); }, 1500);
-                } else {
-                    statusSpan.style.color = '#dc3232';
-                    statusSpan.textContent = (response.data && response.data.message) || '<?php echo esc_js(__('Error', 'multi-store-sync-for-woocommerce')); ?>';
-                    deleteBtn.disabled = false;
-                }
-            })
-            .catch(function() {
-                statusSpan.style.color = '#dc3232';
-                statusSpan.textContent = '<?php echo esc_js(__('Request failed', 'multi-store-sync-for-woocommerce')); ?>';
+            window.wcMssRequest('wc_mss_delete_history', data).then(function(result) {
+                window.wcMssNotice(statusSpan, result.message, 'success');
+                setTimeout(function() { window.location.reload(); }, 1500);
+            }).catch(function(error) {
+                window.wcMssNotice(statusSpan, error.message, 'error');
                 deleteBtn.disabled = false;
             });
         });
@@ -277,162 +254,86 @@ $table_size_formatted = size_format($table_size, 2);
     <!-- History Table -->
     <h2><?php esc_html_e('Recent Sync History', 'multi-store-sync-for-woocommerce'); ?></h2>
 
-    <table class="wp-list-table widefat fixed striped">
-        <thead>
-            <tr>
-                <th><?php esc_html_e('Date/Time', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Product', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Sync Type', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Source', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('Duration', 'multi-store-sync-for-woocommerce'); ?></th>
-                <th><?php esc_html_e('API Calls', 'multi-store-sync-for-woocommerce'); ?></th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (!empty($history_data['results'])): ?>
-                <?php foreach ($history_data['results'] as $record): ?>
-                    <tr>
-                        <td><?php echo esc_html(date('Y-m-d H:i:s', strtotime($record['created_at']))); ?></td>
-                        <td>
-                            <strong><?php echo esc_html($record['product_name']); ?></strong><br/>
-                            <small>ID: <?php echo esc_html($record['product_id']); ?> | SKU: <?php echo esc_html($record['product_sku']); ?></small>
-                        </td>
-                        <td><?php echo esc_html(parse_url($record['store_url'], PHP_URL_HOST)); ?></td>
-                        <td><?php echo esc_html($record['sync_type']); ?></td>
-                        <td><?php echo esc_html($record['sync_source']); ?></td>
-                        <td>
-                            <?php if ($record['status'] === 'success'): ?>
-                                <span style="color: #46b450; font-weight: bold;">✓ <?php esc_html_e('Success', 'multi-store-sync-for-woocommerce'); ?></span>
-                            <?php else: ?>
-                                <span style="color: #dc3232; font-weight: bold;">✗ <?php esc_html_e('Error', 'multi-store-sync-for-woocommerce'); ?></span><br/>
-                                <small><?php echo esc_html($record['message']); ?></small>
-                            <?php endif; ?>
-                        </td>
-                        <td><?php echo esc_html($record['duration_ms']); ?>ms</td>
-                        <td><?php echo esc_html($record['api_calls']); ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <tr>
-                    <td colspan="8" style="text-align: center; padding: 30px;">
-                        <?php esc_html_e('No sync history found.', 'multi-store-sync-for-woocommerce'); ?>
-                    </td>
-                </tr>
-            <?php endif; ?>
-        </tbody>
-    </table>
+    <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('history', [
+            'history-date-time' => __('Date/Time', 'multi-store-sync-for-woocommerce'),
+            'history-product' => __('Product', 'multi-store-sync-for-woocommerce'),
+            'history-store' => __('Store', 'multi-store-sync-for-woocommerce'),
+            'history-sync-type' => __('Sync Type', 'multi-store-sync-for-woocommerce'),
+            'history-source' => __('Source', 'multi-store-sync-for-woocommerce'),
+            'history-status' => __('Status', 'multi-store-sync-for-woocommerce'),
+            'history-duration' => __('Duration', 'multi-store-sync-for-woocommerce'),
+            'history-api-calls' => __('API Calls', 'multi-store-sync-for-woocommerce')
+        ], $history_data['results'], static function (array $record): void {
 
-    <!-- Pagination -->
-    <?php if ($total_pages > 1): ?>
-        <div class="wc-mss-pagination">
-            <div class="pagination-info">
-                <?php
-                $start_item = (($page_num - 1) * $per_page) + 1;
-                $end_item = min($page_num * $per_page, $history_data['total']);
-                echo wp_kses_post(sprintf(
-                    /* translators: 1: first record number, 2: last record number, 3: total record count. */
-                    __('Showing <strong>%1$d-%2$d</strong> of <strong>%3$s</strong> records', 'multi-store-sync-for-woocommerce'),
-                    absint($start_item),
-                    absint($end_item),
-                    esc_html(number_format($history_data['total']))
-                ));
-                ?>
-            </div>
-            <div class="pagination-links">
-                <?php
-                // Build base URL with all current parameters
-                $base_url = add_query_arg([
-                    'page' => 'wc-settings',
-                    'tab' => 'multi_store_sync',
-                    'section' => 'history',
-                    'filter_store' => $filter_store,
-                    'filter_status' => $filter_status,
-                    'filter_days' => $filter_days,
-                ], admin_url('admin.php'));
+            ?>
+            <td><?php echo esc_html(date('Y-m-d H:i:s', strtotime($record['created_at']))); ?></td>
+            <td>
+                <strong><?php echo esc_html($record['product_name']); ?></strong><br/>
+                <small>ID: <?php echo esc_html($record['product_id']); ?> | SKU: <?php echo esc_html($record['product_sku']); ?></small>
+            </td>
+            <td><?php echo esc_html(parse_url($record['store_url'], PHP_URL_HOST)); ?></td>
+            <td><?php echo esc_html($record['sync_type']); ?></td>
+            <td><?php echo esc_html($record['sync_source']); ?></td>
+            <td>
+                <?php if ($record['status'] === 'success'): ?>
+                    <strong><?php esc_html_e('Success', 'multi-store-sync-for-woocommerce'); ?></strong>
+                <?php else: ?>
+                    <strong><?php esc_html_e('Error', 'multi-store-sync-for-woocommerce'); ?></strong><br/>
+                    <small><?php echo esc_html($record['message']); ?></small>
+                <?php endif; ?>
+            </td>
+            <td><?php echo esc_html($record['duration_ms']); ?>ms</td>
+            <td><?php echo esc_html($record['api_calls']); ?></td>
+            <?php
+        }, null, (int) $history_data['total']);
+        $list_table->display();
+        ?>
 
-                $page_links = paginate_links([
-                    'base' => add_query_arg('paged', '%#%', $base_url),
-                    'format' => '',
-                    'prev_text' => '← ' . __('Previous', 'multi-store-sync-for-woocommerce'),
-                    'next_text' => __('Next', 'multi-store-sync-for-woocommerce') . ' →',
-                    'total' => $total_pages,
-                    'current' => $page_num,
-                    'show_all' => false,
-                    'end_size' => 1,
-                    'mid_size' => 2,
-                ]);
-
-                if ($page_links) {
-                    echo wp_kses_post($page_links);
-                }
-                ?>
-            </div>
-        </div>
-    <?php endif; ?>
 
     <!-- Stats by Type -->
-    <div style="margin-top: 30px;">
+    <div>
         <h2><?php esc_html_e('Sync Performance by Type', 'multi-store-sync-for-woocommerce'); ?></h2>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th><?php esc_html_e('Sync Type', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Total Syncs', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Successful', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Avg Duration', 'multi-store-sync-for-woocommerce'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (!empty($stats['by_type'])): ?>
-                    <?php foreach ($stats['by_type'] as $type_stat): ?>
-                        <tr>
-                            <td><?php echo esc_html($type_stat['sync_type']); ?></td>
-                            <td><?php echo number_format($type_stat['count']); ?></td>
-                            <td><?php echo number_format($type_stat['successful']); ?></td>
-                            <td><?php echo esc_html(round($type_stat['avg_duration_ms'])); ?>ms</td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr>
-                        <td colspan="4" style="text-align: center;"><?php esc_html_e('No data available', 'multi-store-sync-for-woocommerce'); ?></td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+        <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('history-types', [
+            'history-types-sync-type' => __('Sync Type', 'multi-store-sync-for-woocommerce'),
+            'history-types-total-syncs' => __('Total Syncs', 'multi-store-sync-for-woocommerce'),
+            'history-types-successful' => __('Successful', 'multi-store-sync-for-woocommerce'),
+            'history-types-avg-duration' => __('Avg Duration', 'multi-store-sync-for-woocommerce')
+        ], $stats['by_type'], static function (array $type_stat): void {
+
+            ?>
+            <td><?php echo esc_html($type_stat['sync_type']); ?></td>
+            <td><?php echo number_format($type_stat['count']); ?></td>
+            <td><?php echo number_format($type_stat['successful']); ?></td>
+            <td><?php echo esc_html(round($type_stat['avg_duration_ms'])); ?>ms</td>
+            <?php
+        });
+        $list_table->display();
+        ?>
     </div>
 
     <!-- Stats by Store -->
-    <div style="margin-top: 30px;">
+    <div>
         <h2><?php esc_html_e('Sync Performance by Store', 'multi-store-sync-for-woocommerce'); ?></h2>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Total Syncs', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Successful', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Failed', 'multi-store-sync-for-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Avg Duration', 'multi-store-sync-for-woocommerce'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (!empty($stats['by_store'])): ?>
-                    <?php foreach ($stats['by_store'] as $store_stat): ?>
-                        <tr>
-                            <td><?php echo esc_html(parse_url($store_stat['store_url'], PHP_URL_HOST)); ?></td>
-                            <td><?php echo number_format($store_stat['count']); ?></td>
-                            <td style="color: #46b450;"><?php echo number_format($store_stat['successful']); ?></td>
-                            <td style="color: #dc3232;"><?php echo number_format($store_stat['failed']); ?></td>
-                            <td><?php echo esc_html(round($store_stat['avg_duration_ms'])); ?>ms</td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr>
-                        <td colspan="5" style="text-align: center;"><?php esc_html_e('No data available', 'multi-store-sync-for-woocommerce'); ?></td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+        <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('history-stores', [
+            'history-stores-store' => __('Store', 'multi-store-sync-for-woocommerce'),
+            'history-stores-total-syncs' => __('Total Syncs', 'multi-store-sync-for-woocommerce'),
+            'history-stores-successful' => __('Successful', 'multi-store-sync-for-woocommerce'),
+            'history-stores-failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
+            'history-stores-avg-duration' => __('Avg Duration', 'multi-store-sync-for-woocommerce')
+        ], $stats['by_store'], static function (array $store_stat): void {
+
+            ?>
+            <td><?php echo esc_html(parse_url($store_stat['store_url'], PHP_URL_HOST)); ?></td>
+            <td><?php echo number_format($store_stat['count']); ?></td>
+            <td><?php echo number_format($store_stat['successful']); ?></td>
+            <td><?php echo number_format($store_stat['failed']); ?></td>
+            <td><?php echo esc_html(round($store_stat['avg_duration_ms'])); ?>ms</td>
+            <?php
+        });
+        $list_table->display();
+        ?>
     </div>
 </div>

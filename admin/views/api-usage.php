@@ -40,13 +40,13 @@ $recent_errors = WC_Multi_Store_API_Usage_Tracker::get_recent_errors(10);
     <h1><?php esc_html_e('API Usage Dashboard', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <!-- Filters -->
-    <div class="wc-mss-filters" style="background: #fff; padding: 15px; margin: 20px 0; border: 1px solid #ddd; border-radius: 4px;">
+    <div class="wc-mss-filters wc-mss-toolbar">
         <form method="get" action="">
             <input type="hidden" name="page" value="wc-settings">
             <input type="hidden" name="tab" value="multi_store_sync">
             <input type="hidden" name="section" value="api-usage">
 
-            <label style="margin-right: 15px;">
+            <label>
                 <?php esc_html_e('Time Period:', 'multi-store-sync-for-woocommerce'); ?>
                 <select name="days">
                     <option value="7" <?php selected($days, 7); ?>><?php esc_html_e('Last 7 days', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -55,7 +55,7 @@ $recent_errors = WC_Multi_Store_API_Usage_Tracker::get_recent_errors(10);
                 </select>
             </label>
 
-            <label style="margin-right: 15px;">
+            <label>
                 <?php esc_html_e('Store:', 'multi-store-sync-for-woocommerce'); ?>
                 <select name="store_url">
                     <option value=""><?php esc_html_e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -74,7 +74,7 @@ $recent_errors = WC_Multi_Store_API_Usage_Tracker::get_recent_errors(10);
         </form>
 
         <?php if ($stats['total_requests'] > 0): ?>
-        <form method="post" action="" style="display: inline; margin-left: 10px;">
+        <form method="post" action="">
             <?php wp_nonce_field('wc_mss_clear_api_usage'); ?>
             <button type="submit" name="wc_mss_clear_api_usage" class="button" onclick="return confirm('<?php esc_attr_e('Are you sure you want to delete all API usage data? This action cannot be undone.', 'multi-store-sync-for-woocommerce'); ?>');">
                 <?php esc_html_e('Clear All Data', 'multi-store-sync-for-woocommerce'); ?>
@@ -84,96 +84,90 @@ $recent_errors = WC_Multi_Store_API_Usage_Tracker::get_recent_errors(10);
     </div>
 
     <!-- Statistics Cards -->
-    <div class="wc-mss-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin: 20px 0;">
-        <div class="wc-mss-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #666;"><?php esc_html_e('Total Requests', 'multi-store-sync-for-woocommerce'); ?></h3>
-            <p style="margin: 0; font-size: 32px; font-weight: bold; color: #2271b1;"><?php echo esc_html(number_format($stats['total_requests'])); ?></p>
+    <div class="wc-mss-toolbar">
+        <div class="card wc-mss-stat-card">
+            <h3><?php esc_html_e('Total Requests', 'multi-store-sync-for-woocommerce'); ?></h3>
+            <p><?php echo esc_html(number_format($stats['total_requests'])); ?></p>
         </div>
 
-        <div class="wc-mss-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #666;"><?php esc_html_e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></h3>
-            <p style="margin: 0; font-size: 32px; font-weight: bold; color: <?php echo esc_attr($stats['success_rate'] >= 95 ? '#46b450' : ($stats['success_rate'] >= 80 ? '#ffb900' : '#dc3545')); ?>;">
+        <div class="card wc-mss-stat-card">
+            <h3><?php esc_html_e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></h3>
+            <p>
                 <?php echo esc_html(number_format($stats['success_rate'], 2)); ?>%
             </p>
         </div>
 
-        <div class="wc-mss-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #666;"><?php esc_html_e('Avg Response Time', 'multi-store-sync-for-woocommerce'); ?></h3>
-            <p style="margin: 0; font-size: 32px; font-weight: bold; color: #2271b1;"><?php echo esc_html(number_format($stats['avg_response_time'])); ?> <span style="font-size: 16px;">ms</span></p>
+        <div class="card wc-mss-stat-card">
+            <h3><?php esc_html_e('Avg Response Time', 'multi-store-sync-for-woocommerce'); ?></h3>
+            <p><?php echo esc_html(number_format($stats['avg_response_time'])); ?> <span>ms</span></p>
         </div>
 
-        <div class="wc-mss-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #666;"><?php esc_html_e('Data Transferred', 'multi-store-sync-for-woocommerce'); ?></h3>
-            <p style="margin: 0; font-size: 32px; font-weight: bold; color: #2271b1;">
+        <div class="card wc-mss-stat-card">
+            <h3><?php esc_html_e('Data Transferred', 'multi-store-sync-for-woocommerce'); ?></h3>
+            <p>
                 <?php echo esc_html(size_format($stats['total_data_transferred'], 2)); ?>
             </p>
         </div>
     </div>
 
     <!-- Daily Trend Chart -->
-    <div class="wc-mss-card" style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ddd; border-radius: 4px;">
+    <div class="card wc-mss-card">
         <h2><?php esc_html_e('Daily Request Trend', 'multi-store-sync-for-woocommerce'); ?></h2>
-        <canvas id="wc-mss-trend-chart" style="max-height: 300px;"></canvas>
+        <canvas id="wc-mss-trend-chart"></canvas>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div class="wc-mss-toolbar">
         <!-- Usage by Store -->
-        <div class="wc-mss-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Usage by Store', 'multi-store-sync-for-woocommerce'); ?></h2>
             <?php if (!empty($usage_by_store)): ?>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
-                            <th><?php esc_html_e('Requests', 'multi-store-sync-for-woocommerce'); ?></th>
-                            <th><?php esc_html_e('Success Rate', 'multi-store-sync-for-woocommerce'); ?></th>
-                            <th><?php esc_html_e('Avg Time', 'multi-store-sync-for-woocommerce'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($usage_by_store as $store): ?>
-                            <tr>
-                                <td><?php echo esc_html($store['store_url']); ?></td>
-                                <td><?php echo esc_html(number_format($store['total_requests'])); ?></td>
-                                <td>
-                                    <span style="color: <?php echo esc_attr($store['success_rate'] >= 95 ? '#46b450' : ($store['success_rate'] >= 80 ? '#ffb900' : '#dc3545')); ?>;">
-                                        <?php echo esc_html(number_format($store['success_rate'], 1)); ?>%
-                                    </span>
-                                </td>
-                                <td><?php echo esc_html(number_format($store['avg_response_time'])); ?> ms</td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('api-stores', [
+            'api-stores-store' => __('Store', 'multi-store-sync-for-woocommerce'),
+            'api-stores-requests' => __('Requests', 'multi-store-sync-for-woocommerce'),
+            'api-stores-success-rate' => __('Success Rate', 'multi-store-sync-for-woocommerce'),
+            'api-stores-avg-time' => __('Avg Time', 'multi-store-sync-for-woocommerce')
+        ], $usage_by_store, static function (array $store): void {
+
+            ?>
+            <td><?php echo esc_html($store['store_url']); ?></td>
+            <td><?php echo esc_html(number_format($store['total_requests'])); ?></td>
+            <td>
+                <span>
+                    <?php echo esc_html(number_format($store['success_rate'], 1)); ?>%
+                </span>
+            </td>
+            <td><?php echo esc_html(number_format($store['avg_response_time'])); ?> ms</td>
+            <?php
+        });
+        $list_table->display();
+        ?>
             <?php else: ?>
                 <p><?php esc_html_e('No data available.', 'multi-store-sync-for-woocommerce'); ?></p>
             <?php endif; ?>
         </div>
 
         <!-- Usage by Endpoint -->
-        <div class="wc-mss-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Top Endpoints', 'multi-store-sync-for-woocommerce'); ?></h2>
             <?php if (!empty($usage_by_endpoint)): ?>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th><?php esc_html_e('Endpoint', 'multi-store-sync-for-woocommerce'); ?></th>
-                            <th><?php esc_html_e('Method', 'multi-store-sync-for-woocommerce'); ?></th>
-                            <th><?php esc_html_e('Requests', 'multi-store-sync-for-woocommerce'); ?></th>
-                            <th><?php esc_html_e('Avg Time', 'multi-store-sync-for-woocommerce'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($usage_by_endpoint as $endpoint): ?>
-                            <tr>
-                                <td><code><?php echo esc_html($endpoint['endpoint']); ?></code></td>
-                                <td><span class="wc-mss-method-<?php echo esc_attr(strtolower($endpoint['method'])); ?>"><?php echo esc_html($endpoint['method']); ?></span></td>
-                                <td><?php echo esc_html(number_format($endpoint['total_requests'])); ?></td>
-                                <td><?php echo esc_html(number_format($endpoint['avg_response_time'])); ?> ms</td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('api-endpoints', [
+            'api-endpoints-endpoint' => __('Endpoint', 'multi-store-sync-for-woocommerce'),
+            'api-endpoints-method' => __('Method', 'multi-store-sync-for-woocommerce'),
+            'api-endpoints-requests' => __('Requests', 'multi-store-sync-for-woocommerce'),
+            'api-endpoints-avg-time' => __('Avg Time', 'multi-store-sync-for-woocommerce')
+        ], $usage_by_endpoint, static function (array $endpoint): void {
+
+            ?>
+            <td><code><?php echo esc_html($endpoint['endpoint']); ?></code></td>
+            <td><code><?php echo esc_html($endpoint['method']); ?></code></td>
+            <td><?php echo esc_html(number_format($endpoint['total_requests'])); ?></td>
+            <td><?php echo esc_html(number_format($endpoint['avg_response_time'])); ?> ms</td>
+            <?php
+        });
+        $list_table->display();
+        ?>
             <?php else: ?>
                 <p><?php esc_html_e('No data available.', 'multi-store-sync-for-woocommerce'); ?></p>
             <?php endif; ?>
@@ -182,28 +176,25 @@ $recent_errors = WC_Multi_Store_API_Usage_Tracker::get_recent_errors(10);
 
     <!-- Recent Errors -->
     <?php if (!empty($recent_errors)): ?>
-        <div class="wc-mss-card" style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ddd; border-radius: 4px;">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Recent Errors', 'multi-store-sync-for-woocommerce'); ?></h2>
-            <table class="wp-list-table widefat fixed striped">
-                <thead>
-                    <tr>
-                        <th><?php esc_html_e('Time', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php esc_html_e('Endpoint', 'multi-store-sync-for-woocommerce'); ?></th>
-                        <th><?php esc_html_e('Error', 'multi-store-sync-for-woocommerce'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($recent_errors as $error): ?>
-                        <tr>
-                            <td><?php echo esc_html(date('M j, Y H:i', strtotime($error['created_at']))); ?></td>
-                            <td><?php echo esc_html($error['store_url']); ?></td>
-                            <td><code><?php echo esc_html($error['endpoint']); ?></code></td>
-                            <td style="color: #d63638;"><?php echo esc_html($error['error_message']); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+            <?php
+        $list_table = new WC_Multi_Store_Admin_List_Table('api-errors', [
+            'api-errors-time' => __('Time', 'multi-store-sync-for-woocommerce'),
+            'api-errors-store' => __('Store', 'multi-store-sync-for-woocommerce'),
+            'api-errors-endpoint' => __('Endpoint', 'multi-store-sync-for-woocommerce'),
+            'api-errors-error' => __('Error', 'multi-store-sync-for-woocommerce')
+        ], $recent_errors, static function (array $error): void {
+
+            ?>
+            <td><?php echo esc_html(date('M j, Y H:i', strtotime($error['created_at']))); ?></td>
+            <td><?php echo esc_html($error['store_url']); ?></td>
+            <td><code><?php echo esc_html($error['endpoint']); ?></code></td>
+            <td><?php echo esc_html($error['error_message']); ?></td>
+            <?php
+        });
+        $list_table->display();
+        ?>
         </div>
     <?php endif; ?>
 

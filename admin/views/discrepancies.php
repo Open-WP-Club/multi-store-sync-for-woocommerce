@@ -55,7 +55,7 @@ $stores = get_option('wc_multi_store_sync_stores', []);
     <h1>
         <?php esc_html_e('Stock Discrepancies', 'multi-store-sync-for-woocommerce'); ?>
         <?php if ($pending_count > 0): ?>
-            <span class="wc-mss-count-badge wc-mss-count-badge-error"><?php echo esc_html($pending_count); ?></span>
+            <span class="description">(<?php echo esc_html($pending_count); ?>)</span>
         <?php endif; ?>
     </h1>
 
@@ -63,12 +63,13 @@ $stores = get_option('wc_multi_store_sync_stores', []);
         <?php esc_html_e('This page shows stock level discrepancies detected between your main store and remote stores. Discrepancies occur when the actual stock on a remote store does not match the expected stock after synchronization.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
-    <div class="wc-mss-discrepancies-filters" style="margin: 20px 0;">
+    <div class="wc-mss-toolbar">
         <form method="get">
             <input type="hidden" name="page" value="wc-settings" />
             <input type="hidden" name="tab" value="multi_store_sync" />
             <input type="hidden" name="section" value="discrepancies" />
 
+            <label class="screen-reader-text" for="status-filter"><?php esc_html_e('Status', 'multi-store-sync-for-woocommerce'); ?></label>
             <select name="status" id="status-filter">
                 <option value="pending" <?php selected($status_filter, 'pending'); ?>><?php esc_html_e('Pending', 'multi-store-sync-for-woocommerce'); ?></option>
                 <option value="resolving" <?php selected($status_filter, 'resolving'); ?>><?php esc_html_e('Resolving', 'multi-store-sync-for-woocommerce'); ?></option>
@@ -77,6 +78,7 @@ $stores = get_option('wc_multi_store_sync_stores', []);
                 <option value="all" <?php selected($status_filter, 'all'); ?>><?php esc_html_e('All', 'multi-store-sync-for-woocommerce'); ?></option>
             </select>
 
+            <label class="screen-reader-text" for="store-filter"><?php esc_html_e('Store', 'multi-store-sync-for-woocommerce'); ?></label>
             <select name="store" id="store-filter">
                 <option value=""><?php esc_html_e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
                 <?php foreach ($stores as $store_url => $store_config): ?>
@@ -91,9 +93,9 @@ $stores = get_option('wc_multi_store_sync_stores', []);
             <button type="submit" class="button"><?php esc_html_e('Filter', 'multi-store-sync-for-woocommerce'); ?></button>
         </form>
 
-        <form method="post" style="display: inline-block; margin-left: 20px;">
+        <form method="post">
             <?php wp_nonce_field('wc_mss_cleanup_discrepancies'); ?>
-            <input type="number" name="cleanup_days" value="30" min="1" max="365" style="width: 60px;" />
+            <input type="number" class="small-text" aria-label="<?php esc_attr_e('Days to retain', 'multi-store-sync-for-woocommerce'); ?>" name="cleanup_days" value="30" min="1" max="365" />
             <button type="submit" name="cleanup_old" class="button" onclick="return confirm('<?php esc_attr_e('Are you sure you want to delete old resolved/ignored discrepancies?', 'multi-store-sync-for-woocommerce'); ?>');">
                 <?php esc_html_e('Cleanup Old Records', 'multi-store-sync-for-woocommerce'); ?>
             </button>
@@ -140,10 +142,14 @@ $stores = get_option('wc_multi_store_sync_stores', []);
                 }
 
                 $difference = $discrepancy['difference'];
-                $diff_class = $difference > 0 ? 'wc-mss-positive' : 'wc-mss-negative';
                 $diff_text = sprintf('%+d', $difference);
 
-                $status_class = 'wc-mss-status-' . $discrepancy['status'];
+                $status_labels = [
+                    'pending' => __('Pending', 'multi-store-sync-for-woocommerce'),
+                    'resolving' => __('Resolving', 'multi-store-sync-for-woocommerce'),
+                    'resolved' => __('Resolved', 'multi-store-sync-for-woocommerce'),
+                    'ignored' => __('Ignored', 'multi-store-sync-for-woocommerce'),
+                ];
                 ?>
                     <td>
                         <?php if ($edit_link): ?>
@@ -158,15 +164,15 @@ $stores = get_option('wc_multi_store_sync_stores', []);
                     <td><?php echo esc_html($store_name); ?></td>
                     <td><?php echo esc_html($discrepancy['expected_stock']); ?></td>
                     <td><?php echo esc_html($discrepancy['actual_stock']); ?></td>
-                    <td class="<?php echo esc_attr($diff_class); ?>">
+                    <td>
                         <strong><?php echo esc_html($diff_text); ?></strong>
                     </td>
                     <td>
                         <?php echo esc_html(human_time_diff(strtotime($discrepancy['detected_at']), current_time('timestamp'))); ?> <?php esc_html_e('ago', 'multi-store-sync-for-woocommerce'); ?>
                     </td>
                     <td>
-                        <span class="wc-mss-status-badge <?php echo esc_attr($status_class); ?>">
-                            <?php echo esc_html(ucfirst($discrepancy['status'])); ?>
+                        <span>
+                            <?php echo esc_html($status_labels[$discrepancy['status']] ?? $discrepancy['status']); ?>
                         </span>
                     </td>
                     <td>
@@ -191,14 +197,14 @@ $stores = get_option('wc_multi_store_sync_stores', []);
             </form>
     <?php endif; ?>
 
-    <hr style="margin: 2rem 0;" />
+    <hr / class="wc-mss-section-divider">
 
     <h2><?php esc_html_e('Category Scan', 'multi-store-sync-for-woocommerce'); ?></h2>
     <p class="description">
         <?php esc_html_e('Compares product categories between your main store and a remote store. Shows products where categories are missing or differ.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
-    <div style="margin: 1rem 0; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <div class="wc-mss-toolbar">
         <select id="wc-mss-cat-store-select">
             <option value=""><?php esc_html_e('All Stores', 'multi-store-sync-for-woocommerce'); ?></option>
             <?php foreach ($stores as $url => $config): ?>
@@ -212,74 +218,10 @@ $stores = get_option('wc_multi_store_sync_stores', []);
         </button>
     </div>
 
-    <div id="wc-mss-cat-progress" style="display:none; margin-bottom: 1rem;">
-        <div class="wc-mss-progress-bar-wrap">
-            <div class="wc-mss-progress-bar" id="wc-mss-cat-bar"></div>
-        </div>
-        <p id="wc-mss-cat-progress-label" style="margin: 0.25rem 0 0;"></p>
+    <div id="wc-mss-cat-progress" style="display:none;">
+        <progress id="wc-mss-cat-bar" max="100" value="0" aria-labelledby="wc-mss-cat-progress-label"></progress>
+        <p id="wc-mss-cat-progress-label" class="description"></p>
     </div>
 
     <div id="wc-mss-cat-results"></div>
 </div>
-
-<style>
-/* All measurements in rems (1rem = 16px) */
-.wc-mss-positive {
-    color: #46b450;
-}
-
-.wc-mss-negative {
-    color: #dc3232;
-}
-
-.wc-mss-status-badge {
-    display: inline-block;
-    padding: 0.1875rem 0.625rem;
-    border-radius: 0.1875rem;
-    font-size: 0.6875rem;
-    font-weight: bold;
-    text-transform: uppercase;
-}
-
-.wc-mss-status-pending {
-    background: #ffb900;
-    color: #000;
-}
-
-.wc-mss-status-resolving {
-    background: #00a0d2;
-    color: #fff;
-}
-
-.wc-mss-status-resolved {
-    background: #46b450;
-    color: #fff;
-}
-
-.wc-mss-status-ignored {
-    background: #999;
-    color: #fff;
-}
-
-.wc-mss-discrepancies-filters {
-    background: #fff;
-    padding: 0.9375rem;
-    border: 0.0625rem solid #ccd0d4;
-    border-radius: 0.25rem;
-}
-
-.wc-mss-progress-bar-wrap {
-    background: #e0e0e0;
-    border-radius: 0.25rem;
-    height: 1.125rem;
-    overflow: hidden;
-}
-
-.wc-mss-progress-bar {
-    background: #2271b1;
-    height: 100%;
-    width: 0%;
-    transition: width 0.3s ease;
-    border-radius: 0.25rem;
-}
-</style>

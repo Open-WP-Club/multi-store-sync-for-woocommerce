@@ -898,10 +898,21 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             WC_MSS_VERSION
         );
 
-        $script_deps = [];
+        wp_enqueue_script(
+            'wc-mss-admin-ui',
+            WC_MSS_PLUGIN_URL . 'admin/js/admin-ui.js',
+            ['wp-util', 'wp-i18n'],
+            WC_MSS_VERSION,
+            true
+        );
+        $script_deps = ['wc-mss-admin-ui', 'wp-i18n'];
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin-screen context check.
         $chart_section = isset($_GET['section']) ? sanitize_text_field(wp_unslash($_GET['section'])) : '';
+        if ($chart_section === 'settings') {
+            wp_enqueue_style('wp-jquery-ui-dialog');
+            $script_deps[] = 'jquery-ui-dialog';
+        }
         if (in_array($chart_section, ['api-usage', ''], true)) {
             wp_enqueue_script(
                 'wc-mss-chartjs',
@@ -921,6 +932,9 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             true
         );
 
+        wp_set_script_translations('wc-mss-admin', 'multi-store-sync-for-woocommerce', WC_MSS_PLUGIN_DIR . 'languages');
+        wp_set_script_translations('wc-mss-admin-ui', 'multi-store-sync-for-woocommerce', WC_MSS_PLUGIN_DIR . 'languages');
+
         wp_localize_script('wc-mss-admin', 'wcMssAdmin', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wc_mss_admin'),
@@ -929,6 +943,23 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'single_store_nonce' => wp_create_nonce('wc_mss_check_single_store'),
             'test_app_password_nonce' => wp_create_nonce('wc_mss_test_app_password'),
             'scan_categories_nonce' => wp_create_nonce('wc_mss_scan_categories'),
+            'stop_sync_nonce' => wp_create_nonce('wc_mss_stop_sync'),
+            'verification_i18n' => [
+                'starting' => __('Starting...', 'multi-store-sync-for-woocommerce'),
+                'verifying' => __('Verifying products...', 'multi-store-sync-for-woocommerce'),
+                'products' => __('products', 'multi-store-sync-for-woocommerce'),
+                'batch' => __('Batch', 'multi-store-sync-for-woocommerce'),
+                'discrepancies' => __('Discrepancies', 'multi-store-sync-for-woocommerce'),
+                'completed' => __('Verification completed!', 'multi-store-sync-for-woocommerce'),
+                'completed_results' => __('Verification completed. Refresh page to see results.', 'multi-store-sync-for-woocommerce'),
+                'cancelled' => __('Verification cancelled', 'multi-store-sync-for-woocommerce'),
+                'waiting' => __('Waiting for background process...', 'multi-store-sync-for-woocommerce'),
+                'background' => __('The verification is running in the background. Refresh this page to check progress.', 'multi-store-sync-for-woocommerce'),
+                'working' => __('Processing...', 'multi-store-sync-for-woocommerce'),
+                'confirm_stop_weekly' => __('Are you sure you want to disable weekly verification? You can re-enable it in the settings above.', 'multi-store-sync-for-woocommerce'),
+                'confirm_stop_all' => __('WARNING: This will clear the entire queue and cancel pending sync jobs. The plugin will remain active. Products currently waiting to sync will be removed. Are you sure?', 'multi-store-sync-for-woocommerce'),
+                'confirm_orphans' => __('This will queue all orphan products for deletion from their respective remote stores. Are you sure?', 'multi-store-sync-for-woocommerce'),
+            ],
             'i18n' => [
                 'confirm_sync_all' => __('Are you sure you want to force sync ALL products? This will queue all products for immediate sync.', 'multi-store-sync-for-woocommerce'),
                 'syncing' => __('Syncing...', 'multi-store-sync-for-woocommerce'),
@@ -941,12 +972,17 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 'successful' => __('Successful', 'multi-store-sync-for-woocommerce'),
                 'failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
                 'failed_to_update' => __('Failed to update setting', 'multi-store-sync-for-woocommerce'),
+                'dismiss_notice' => __('Dismiss this notice.', 'multi-store-sync-for-woocommerce'),
             ],
         ]);
 
         // Add section-specific data
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin-screen context check.
         $section = isset($_GET['section']) ? sanitize_text_field(wp_unslash($_GET['section'])) : '';
+
+        if (in_array($section, ['', 'weekly-verification'], true)) {
+            wp_enqueue_script('wc-mss-verification', WC_MSS_PLUGIN_URL . 'admin/js/verification.js', ['wc-mss-admin'], WC_MSS_VERSION, true);
+        }
 
         // Chart data for API usage page
         if ($section === 'api-usage' && class_exists('WC_Multi_Store_API_Usage_Tracker')) {

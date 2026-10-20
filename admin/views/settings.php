@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
     <form method="post" action="">
         <?php wp_nonce_field('wc_mss_save_settings'); ?>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('General Settings', 'multi-store-sync-for-woocommerce'); ?></h2>
 
             <table class="form-table">
@@ -272,7 +272,7 @@ if (!defined('ABSPATH')) {
             </table>
         </div>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Performance Settings', 'multi-store-sync-for-woocommerce'); ?></h2>
             <p class="description">
                 <?php esc_html_e('Control how many products are synced per batch. Higher values = faster sync but more server load.', 'multi-store-sync-for-woocommerce'); ?>
@@ -341,7 +341,7 @@ if (!defined('ABSPATH')) {
             </table>
         </div>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Scheduled Sync', 'multi-store-sync-for-woocommerce'); ?></h2>
             <p class="description">
                 <?php esc_html_e('Automatic background sync that periodically checks for products to synchronize. This is a "catch-all" mechanism for products that may have been missed by real-time sync.', 'multi-store-sync-for-woocommerce'); ?>
@@ -394,13 +394,13 @@ if (!defined('ABSPATH')) {
                             <label>
                                 <input type="radio" name="sync_all_products" value="1" <?php checked($sync_all_products, true); ?>>
                                 <?php esc_html_e('All products', 'multi-store-sync-for-woocommerce'); ?>
-                                <span class="description" style="color: #d63638;"><?php esc_html_e('(Not recommended - can cause queue overload)', 'multi-store-sync-for-woocommerce'); ?></span>
+                                <span class="description"><?php esc_html_e('(Not recommended - can cause queue overload)', 'multi-store-sync-for-woocommerce'); ?></span>
                             </label>
                             <br>
                             <label>
                                 <input type="radio" name="sync_all_products" value="0" <?php checked($sync_all_products, false); ?>>
                                 <?php esc_html_e('Only recently modified products', 'multi-store-sync-for-woocommerce'); ?>
-                                <span class="description" style="color: #00a32a;"><?php esc_html_e('(Recommended)', 'multi-store-sync-for-woocommerce'); ?></span>
+                                <span class="description"><?php esc_html_e('(Recommended)', 'multi-store-sync-for-woocommerce'); ?></span>
                             </label>
                         </fieldset>
                     </td>
@@ -425,7 +425,7 @@ if (!defined('ABSPATH')) {
             </table>
         </div>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Sync by Category', 'multi-store-sync-for-woocommerce'); ?></h2>
             <p class="description">
                 <?php esc_html_e('Queue all products in a category (and optionally its children) for immediate synchronisation.', 'multi-store-sync-for-woocommerce'); ?>
@@ -480,13 +480,13 @@ if (!defined('ABSPATH')) {
                             data-msg-error="<?php echo esc_attr__('Error', 'multi-store-sync-for-woocommerce'); ?>">
                             <?php esc_html_e('Queue Category Sync', 'multi-store-sync-for-woocommerce'); ?>
                         </button>
-                        <span id="wc-mss-cat-sync-result" style="margin-left:12px;"></span>
+                        <div id="wc-mss-cat-sync-result" class="wc-mss-inline-result"></div>
                     </td>
                 </tr>
             </table>
         </div>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Queue Status', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="form-table">
                 <tr>
@@ -517,7 +517,7 @@ if (!defined('ABSPATH')) {
             </table>
         </div>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Order-Based Stock Sync (Webhooks)', 'multi-store-sync-for-woocommerce'); ?></h2>
             <p class="description">
                 <?php esc_html_e('Automatically reduce stock on the main store when orders are placed on remote stores via webhooks.', 'multi-store-sync-for-woocommerce'); ?>
@@ -588,7 +588,7 @@ if (!defined('ABSPATH')) {
                         foreach ($order_statuses as $status => $label) {
                             $checked = in_array($status, $selected_statuses);
                             ?>
-                            <label style="display: block; margin-bottom: 5px;">
+                            <label class="wc-mss-field-label">
                                 <input type="checkbox" name="trigger_statuses[]" value="<?php echo esc_attr($status); ?>"
                                        <?php checked($checked); ?>>
                                 <?php echo esc_html($label); ?>
@@ -671,7 +671,7 @@ if (!defined('ABSPATH')) {
                         <label><?php esc_html_e('Webhook URLs', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>
-                        <p class="description" style="margin-bottom: 10px;">
+                        <p class="description">
                             <?php esc_html_e('Use these URLs when configuring webhooks on your remote WooCommerce stores:', 'multi-store-sync-for-woocommerce'); ?>
                         </p>
 
@@ -682,9 +682,9 @@ if (!defined('ABSPATH')) {
                             <?php foreach ($stores as $store_url => $store): ?>
                                 <?php if (!is_string($store_url) || empty($store_url)) continue; ?>
                                 <?php if (isset($store['status']) && $store['status'] === 'active'): ?>
-                                    <div style="margin-bottom: 15px; padding: 10px; background: #f0f0f1; border-radius: 4px;">
+                                    <div class="wc-mss-field-group">
                                         <strong><?php echo esc_html($store['name'] ?? $store_url); ?></strong><br>
-                                        <code style="display: block; margin: 5px 0; padding: 5px; background: #fff; font-size: 11px; word-break: break-all;">
+                                        <code class="wc-mss-code-block">
                                             <?php echo esc_html(WC_Multi_Store_Webhook_Receiver::get_webhook_url($store_url)); ?>
                                         </code>
                                         <button type="button" class="button button-small copy-webhook-url" data-url="<?php echo esc_attr(WC_Multi_Store_Webhook_Receiver::get_webhook_url($store_url)); ?>">
@@ -704,7 +704,7 @@ if (!defined('ABSPATH')) {
             </table>
         </div>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Additional Sync Features', 'multi-store-sync-for-woocommerce'); ?></h2>
             <p class="description">
                 <?php esc_html_e('Enable or disable additional sync modules. Each feature operates independently and can be configured separately.', 'multi-store-sync-for-woocommerce'); ?>
@@ -795,10 +795,10 @@ if (!defined('ABSPATH')) {
                         </label>
                         <p class="description"><?php esc_html_e('Include downloadable files when syncing digital products. Supports URL-based sync or direct file transfer via Media API.', 'multi-store-sync-for-woocommerce'); ?></p>
                         <?php if (!empty($download_settings['enabled'])): ?>
-                        <div style="margin-top: 8px; padding: 8px; background: #f0f0f1; border-radius: 4px;">
+                        <div class="wc-mss-field-group">
                             <label>
                                 <strong><?php esc_html_e('Transfer Mode:', 'multi-store-sync-for-woocommerce'); ?></strong>
-                                <select class="wc-mss-feature-setting" data-option="wc_mss_downloadable_files_sync_settings" data-key="transfer_mode" style="margin-left: 5px;">
+                                <select class="wc-mss-inline-result wc-mss-feature-setting" data-option="wc_mss_downloadable_files_sync_settings" data-key="transfer_mode">
                                     <option value="url" <?php selected($download_settings['transfer_mode'] ?? 'url', 'url'); ?>><?php esc_html_e('URL (remote downloads from source)', 'multi-store-sync-for-woocommerce'); ?></option>
                                     <option value="api" <?php selected($download_settings['transfer_mode'] ?? 'url', 'api'); ?>><?php esc_html_e('API Transfer (upload files directly)', 'multi-store-sync-for-woocommerce'); ?></option>
                                 </select>
@@ -865,9 +865,9 @@ if (!defined('ABSPATH')) {
                         <?php
                         $conflict_stats = WC_Multi_Store_Conflict_Detector::get_stats();
                         if ($conflict_stats['unresolved'] > 0): ?>
-                        <p style="margin-top: 5px; color: #d63638;">
+                        <p class="description">
                             <strong>
-                                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=conflicts')); ?>" style="color: #d63638;">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=conflicts')); ?>">
                                     <?php /* translators: %d: number of unresolved conflicts. */ echo esc_html(sprintf(esc_html__('%d unresolved conflict(s)', 'multi-store-sync-for-woocommerce'), absint($conflict_stats['unresolved']))); ?>
                                 </a>
                             </strong>
@@ -878,7 +878,7 @@ if (!defined('ABSPATH')) {
             </table>
         </div>
 
-        <div class="wc-mss-card">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Email Notifications', 'multi-store-sync-for-woocommerce'); ?></h2>
             <p class="description">
                 <?php esc_html_e('Configure email alerts for sync events. All instant notifications are rate-limited to once per day to avoid inbox flooding.', 'multi-store-sync-for-woocommerce'); ?>
@@ -920,22 +920,22 @@ if (!defined('ABSPATH')) {
                     </th>
                     <td>
                         <fieldset>
-                            <label style="display:block;margin-bottom:5px;">
+                            <label class="wc-mss-field-label">
                                 <input type="checkbox" name="email_failed_sync_enabled" value="1"
                                        <?php checked(!empty($email_settings['failed_sync_enabled'])); ?>>
                                 <?php esc_html_e('Failed sync alerts (once per day)', 'multi-store-sync-for-woocommerce'); ?>
                             </label>
-                            <label style="display:block;margin-bottom:5px;">
+                            <label class="wc-mss-field-label">
                                 <input type="checkbox" name="email_api_error_enabled" value="1"
                                        <?php checked(!empty($email_settings['api_error_enabled'])); ?>>
                                 <?php esc_html_e('API error alerts (once per day)', 'multi-store-sync-for-woocommerce'); ?>
                             </label>
-                            <label style="display:block;margin-bottom:5px;">
+                            <label class="wc-mss-field-label">
                                 <input type="checkbox" name="email_low_stock_enabled" value="1"
                                        <?php checked(!empty($email_settings['low_stock_enabled'])); ?>>
                                 <?php esc_html_e('Low stock alerts (once per day)', 'multi-store-sync-for-woocommerce'); ?>
                             </label>
-                            <label style="display:block;margin-bottom:5px;">
+                            <label class="wc-mss-field-label">
                                 <input type="checkbox" name="email_daily_summary_enabled" value="1"
                                        <?php checked(!empty($email_settings['daily_summary_enabled'])); ?>>
                                 <?php esc_html_e('Daily sync summary', 'multi-store-sync-for-woocommerce'); ?>
@@ -970,7 +970,7 @@ if (!defined('ABSPATH')) {
             </table>
         </div>
 
-        <div class="wc-mss-card" style="border-left: 4px solid #d63638;">
+        <div class="card wc-mss-card">
             <h2><?php esc_html_e('Uninstall', 'multi-store-sync-for-woocommerce'); ?></h2>
             <table class="form-table">
                 <tr>
@@ -983,7 +983,7 @@ if (!defined('ABSPATH')) {
                                    <?php checked($settings['cleanup_on_uninstall'] ?? false, true); ?>>
                             <?php esc_html_e('Remove all plugin data when the plugin is deleted', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
-                        <p class="description" style="color: #d63638;">
+                        <p class="description">
                             <?php esc_html_e('When enabled and the plugin is deleted via the WordPress plugins screen, all custom database tables and plugin options will be permanently removed. <strong>This cannot be undone.</strong> Leave disabled (default) to preserve your data if you reinstall the plugin later.', 'multi-store-sync-for-woocommerce'); ?>
                         </p>
                     </td>
@@ -1001,7 +1001,7 @@ if (!defined('ABSPATH')) {
         </div><!-- .wc-mss-settings-main -->
 
         <div class="wc-mss-settings-sidebar">
-            <div class="wc-mss-card">
+            <div class="card wc-mss-card">
                 <h3><?php esc_html_e('Sync Types', 'multi-store-sync-for-woocommerce'); ?></h3>
                 <ul>
                     <li><strong><?php esc_html_e('Full Product', 'multi-store-sync-for-woocommerce'); ?></strong> - <?php esc_html_e('All data: name, description, prices, stock, images, categories, tags, attributes.', 'multi-store-sync-for-woocommerce'); ?></li>
@@ -1011,7 +1011,7 @@ if (!defined('ABSPATH')) {
                 </ul>
             </div>
 
-            <div class="wc-mss-card">
+            <div class="card wc-mss-card">
                 <h3><?php esc_html_e('Webhook Setup', 'multi-store-sync-for-woocommerce'); ?></h3>
                 <p><?php esc_html_e('Configure webhooks on remote stores:', 'multi-store-sync-for-woocommerce'); ?></p>
                 <ol>

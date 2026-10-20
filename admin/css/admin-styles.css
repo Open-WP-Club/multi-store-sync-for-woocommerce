@@ -16,85 +16,14 @@
     margin-top: 1.25rem;
 }
 
-/* Cards */
-.wc-mss-card {
-    background: #fff;
-    border: 0.0625rem solid #ccd0d4;
-    box-shadow: 0 0.0625rem 0.0625rem rgba(0, 0, 0, 0.04);
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
-}
-
-.wc-mss-card h2,
-.wc-mss-card h3 {
-    margin-top: 0;
-    padding-bottom: 0.625rem;
-    border-bottom: 0.0625rem solid #eee;
+/* WordPress cards fill the plugin's responsive grid. */
+.wc-mss-card.card {
+    max-width: none;
+    margin: 0 0 1.25rem;
 }
 
 .wc-mss-full-width {
     grid-column: 1 / -1;
-}
-
-/* Status Badges */
-.status-active {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.1875rem 0.5rem;
-    background: #46b450;
-    color: #fff;
-    border-radius: 0.1875rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.status-inactive {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.1875rem 0.5rem;
-    background: #dc3232;
-    color: #fff;
-    border-radius: 0.1875rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-/* Status Indicator Dots */
-.wc-mss-status-dot {
-    display: inline-block;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-.wc-mss-status-dot.active {
-    background: #46b450;
-    box-shadow: 0 0 0 0 rgba(70, 180, 80, 0.7);
-}
-
-.wc-mss-status-dot.inactive {
-    background: #dc3232;
-    box-shadow: 0 0 0 0 rgba(220, 50, 50, 0.7);
-}
-
-.wc-mss-status-dot.testing {
-    background: #ffb900;
-    box-shadow: 0 0 0 0 rgba(255, 185, 0, 0.7);
-}
-
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(70, 180, 80, 0.7);
-    }
-    70% {
-        box-shadow: 0 0 0 0.375rem rgba(70, 180, 80, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(70, 180, 80, 0);
-    }
 }
 
 /* Quick Actions */
@@ -135,13 +64,15 @@
 }
 
 /* Settings Page Two-Column Layout */
-.wc-mss-settings-layout {
+.wc-mss-settings-layout,
+.wc-mss-two-column-layout {
     display: flex;
     gap: 1.25rem;
     align-items: flex-start;
 }
 
-.wc-mss-settings-main {
+.wc-mss-settings-main,
+.wc-mss-main-content {
     flex: 1;
     min-width: 0;
 }
@@ -199,16 +130,24 @@
     font-size: 0.6875rem;
 }
 
+.wc-mss-sidebar {
+    width: 23.75rem;
+    flex-shrink: 0;
+}
+
 @media (max-width: 1200px) {
-    .wc-mss-settings-layout {
+    .wc-mss-settings-layout,
+    .wc-mss-two-column-layout {
         flex-direction: column;
     }
 
-    .wc-mss-settings-sidebar {
+    .wc-mss-settings-sidebar,
+    .wc-mss-sidebar {
         width: 100%;
         position: static;
     }
 }
+
 
 /* Logs Page */
 .wc-mss-log-viewer {
@@ -270,261 +209,10 @@
     }
 }
 
-/* Keyboard Shortcut Feedback */
-.wc-mss-save-feedback {
-    position: fixed;
-    bottom: 1.25rem;
-    right: 1.25rem;
-    background: #2271b1;
-    color: #fff;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0.25rem;
-    box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.2);
-    z-index: 999999;
-    opacity: 0;
-    transform: translateY(1.25rem);
-    transition: all 0.3s ease;
-    font-weight: 600;
-}
-
-.wc-mss-save-feedback.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* Progress Bar */
-.wc-mss-progress-container {
-    width: 100%;
-    height: 1.5rem;
-    background: #f0f0f0;
-    border-radius: 0.25rem;
-    overflow: hidden;
-    margin: 0.625rem 0;
-    position: relative;
-}
-
-.wc-mss-progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #2271b1 0%, #0d5bc6 100%);
-    transition: width 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    position: relative;
-}
-
-.wc-mss-progress-bar::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.2),
-        transparent
-    );
-    animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
-
-/* System Status Table (Dashboard) */
-.wc-mss-status-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.wc-mss-status-table td {
-    padding: 0.375rem 0;
-    border-bottom: 0.0625rem solid #f0f0f1;
-}
-
-.wc-mss-status-table tr:last-child td {
-    border-bottom: none;
-}
-
-.wc-mss-status-table td:first-child {
-    color: #646970;
-    width: 45%;
-}
-
-/* Queue Stats */
-.wc-mss-queue-stats {
-    display: flex;
-    gap: 0.9375rem;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-}
-
-.wc-mss-stat-box {
-    padding: 0.9375rem 1.25rem;
-    border-radius: 0.25rem;
-    min-width: 6.25rem;
-    text-align: center;
-}
-
-.wc-mss-stat-box .stat-value {
-    font-size: 1.5rem;
-    font-weight: bold;
-}
-
-.wc-mss-stat-box .stat-label {
-    font-size: 0.75rem;
-}
-
-.wc-mss-stat-box.pending {
-    background: #f0f0f1;
-}
-
-.wc-mss-stat-box.pending .stat-value { color: #2271b1; }
-.wc-mss-stat-box.pending .stat-label { color: #646970; }
-
-.wc-mss-stat-box.processing {
-    background: #fff3cd;
-}
-
-.wc-mss-stat-box.processing .stat-value,
-.wc-mss-stat-box.processing .stat-label { color: #856404; }
-
-.wc-mss-stat-box.completed {
-    background: #d4edda;
-}
-
-.wc-mss-stat-box.completed .stat-value,
-.wc-mss-stat-box.completed .stat-label { color: #155724; }
-
-.wc-mss-stat-box.failed {
-    background: #f8d7da;
-}
-
-.wc-mss-stat-box.failed .stat-value,
-.wc-mss-stat-box.failed .stat-label { color: #721c24; }
-
-.wc-mss-stat-box.total {
-    background: #e2e3e5;
-}
-
-.wc-mss-stat-box.total .stat-value,
-.wc-mss-stat-box.total .stat-label { color: #383d41; }
-
-/* Deletion Audit Styles */
-.audit-details {
-    display: none;
-}
-
-.audit-details td {
-    background: #f9f9f9;
-    padding: 0.9375rem;
-}
-
 /* Chart Container */
 .wc-mss-chart-container {
     height: 18.75rem;
     position: relative;
-}
-
-/* API Usage - HTTP Methods */
-.wc-mss-method-get {
-    background: #46b450;
-    color: #fff;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.1875rem;
-    font-size: 0.6875rem;
-    font-weight: bold;
-}
-
-.wc-mss-method-post {
-    background: #2271b1;
-    color: #fff;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.1875rem;
-    font-size: 0.6875rem;
-    font-weight: bold;
-}
-
-.wc-mss-method-put {
-    background: #ffb900;
-    color: #fff;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.1875rem;
-    font-size: 0.6875rem;
-    font-weight: bold;
-}
-
-.wc-mss-method-delete {
-    background: #dc3545;
-    color: #fff;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.1875rem;
-    font-size: 0.6875rem;
-    font-weight: bold;
-}
-
-/* Deletion Audit Page */
-.wc-mss-deletion-audit .status-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.1875rem;
-    font-weight: bold;
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-}
-
-.wc-mss-deletion-audit .status-completed {
-    background: #d4edda;
-    color: #155724;
-}
-
-.wc-mss-deletion-audit .status-failed {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.wc-mss-deletion-audit .status-pending {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.wc-mss-deletion-audit .deletion-type {
-    padding: 0.125rem 0.375rem;
-    background: #f0f0f0;
-    border-radius: 0.1875rem;
-    font-size: 0.75rem;
-}
-
-.wc-mss-deletion-audit .audit-details-content {
-    padding: 1.25rem;
-    background: #f9f9f9;
-    border-left: 0.25rem solid #2271b1;
-}
-
-.wc-mss-deletion-audit .details-section {
-    margin-bottom: 1.25rem;
-}
-
-.wc-mss-deletion-audit .details-section h4 {
-    margin-top: 0;
-}
-
-.wc-mss-deletion-audit .details-section pre {
-    background: #fff;
-    padding: 0.625rem;
-    border: 0.0625rem solid #ddd;
-    overflow-x: auto;
-    max-height: 25rem;
-}
-
-.wc-mss-deletion-audit .error-message {
-    border-left: 0.25rem solid #dc3545;
-    padding-left: 0.9375rem;
 }
 
 /* Stores Page - Checkbox Grid */
@@ -646,178 +334,111 @@
     font-size: 1rem;
 }
 
-/* Modal Styles */
-.wc-mss-modal {
-    display: none;
-    position: fixed;
-    z-index: 100000;
-    left: 0;
-    top: 0;
+/* Category Mapping layout */
+.wc-mss-category-mapping-page select.wc-mss-map-remote-select {
     width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
-    overflow: auto;
+    max-width: 25rem;
 }
 
-.wc-mss-modal-content {
-    background-color: #fff;
-    margin: 5% auto;
-    padding: 0;
-    border-radius: 0.25rem;
-    width: 50%;
-    max-width: 37.5rem;
-    box-shadow: 0 0.25rem 1.25rem rgba(0, 0, 0, 0.3);
+/* Attribute Mapping layout */
+.wc-mss-attribute-mapping-page select.wc-mss-attr-map-remote-select {
+    width: 100%;
+    max-width: 25rem;
 }
 
-.wc-mss-modal-large {
-    width: 90%;
-    max-width: 75rem;
+.wc-mss-attribute-mapping-page input.wc-mss-attr-map-value-input {
+    width: 100%;
+    max-width: 20rem;
 }
 
-.wc-mss-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.9375rem 1.25rem;
-    border-bottom: 0.0625rem solid #dcdcdc;
-    background: #f0f0f1;
+.wc-mss-attribute-mapping-page details.wc-mss-attr-map-value-group {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 1rem;
 }
 
-.wc-mss-modal-header h2 {
-    margin: 0;
-    font-size: 1.125rem;
-}
-
-.wc-mss-modal-close {
-    font-size: 1.75rem;
-    font-weight: bold;
-    color: #666;
+.wc-mss-attribute-mapping-page details.wc-mss-attr-map-value-group summary {
     cursor: pointer;
-    line-height: 1;
-}
-
-.wc-mss-modal-close:hover {
-    color: #000;
-}
-
-.wc-mss-modal-body {
-    padding: 1.25rem;
-}
-
-/* Webhook Log Badges */
-.wc-mss-badge {
-    display: inline-block;
-    padding: 0.125rem 0.5rem;
-    border-radius: 0.1875rem;
-    font-size: 0.75rem;
     font-weight: 600;
-    text-transform: uppercase;
 }
 
-.wc-mss-badge-success {
-    background: #d4edda;
-    color: #155724;
+.wc-mss-attribute-mapping-page table.wc-mss-attr-map-value-table {
+    margin-top: 0.75rem;
 }
 
-.wc-mss-badge-error {
-    background: #f8d7da;
-    color: #721c24;
+/* Shared admin layout; WordPress provides notices, tables, buttons and form controls. */
+.wc-mss-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+    margin: 1rem 0;
 }
 
-/* Discrepancies Page Count Badge */
-.wc-mss-count-badge {
-    display: inline-block;
-    padding: 0.125rem 0.5rem;
-    border-radius: 0.625rem;
-    font-size: 0.75rem;
-    font-weight: bold;
+.wc-mss-toolbar form {
+    margin: 0;
+}
+
+.wc-mss-field-group {
+    display: block;
+    margin-bottom: 0.9375rem;
+}
+
+.wc-mss-field-label {
+    display: block;
+    margin-bottom: 0.3125rem;
+}
+
+.wc-mss-result {
+    margin-top: 0.625rem;
+}
+
+.wc-mss-inline-result {
     margin-left: 0.625rem;
 }
 
-.wc-mss-count-badge-error {
-    background: #dc3232;
-    color: #fff;
+.wc-mss-section-actions {
+    margin-top: 0.9375rem;
+    padding-top: 0.9375rem;
+    border-top: 1px solid #dcdcde;
 }
 
-.wc-mss-discrepancies-page .button-small {
-    height: 1.625rem;
-    line-height: 1.5rem;
-    padding: 0 0.5rem;
-    font-size: 0.6875rem;
+.wc-mss-section-divider {
+    margin: 2rem 0;
 }
 
-/* Webhook Logs Table */
-#webhook-logs-container table {
-    font-size: 0.8125rem;
+.wc-mss-error-details {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
 }
 
-#webhook-logs-container th,
-#webhook-logs-container td {
-    padding: 0.5rem 0.625rem;
+.wc-mss-code-block {
+    display: block;
+    margin: 0.3125rem 0;
+    overflow-wrap: anywhere;
 }
 
-/* History Page Pagination */
-.wc-mss-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #fff;
-    padding: 15px 20px;
-    margin-top: 20px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-.wc-mss-pagination .pagination-info {
-    color: #666;
-    font-size: 13px;
-}
-.wc-mss-pagination .pagination-info strong {
-    color: #333;
-}
-.wc-mss-pagination .pagination-links {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-.wc-mss-pagination .page-numbers {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 36px;
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
-    color: #333;
-    text-decoration: none;
-    font-size: 14px;
-    transition: all 0.2s ease;
-}
-.wc-mss-pagination .page-numbers:hover {
-    background: #f0f0f1;
-    border-color: #999;
-    color: #000;
-}
-.wc-mss-pagination .page-numbers.current {
-    background: #2271b1;
-    border-color: #2271b1;
-    color: #fff;
-    font-weight: 600;
-}
-.wc-mss-pagination .page-numbers.prev,
-.wc-mss-pagination .page-numbers.next {
-    padding: 0 14px;
-    font-weight: 600;
-}
-.wc-mss-pagination .page-numbers.dots {
-    border: none;
-    background: none;
-    min-width: auto;
-    padding: 0 6px;
-    color: #999;
-}
-.wc-mss-pagination .page-numbers.dots:hover {
-    background: none;
+.wc-mss-summary-table {
+    margin-bottom: 1rem;
 }
 
+.wc-mss-notice-message {
+    white-space: pre-line;
+}
+
+#wc-mss-chart-container {
+    position: relative;
+    height: 13.75rem;
+    margin-top: 0.9375rem;
+}
+
+/* Preserve native hidden-state semantics when WordPress sets button display. */
+.wc-mss-dashboard [hidden],
+.wc-mss-weekly-verification [hidden] {
+    display: none !important;
+}
+
+#wc-mss-trend-chart {
+    max-height: 18.75rem;
+}

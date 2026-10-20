@@ -115,8 +115,8 @@ class WC_Multi_Store_Store_Form_Renderer {
         ?>
         <tr>
             <th scope="row" colspan="2">
-                <h3 style="margin:0;"><?php esc_html_e('Image Upload Credentials (Application Password)', 'multi-store-sync-for-woocommerce'); ?></h3>
-                <p class="description" style="font-weight:normal;"><?php esc_html_e('Required for image sync when Image Proxy is enabled. WooCommerce API keys cannot upload media — use a WordPress Application Password instead. In the remote store: Users → Edit Admin → Application Passwords → create new.', 'multi-store-sync-for-woocommerce'); ?></p>
+                <h3><?php esc_html_e('Image Upload Credentials (Application Password)', 'multi-store-sync-for-woocommerce'); ?></h3>
+                <p class="description"><?php esc_html_e('Required for image sync when Image Proxy is enabled. WooCommerce API keys cannot upload media — use a WordPress Application Password instead. In the remote store: Users → Edit Admin → Application Passwords → create new.', 'multi-store-sync-for-woocommerce'); ?></p>
             </th>
         </tr>
         <tr>
@@ -150,7 +150,7 @@ class WC_Multi_Store_Store_Form_Renderer {
                         data-has-saved-password="<?php echo !empty($store['wp_app_password'] ?? '') ? '1' : '0'; ?>">
                     <?php esc_html_e('Test App Password', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
-                <span id="wc-mss-test-app-password-edit-result" style="margin-left: 8px;"></span>
+                <div id="wc-mss-test-app-password-edit-result"></div>
                 <?php else: ?>
                 <button type="button" class="button button-small" id="wc-mss-test-app-password"
                         data-store-url-field="store_url"
@@ -158,7 +158,7 @@ class WC_Multi_Store_Store_Form_Renderer {
                         data-password-field="wp_app_password">
                     <?php esc_html_e('Test App Password', 'multi-store-sync-for-woocommerce'); ?>
                 </button>
-                <span id="wc-mss-test-app-password-result" style="margin-left: 8px;"></span>
+                <div id="wc-mss-test-app-password-result"></div>
                 <?php endif; ?>
                 <p class="description"><?php esc_html_e('The generated Application Password (spaces are OK)', 'multi-store-sync-for-woocommerce'); ?></p>
             </td>
@@ -178,7 +178,7 @@ class WC_Multi_Store_Store_Form_Renderer {
         $purge_url = $is_edit ? ($store['cache_purge_url'] ?? '') : '';
         $purge_method = $is_edit ? ($store['cache_purge_method'] ?? 'GET') : 'GET';
         ?>
-        <div class="wc-mss-exclusions-section" style="margin-bottom:16px;">
+        <div class="wc-mss-exclusions-section">
             <h4><?php esc_html_e('Cache Purge', 'multi-store-sync-for-woocommerce'); ?></h4>
             <p class="description">
                 <?php esc_html_e('After each successful sync, the plugin sends a request to this URL to clear the page cache on the remote store. Leave blank to disable.', 'multi-store-sync-for-woocommerce'); ?>
@@ -187,9 +187,9 @@ class WC_Multi_Store_Store_Form_Renderer {
                 <br>
                 <?php echo wp_kses_post(__('Examples: WP Rocket — <code>https://remote.com/?action=rocket_clear_cache&nonce=KEY&post_id={remote_id}</code> &nbsp;|&nbsp; LiteSpeed — <code>https://remote.com/wp-json/litespeed/v1/purge</code> (POST)', 'multi-store-sync-for-woocommerce')); ?>
             </p>
-            <table class="form-table" style="margin-top:8px;">
+            <table class="form-table">
                 <tr>
-                    <th scope="row" style="width:140px;"><label for="<?php echo esc_attr($prefix); ?>cache_purge_url"><?php esc_html_e('Purge URL', 'multi-store-sync-for-woocommerce'); ?></label></th>
+                    <th scope="row"><label for="<?php echo esc_attr($prefix); ?>cache_purge_url"><?php esc_html_e('Purge URL', 'multi-store-sync-for-woocommerce'); ?></label></th>
                     <td>
                         <input type="url" name="cache_purge_url" id="<?php echo esc_attr($prefix); ?>cache_purge_url" class="large-text"
                                value="<?php echo esc_attr($purge_url); ?>"
@@ -223,12 +223,12 @@ class WC_Multi_Store_Store_Form_Renderer {
             <strong><?php esc_html_e('Sync Preview:', 'multi-store-sync-for-woocommerce'); ?></strong>
             <span id="<?php echo esc_attr($prefix); ?>sync_preview">
                 <?php
-                echo wp_kses_post(sprintf(
+                echo sprintf(
                     /* translators: 1: products selected for sync, 2: total products. */
-                    __('<strong style="color:#2271b1; font-size: 16px;">%1$d</strong> of %2$d products will be synced', 'multi-store-sync-for-woocommerce'),
+                    esc_html__('%1$d of %2$d products will be synced', 'multi-store-sync-for-woocommerce'),
                     absint($synced_count),
                     absint($total_products)
-                ));
+                );
                 ?>
             </span>
         </div>

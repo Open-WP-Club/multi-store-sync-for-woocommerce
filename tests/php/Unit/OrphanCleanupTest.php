@@ -887,6 +887,29 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $this->assertEquals(3, $sent_data['results']['results'][0]['total_orphans']);
     }
 
+    public function test_ajax_scan_status_adds_native_tables_without_changing_stored_results(): void
+    {
+        $orphan = ['id' => 71, 'name' => 'Remote product', 'sku' => 'REMOTE', 'price' => '12', 'stock' => 3];
+        $scan_results = ['success' => true, 'results' => [[
+            'store_url' => 'https://store1.com', 'total_orphans' => 1, 'orphans' => [$orphan],
+        ]]];
+        Functions\when('get_option')->alias(static function ($option, $default = false) use ($scan_results) {
+            return match ($option) {
+                WC_Multi_Store_Orphan_Cleanup::STATUS_OPTION => ['status' => 'done'],
+                WC_Multi_Store_Orphan_Cleanup::RESULTS_OPTION => $scan_results,
+                default => $default,
+            };
+        });
+        $sent_data = null;
+        Functions\when('wp_send_json_success')->alias(static function ($data) use (&$sent_data) {
+            $sent_data = $data;
+        });
+        (new WC_Multi_Store_Orphan_Cleanup())->ajax_get_scan_status();
+        $this->assertSame([$orphan], $sent_data['results']['results'][0]['orphans']);
+        $this->assertStringContainsString('name="wc_mss_list" value="orphan-cleanup-0"', $sent_data['results']['results'][0]['table_html']);
+        $this->assertArrayNotHasKey('table_html', $scan_results['results'][0]);
+    }
+
     public function test_ajax_get_scan_status_no_permission(): void
     {
         Functions\when('current_user_can')->justReturn(false);

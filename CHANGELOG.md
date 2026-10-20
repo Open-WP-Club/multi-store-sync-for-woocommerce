@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.2.0 — 2026-10-20
+
+- Changed: unified actionable sync lists and read-only reports using native WordPress list tables, notices, cards, and the WordPress dialog.
+- Changed: shared WordPress AJAX handling and one verification controller for Dashboard and Weekly Verification; removed duplicated scripts and presentation styles.
+- Improved: translatable admin messages and consistent pagination that preserves active filters.
+- Fixed: Orphan Cleanup processes selected products only from the corresponding store.
+- Fixed: late cancellation responses no longer resume verification polling after leaving the page.
+- Tests: expanded coverage for asynchronous verification, bulk-action failures, remote-data escaping, and release metadata consistency.
+
 ## 5.0.0
 
 - New: Orphan Cleanup's "Delete Selected" now shows live progress (X of Y products processed) in a persistent status banner that survives page reloads, instead of leaving a "Deleting…" button with no feedback for the minutes a large batch can take in the background
