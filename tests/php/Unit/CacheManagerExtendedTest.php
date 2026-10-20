@@ -240,4 +240,16 @@ class CacheManagerExtendedTest extends WC_Multi_Store_TestCase
         $this->assertTrue(WC_Multi_Store_Cache_Manager::set_remote_variations('https://store.com', 999, null));
     }
 
+    public function test_invalid_cache_values_are_misses_and_valid_empty_arrays_are_preserved(): void {
+        foreach ([null, false, true, '', 'corrupt', 123, new stdClass(), [], [['id' => 10]]] as $cached) {
+            Functions\when('get_transient')->justReturn($cached);
+            $expected = is_array($cached) ? $cached : false;
+            $this->assertSame($expected, WC_Multi_Store_Cache_Manager::get_remote_product('https://store.test', 'SKU', 'sku'));
+            $this->assertSame($expected, WC_Multi_Store_Cache_Manager::get_remote_terms('https://store.test', 'categories'));
+            $this->assertSame($expected, WC_Multi_Store_Cache_Manager::get_taxonomy_terms('product_cat', [1]));
+        }
+        Functions\when('get_transient')->justReturn(WC_Multi_Store_Cache_Manager::NOT_FOUND_MARKER);
+        $this->assertNull(WC_Multi_Store_Cache_Manager::get_remote_product('https://store.test', 'SKU', 'sku'));
+    }
+
 }

@@ -451,4 +451,29 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
         $this->assertEquals('Multi-Store Sync', $prop->getValue($this->integration));
     }
+    public function test_store_forms_show_cache_failure_without_success_redirect_or_health_check(): void {
+        Functions\when('wp_parse_url')->alias('parse_url');
+        Functions\when('get_option')->alias(static fn($name, $default = false) =>
+            $name === 'wc_multi_store_sync_stores' ? ['https://store.test' => ['consumer_key' => 'key', 'consumer_secret' => 'secret']] : $default
+        );
+        Functions\when('update_option')->alias(static fn($name) => $name === 'wc_multi_store_sync_stores');
+        Functions\when('as_schedule_single_action')->alias(static function () { throw new RuntimeException('Unexpected health check'); });
+        Functions\when('wp_safe_redirect')->alias(static function () { throw new RuntimeException('Unexpected success redirect'); });
+        $post = $_POST;
+        try {
+            foreach (['handle_add_store', 'handle_update_store'] as $handler) {
+                WC_Admin_Settings::reset();
+                $_POST = ['store_url' => 'https://store.test', 'original_store_url' => 'https://store.test',
+                    'consumer_key' => 'key', 'consumer_secret' => 'secret', 'status' => 'active'];
+                (new ReflectionMethod($this->integration, $handler))->invoke($this->integration);
+                $this->assertSame([], WC_Admin_Settings::get_messages());
+                $this->assertCount(1, WC_Admin_Settings::get_errors());
+                $this->assertStringContainsString('cache could not be cleared', WC_Admin_Settings::get_errors()[0]);
+            }
+        } finally {
+            $_POST = $post;
+            WC_Admin_Settings::reset();
+        }
+    }
+
 }

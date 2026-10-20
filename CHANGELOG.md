@@ -17,6 +17,9 @@ All notable changes to this project are documented in this file.
 - Fixed: daily email summaries use the WordPress calendar day across timezone/DST changes and skip sending when statistics cannot be read.
 - Fixed: global/store cache invalidation now rotates persistent WordPress option generations, works with Redis/Memcached transients, and preserves unrelated stores and other plugins' caches.
 - Fixed: expired-transient maintenance escapes the exact plugin prefix, rechecks expiration atomically when deleting bounded pairs, and invalidates stale WordPress option-cache entries.
+- Fixed: store saves and configuration imports report failed cache invalidation, support retrying identical saved settings, and show admin errors instead of success notices.
+- Fixed: invalid cached product/category/tag/taxonomy values are treated as cache misses while valid empty arrays and negative-product markers retain their meaning.
+- Fixed: daily summaries skip sending incomplete reports when the per-store statistics query fails.
 
 ## 5.0.0
 

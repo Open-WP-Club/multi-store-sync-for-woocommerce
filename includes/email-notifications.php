@@ -373,6 +373,11 @@ class WC_Multi_Store_Email_Notifications {
             $today
         ), ARRAY_A);
 
+        if (!is_array($syncs_by_store)) {
+            WC_Multi_Store_Logger::write('Daily summary skipped: could not read per-store statistics.', 'error');
+            return;
+        }
+
         $subject = sprintf(
             /* translators: 1: site name, 2: report date. */
             __('[%1$s] Daily Sync Summary - %2$s', 'multi-store-sync-for-woocommerce'),

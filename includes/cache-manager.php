@@ -87,7 +87,7 @@ class WC_Multi_Store_Cache_Manager {
             return null;
         }
 
-        return $cached;
+        return is_array($cached) ? $cached : false;
     }
 
     /**
@@ -249,7 +249,8 @@ class WC_Multi_Store_Cache_Manager {
      * @return array|false Cached terms, or false if not cached
      */
     public static function get_remote_terms(string $store_url, string $type): array|false {
-        return get_transient(self::build_cache_key('remote_terms', [$store_url, $type]));
+        $cached = get_transient(self::build_cache_key('remote_terms', [$store_url, $type]));
+        return is_array($cached) ? $cached : false;
     }
 
     /**
@@ -300,7 +301,8 @@ class WC_Multi_Store_Cache_Manager {
             implode(',', $term_ids),
         ]);
 
-        return get_transient($cache_key);
+        $cached = get_transient($cache_key);
+        return is_array($cached) ? $cached : false;
     }
 
     /**

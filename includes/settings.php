@@ -337,13 +337,17 @@ class WC_Multi_Store_Settings {
         $stores[$validated_url] = $config;
         $result = update_option('wc_multi_store_sync_stores', $stores);
 
-        // Clear cache when stores are updated
-        if ($result) {
-            self::$active_stores_cache = null;
-            WC_Multi_Store_Cache_Manager::clear_store_cache($validated_url);
+        // update_option() also returns false when identical settings are saved.
+        // Permit a retry to finish invalidation after an earlier partial failure.
+        if (!$result && self::get_stores() !== $stores) {
+            return false;
+        }
+        self::$active_stores_cache = null;
+        if (!WC_Multi_Store_Cache_Manager::clear_store_cache($validated_url)) {
+            return new \WP_Error('cache_invalidation_failed', __('Store settings were saved, but the cache could not be cleared. Please save the store again to retry.', 'multi-store-sync-for-woocommerce'));
         }
 
-        return $result;
+        return true;
     }
 
     /**

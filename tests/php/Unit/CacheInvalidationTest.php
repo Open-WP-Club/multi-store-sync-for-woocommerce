@@ -5,6 +5,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class CacheInvalidationTest extends WC_Multi_Store_TestCase {
     private bool $failWrites = false;
+    private bool $failGenerationWrites = false;
     private array $updates = [];
 
     public static function backends(): array {
@@ -19,7 +20,8 @@ class CacheInvalidationTest extends WC_Multi_Store_TestCase {
         });
         Functions\when('update_option')->alias(function ($name, $value, $autoload = null) use (&$options): bool {
             $this->updates[] = [$name, $autoload];
-            if ($this->failWrites) return false;
+            if ($this->failWrites || ($this->failGenerationWrites && str_starts_with($name, 'wc_mss_cache_'))) return false;
+            if (($options[$name] ?? null) === $value) return false;
             $options[$name] = $value;
             return true;
         });
@@ -127,6 +129,62 @@ class CacheInvalidationTest extends WC_Multi_Store_TestCase {
         $this->assertTrue(WC_Multi_Store_Settings::update_store(' https://a.test/ ', ['status' => 'active']));
         $this->assertStoreMisses('https://a.test');
         $this->assertSame(['id' => 2], WC_Multi_Store_Cache_Manager::get_remote_product('https://b.test', 'SHARED-SKU', 'sku'));
+    }
+
+    #[DataProvider('backends')]
+    public function test_save_reports_cache_failure_and_identical_retry_can_finish_invalidation(bool $external): void {
+        $this->useBackend($external);
+        Functions\when('esc_url_raw')->alias(static fn($url) => $url);
+        Functions\when('wp_parse_url')->alias('parse_url');
+        $this->seedStore('https://a.test', 1);
+        $this->failGenerationWrites = true;
+        $config = ['status' => 'active', 'consumer_key' => 'new-key'];
+        $result = WC_Multi_Store_Settings::update_store('https://a.test', $config);
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $this->assertSame('cache_invalidation_failed', $result->get_error_code());
+        $this->assertSame($config, WC_Multi_Store_Settings::get_stores()['https://a.test']);
+        $this->failGenerationWrites = false;
+        $this->assertTrue(WC_Multi_Store_Settings::update_store('https://a.test', $config));
+        $this->assertStoreMisses('https://a.test');
+    }
+
+    #[DataProvider('backends')]
+    public function test_import_reports_failed_global_invalidation_and_can_be_retried(bool $external): void {
+        $this->useBackend($external);
+        $this->seedStore('https://a.test', 1);
+        $this->failGenerationWrites = true;
+        $this->assertInstanceOf(WP_Error::class, WC_Multi_Store_Config_Manager::import(['plugin_version' => WC_MSS_VERSION]));
+        $this->failGenerationWrites = false;
+        $this->assertTrue(WC_Multi_Store_Config_Manager::import(['plugin_version' => WC_MSS_VERSION]));
+        $this->assertStoreMisses('https://a.test');
+    }
+
+    #[DataProvider('backends')]
+    public function test_import_propagates_store_cache_failure_and_retry_completes(bool $external): void {
+        $this->useBackend($external);
+        Functions\when('esc_url_raw')->alias(static fn($url) => $url);
+        Functions\when('wp_parse_url')->alias('parse_url');
+        $this->seedStore('https://a.test', 1);
+        $config = ['plugin_version' => WC_MSS_VERSION, 'stores' => ['https://a.test' => ['status' => 'active']]];
+        $this->failGenerationWrites = true;
+        $result = WC_Multi_Store_Config_Manager::import($config);
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $this->assertSame('cache_invalidation_failed', $result->get_error_code());
+        $this->failGenerationWrites = false;
+        $this->assertTrue(WC_Multi_Store_Config_Manager::import($config));
+        $this->assertStoreMisses('https://a.test');
+    }
+
+    #[DataProvider('backends')]
+    public function test_failed_store_write_is_not_mistaken_for_an_unchanged_save(bool $external): void {
+        $this->useBackend($external);
+        Functions\when('esc_url_raw')->alias(static fn($url) => $url);
+        Functions\when('wp_parse_url')->alias('parse_url');
+        $this->seedStore('https://a.test', 1);
+        $this->failWrites = true;
+        $this->assertFalse(WC_Multi_Store_Settings::update_store('https://a.test', ['status' => 'active']));
+        $this->assertSame([], WC_Multi_Store_Settings::get_stores());
+        $this->assertSame(['id' => 1], WC_Multi_Store_Cache_Manager::get_remote_product('https://a.test', 'SHARED-SKU', 'sku'));
     }
 
 }

@@ -420,11 +420,18 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'added_date' => current_time('mysql'),
         ];
 
-        if (WC_Multi_Store_Settings::update_store($store_url, $store_config)) {
-            WC_Admin_Settings::add_message(__('Store added successfully.', 'multi-store-sync-for-woocommerce'));
-            if (function_exists('as_schedule_single_action')) {
-                as_schedule_single_action(time(), 'wc_multi_store_health_check_single', [$store_url], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
-            }
+        $result = WC_Multi_Store_Settings::update_store($store_url, $store_config);
+        if (is_wp_error($result)) {
+            WC_Admin_Settings::add_error($result->get_error_message());
+            return;
+        }
+        if (!$result) {
+            WC_Admin_Settings::add_error(__('Could not save store settings. Please retry.', 'multi-store-sync-for-woocommerce'));
+            return;
+        }
+        WC_Admin_Settings::add_message(__('Store added successfully.', 'multi-store-sync-for-woocommerce'));
+        if (function_exists('as_schedule_single_action')) {
+            as_schedule_single_action(time(), 'wc_multi_store_health_check_single', [$store_url], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
         }
     }
 
@@ -508,15 +515,22 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             WC_Multi_Store_Settings::delete_store($original_url);
         }
 
-        if (WC_Multi_Store_Settings::update_store($store_url, $store_config)) {
-            WC_Admin_Settings::add_message(__('Store updated successfully.', 'multi-store-sync-for-woocommerce'));
-            if (function_exists('as_schedule_single_action')) {
-                as_schedule_single_action(time(), 'wc_multi_store_health_check_single', [$store_url], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
-            }
-            // Redirect to remove edit_store param
-            wp_safe_redirect(remove_query_arg('edit_store'));
-            exit;
+        $result = WC_Multi_Store_Settings::update_store($store_url, $store_config);
+        if (is_wp_error($result)) {
+            WC_Admin_Settings::add_error($result->get_error_message());
+            return;
         }
+        if (!$result) {
+            WC_Admin_Settings::add_error(__('Could not save store settings. Please retry.', 'multi-store-sync-for-woocommerce'));
+            return;
+        }
+        WC_Admin_Settings::add_message(__('Store updated successfully.', 'multi-store-sync-for-woocommerce'));
+        if (function_exists('as_schedule_single_action')) {
+            as_schedule_single_action(time(), 'wc_multi_store_health_check_single', [$store_url], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
+        }
+        // Redirect to remove edit_store param
+        wp_safe_redirect(remove_query_arg('edit_store'));
+        exit;
     }
 
     /**

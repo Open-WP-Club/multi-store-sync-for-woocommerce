@@ -274,7 +274,7 @@ if (!class_exists('wpdb')) {
             return $query;
         }
 
-        public function get_results(string $query, string $output = OBJECT): array {
+        public function get_results(string $query, string $output = OBJECT): array|object|null {
             return [];
         }
 

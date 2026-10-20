@@ -96,7 +96,13 @@ class WC_Multi_Store_Config_Manager {
                     }
                 }
 
-                WC_Multi_Store_Settings::update_store($url, $store_config);
+                $result = WC_Multi_Store_Settings::update_store($url, $store_config);
+                if (is_wp_error($result)) {
+                    return $result;
+                }
+                if (!$result) {
+                    return new \WP_Error('store_import_failed', __('Could not save an imported store. Some settings may already have been saved. Please retry the import.', 'multi-store-sync-for-woocommerce'));
+                }
             }
             WC_Multi_Store_Logger::write('Configuration imported: store settings');
         }
@@ -132,7 +138,9 @@ class WC_Multi_Store_Config_Manager {
 
         // Clear all caches
         WC_Multi_Store_Settings::clear_static_cache();
-        WC_Multi_Store_Cache_Manager::clear_all();
+        if (!WC_Multi_Store_Cache_Manager::clear_all()) {
+            return new \WP_Error('cache_invalidation_failed', __('Configuration settings were saved, but the cache could not be cleared. Please retry the import.', 'multi-store-sync-for-woocommerce'));
+        }
 
         WC_Multi_Store_Logger::write('Configuration import completed successfully');
 
