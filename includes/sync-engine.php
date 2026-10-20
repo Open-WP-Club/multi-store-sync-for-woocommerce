@@ -768,6 +768,7 @@ class WC_Multi_Store_Sync_Engine {
         // Remote API calls inside perform_post_sync_operations() cannot be rolled back,
         // but local state (hashes, history) stays consistent if any step throws.
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
         $wpdb->query('START TRANSACTION');
         try {
             // Perform post-sync operations (variations, custom fields, stock verification)
@@ -849,8 +850,10 @@ class WC_Multi_Store_Sync_Engine {
             ));
             $this->log_sync_history($product, $store_url, $sync_type, $sync_source, 'success', $message, $remote_product_id, $start_time, $start_memory, $api_calls);
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
             $wpdb->query('COMMIT');
         } catch (\Throwable $e) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
             $wpdb->query('ROLLBACK');
             // Remote batches cannot roll back; discard any pre-batch cache restored by ROLLBACK.
             WC_Multi_Store_Cache_Manager::set_remote_variations($store_url, $remote_product_id, null);

@@ -279,6 +279,7 @@ class WC_Multi_Store_Cache_Manager {
         }
 
         $pattern = $wpdb->esc_like('_transient') . '%' . $wpdb->esc_like(self::CACHE_GROUP . '_remote_terms') . '%';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
         $wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
@@ -371,6 +372,7 @@ class WC_Multi_Store_Cache_Manager {
         // PERFORMANCE FIX: Use single query to delete both transient and timeout entries
         $pattern = $wpdb->esc_like('_transient') . '%' . $wpdb->esc_like(self::CACHE_GROUP) . '%';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
         $deleted = $wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
@@ -399,6 +401,7 @@ class WC_Multi_Store_Cache_Manager {
         // PERFORMANCE FIX: Use single wildcard pattern that matches both transient and timeout
         $pattern = $wpdb->esc_like('_transient') . '%' . $wpdb->esc_like(self::CACHE_GROUP) . '%' . $wpdb->esc_like($store_key) . '%';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
         $deleted = $wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",

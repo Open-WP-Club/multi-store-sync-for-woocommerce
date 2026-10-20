@@ -238,6 +238,7 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
 
         // phpcs:disable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $placeholders contains only generated %d tokens for the supplied ID list; the IDs are passed separately to prepare() and both tables are WordPress core tables.
         if ($match_by === 'sku') {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog projection for this scan; batched SQL avoids loading a product object per row.
             $rows = $wpdb->get_results($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholder list is generated from one %d per supplied product ID and all IDs are passed to prepare().
                 "SELECT post_id, meta_value FROM {$wpdb->postmeta}
@@ -245,6 +246,7 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
                 ...$product_ids
             ));
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog projection for this scan; batched SQL avoids loading a product object per row.
             $rows = $wpdb->get_results($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholder list is generated from one %d per supplied product ID and all IDs are passed to prepare().
                 "SELECT ID AS post_id, post_name AS meta_value FROM {$wpdb->posts}
@@ -507,6 +509,7 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
     private static function load_local_sku_set(): array {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog projection for this scan; batched SQL avoids loading a product object per row.
         $rows = $wpdb->get_col(
             "SELECT pm.meta_value
              FROM {$wpdb->postmeta} pm
@@ -533,6 +536,7 @@ class WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher {
     private static function load_local_slug_set(): array {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog projection for this scan; batched SQL avoids loading a product object per row.
         $rows = $wpdb->get_col(
             "SELECT post_name FROM {$wpdb->posts}
              WHERE post_type = 'product'

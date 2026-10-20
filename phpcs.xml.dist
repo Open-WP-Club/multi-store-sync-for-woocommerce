@@ -12,6 +12,7 @@
     <file>includes</file>
     <file>admin</file>
     <file>wc-multi-store-sync.php</file>
+    <file>uninstall.php</file>
 
     <!-- WPCS 3.x dropped the standalone "WordPress-Security" ruleset; the
          equivalent sniffs now live directly under these two categories. -->
@@ -31,14 +32,9 @@
             <property name="new_text_domain" value="multi-store-sync-for-woocommerce"/>
         </properties>
     </rule>
-    <rule ref="WordPress.DB">
-        <!-- This plugin's sync-log/queue tables are custom, non-cached-by-WP-core
-             tables by design (short-lived operational data) — WPCS's object-cache
-             sniffs assume core-style caching that doesn't apply here. This exclusion
-             is the standard WPCS-recommended pattern for plugins with custom tables. -->
-        <exclude name="WordPress.DB.DirectDatabaseQuery.DirectQuery"/>
-        <exclude name="WordPress.DB.DirectDatabaseQuery.NoCaching"/>
-    </rule>
+    <!-- Required direct queries are documented at each call site; new queries
+         must pass review instead of inheriting a project-wide exclusion. -->
+    <rule ref="WordPress.DB"/>
 
     <config name="minimum_supported_wp_version" value="6.0"/>
 </ruleset>

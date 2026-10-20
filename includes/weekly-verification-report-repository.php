@@ -66,6 +66,7 @@ class WC_Multi_Store_Weekly_Verification_Report_Repository {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Verification reports use a custom table and must reflect updates from background batches.
         return $wpdb->insert(
             $table_name,
             [
@@ -123,6 +124,7 @@ class WC_Multi_Store_Weekly_Verification_Report_Repository {
             $offset
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Verification reports use a custom table and must reflect updates from background batches. Table name is prefix plus a fixed constant; ordering is allowlisted/sanitized and pagination uses prepared integers.
         $results = $wpdb->get_results($query, ARRAY_A);
 
         // Unserialize report data
@@ -146,6 +148,7 @@ class WC_Multi_Store_Weekly_Verification_Report_Repository {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Verification reports use a custom table and must reflect updates from background batches.
         $report = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE id = %d",
             $report_id
@@ -173,6 +176,7 @@ class WC_Multi_Store_Weekly_Verification_Report_Repository {
             return null;
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Verification reports use a custom table and must reflect updates from background batches.
         $report = $wpdb->get_row(
             "SELECT * FROM {$table_name} ORDER BY started_at DESC LIMIT 1",
             ARRAY_A
@@ -193,6 +197,7 @@ class WC_Multi_Store_Weekly_Verification_Report_Repository {
     public static function table_exists(): bool {
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Verification reports use a custom table and must reflect updates from background batches.
         return $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") === $table_name;
     }
 
@@ -208,6 +213,7 @@ class WC_Multi_Store_Weekly_Verification_Report_Repository {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $date_threshold = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Verification reports use a custom table and must reflect updates from background batches.
         return $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name} WHERE started_at < %s",
             $date_threshold

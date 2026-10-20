@@ -42,9 +42,9 @@ jobs:
       - name: Run WordPress Plugin Check
         uses: wordpress/plugin-check-action@v1
         with:
+          strict: true
           exclude-directories: 'vendor,tests,node_modules,.github,build-src,coverage'
           categories: |
             security
             performance
             general
-        continue-on-error: true # advisory only until first-run findings are triaged; no baseline mechanism to freeze pre-existing ones

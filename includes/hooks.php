@@ -378,6 +378,7 @@ class WC_Multi_Store_Hooks {
         global $wpdb;
 
         // Only care about products being permanently deleted from trash
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read the database during deletion hooks before the product disappears; object caches may already be invalidated.
         $post_type = $wpdb->get_var($wpdb->prepare(
             "SELECT post_type FROM {$wpdb->posts} WHERE ID = %d",
             $post_id
@@ -388,6 +389,7 @@ class WC_Multi_Store_Hooks {
         }
 
         // Fetch SKU (product may have no SKU — that's fine, use empty string)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read the database during deletion hooks before the product disappears; object caches may already be invalidated.
         $sku = (string) $wpdb->get_var($wpdb->prepare(
             "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = '_sku' LIMIT 1",
             $post_id

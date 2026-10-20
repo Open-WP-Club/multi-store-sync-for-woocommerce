@@ -144,6 +144,7 @@ class WC_Multi_Store_Queue_Manager {
         global $wpdb;
 
         // Check if product exists and get SKU in one query
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read current product projections when enqueueing; batched SQL avoids loading full product and term objects.
         $sku = $wpdb->get_var($wpdb->prepare(
             "SELECT pm.meta_value FROM {$wpdb->postmeta} pm
             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
@@ -155,6 +156,7 @@ class WC_Multi_Store_Queue_Manager {
 
         // If no SKU found, check if product exists at all
         if ($sku === null) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read current product projections when enqueueing; batched SQL avoids loading full product and term objects.
             $exists = $wpdb->get_var($wpdb->prepare(
                 "SELECT ID FROM {$wpdb->posts}
                 WHERE ID = %d AND post_type IN ('product', 'product_variation') AND post_status != 'trash'",
@@ -186,6 +188,7 @@ class WC_Multi_Store_Queue_Manager {
     public function get_product_terms(int $product_id): array {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read current product projections when enqueueing; batched SQL avoids loading full product and term objects.
         $terms = $wpdb->get_results($wpdb->prepare(
             "SELECT tt.term_id, tt.taxonomy FROM {$wpdb->term_relationships} tr
             INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
@@ -323,7 +326,7 @@ class WC_Multi_Store_Queue_Manager {
 
         // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The list contains only generated %d tokens; IDs are passed separately to prepare() and $wpdb->posts is a core table.
         $placeholders = implode(',', array_fill(0, count($product_ids), '%d'));
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- %d list is generated from trusted integer product IDs; $wpdb->posts is a core table name.
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- %d list is generated from trusted integer product IDs; $wpdb->posts is a core table name. Read current product projections when enqueueing; batched SQL avoids loading full product and term objects.
         $rows = $wpdb->get_results($wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- generated %d list from trusted integer product IDs; $wpdb->posts is a core table.
             "SELECT ID, post_parent FROM {$wpdb->posts}
@@ -360,7 +363,7 @@ class WC_Multi_Store_Queue_Manager {
 
         // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The list contains only generated %d tokens; IDs are passed separately to prepare() and $wpdb core table names are fixed.
         $placeholders = implode(',', array_fill(0, count($product_ids), '%d'));
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- %d list is generated from trusted integer product IDs; $wpdb core table names are not user input.
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- %d list is generated from trusted integer product IDs; $wpdb core table names are not user input. Read current product projections when enqueueing; batched SQL avoids loading full product and term objects.
         $rows = $wpdb->get_results($wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- generated %d list from trusted integer product IDs; $wpdb core table names are not user input.
             "SELECT tr.object_id, tt.term_id, tt.taxonomy FROM {$wpdb->term_relationships} tr
@@ -655,6 +658,7 @@ class WC_Multi_Store_Queue_Manager {
         global $wpdb;
 
         // Get variation data and parent ID with direct SQL - no product object loading
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read current product projections when enqueueing; batched SQL avoids loading full product and term objects.
         $variation_data = $wpdb->get_row($wpdb->prepare(
             "SELECT p.post_parent, pm.meta_value as sku
             FROM {$wpdb->posts} p
@@ -706,6 +710,7 @@ class WC_Multi_Store_Queue_Manager {
         // Acquire a MySQL advisory lock (atomic, no race conditions).
         // GET_LOCK returns 1 if acquired, 0 if already held by another connection.
         // Timeout of 0 means non-blocking: returns immediately if lock is held.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-scoped advisory locking must execute in MySQL; caching would break mutual exclusion.
         $lock_acquired = $wpdb->get_var($wpdb->prepare(
             "SELECT GET_LOCK(%s, 0)",
             self::LOCK_NAME
@@ -723,6 +728,7 @@ class WC_Multi_Store_Queue_Manager {
             $results = $this->do_process_queue($batch_size, $item_callback);
         } finally {
             // Release the advisory lock
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-scoped advisory locking must execute in MySQL; caching would break mutual exclusion.
             $wpdb->query($wpdb->prepare("SELECT RELEASE_LOCK(%s)", self::LOCK_NAME));
         }
 
@@ -1155,6 +1161,7 @@ class WC_Multi_Store_Queue_Manager {
         $table_name = $wpdb->prefix . WC_Multi_Store_Queue_Table::TABLE_NAME;
 
         // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is $wpdb->prefix plus a fixed plugin table constant; only product_id is a prepared value.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read current queue state before scheduling work; cached counts could miss concurrent enqueues.
         $count = $wpdb->get_var($wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- fixed custom queue table name, not user input.
             "SELECT COUNT(*) FROM {$table_name} WHERE product_id = %d AND status = 'pending'",

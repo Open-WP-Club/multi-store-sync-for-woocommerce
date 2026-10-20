@@ -208,6 +208,7 @@ class WC_Multi_Store_Admin_List_Table extends WP_List_Table {
         }
         if ($type === 'discrepancies') {
             global $wpdb;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read the current discrepancy status before a bulk action; cached status could act on an already resolved record.
             $status = $wpdb->get_var($wpdb->prepare("SELECT status FROM {$wpdb->prefix}wc_multi_store_stock_discrepancies WHERE id = %d", $id));
             if (!in_array($status, ['pending', 'resolving'], true)) {
                 return false;

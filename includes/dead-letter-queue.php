@@ -89,6 +89,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
         $store_url  = $queue_item['store_url'] ?? '';
         $sync_type  = $queue_item['sync_type'] ?? 'unknown';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $result = $wpdb->insert(
             $table_name,
             [
@@ -136,6 +137,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $total_dead = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE status = 'dead'");
 
         if ($total_dead < self::NOTIFICATION_THRESHOLD) {
@@ -218,6 +220,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
             $orderby = 'failed_at DESC';
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Dead-letter state uses a custom table; retry and resolution checks require current queue state. Ordering passes sanitize_sql_orderby() or uses a fixed fallback; all filter and pagination values are prepared.
         $results = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT * FROM {$table_name} WHERE {$where_clause} ORDER BY {$orderby} LIMIT %d OFFSET %d",
@@ -227,6 +230,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
             ARRAY_A
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE {$where_clause}");
 
         return [
@@ -246,6 +250,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $item = $wpdb->get_row(
             $wpdb->prepare("SELECT * FROM {$table_name} WHERE id = %d AND status = 'dead'", $id),
             ARRAY_A
@@ -275,6 +280,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
 
         if ($queue_result) {
             // Mark as retried in DLQ
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
             $wpdb->update(
                 $table_name,
                 [
@@ -289,6 +295,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
             // Remove the original failed queue item so it doesn't linger as 'failed'
             if (!empty($item['original_queue_id'])) {
                 $queue_table = $wpdb->prefix . WC_Multi_Store_Queue_Table::TABLE_NAME;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
                 $wpdb->delete(
                     $queue_table,
                     ['id' => (int) $item['original_queue_id'], 'status' => 'failed'],
@@ -338,6 +345,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $result = $wpdb->update(
             $table_name,
             [
@@ -362,6 +370,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $deleted = $wpdb->query("DELETE FROM {$table_name} WHERE status = 'dead'");
 
         if ($deleted > 0) {
@@ -382,6 +391,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         return [
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
             'total_dead' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE status = 'dead'"),
             'total_retried' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE status = 'retried'"),
             'total_resolved' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE status = 'resolved'"),
@@ -409,6 +419,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $deleted = $wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$table_name} WHERE status IN ('resolved', 'retried') AND failed_at < DATE_SUB(NOW(), INTERVAL %d DAY)",

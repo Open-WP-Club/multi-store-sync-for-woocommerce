@@ -1086,6 +1086,7 @@ class WC_Multi_Store_Admin_Ajax {
         // ── Step 2: fetch all local products + categories in bulk SQL ──────────
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog projection for this scan; batched SQL avoids loading a product object per row.
         $local_rows = $wpdb->get_results(
             "SELECT p.ID, pm.meta_value AS sku
              FROM {$wpdb->posts} p
@@ -1103,11 +1104,13 @@ class WC_Multi_Store_Admin_Ajax {
         $sku_by_id = array_column($local_rows, 'sku', 'ID');
 
         $ids_in    = implode(',', array_map('intval', $local_ids));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog projection for this scan; batched SQL avoids loading a product object per row.
         $name_rows = $wpdb->get_results("SELECT ID, post_title FROM {$wpdb->posts} WHERE ID IN ($ids_in)", ARRAY_A);
         $name_by_id = array_column($name_rows, 'post_title', 'ID');
 
         $allowed_field_cols = ['slug' => 't.slug', 'id' => 'tt.term_id'];
         $field_col = $allowed_field_cols[$match_by] ?? 't.slug';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Read a fresh catalog projection for this scan; batched SQL avoids loading a product object per row. Column expression is selected from the fixed slug/term-ID allowlist; the IN list contains only intval() results.
         $cats_rows = $wpdb->get_results(
             "SELECT tr.object_id, {$field_col} AS cat_value
              FROM {$wpdb->term_relationships} tr

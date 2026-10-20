@@ -102,6 +102,7 @@ class WC_Multi_Store_Webhook_Logger {
             'created_at' => current_time('mysql'),
         ];
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Webhook logs use a custom table; live reports must include the latest received events.
         $result = $wpdb->insert($table_name, $insert_data);
 
         if ($result === false) {
@@ -427,6 +428,7 @@ class WC_Multi_Store_Webhook_Logger {
         if (!empty($values)) {
             $count_sql = $wpdb->prepare($count_sql, ...$values);
         }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Webhook logs use a custom table; live reports must include the latest received events. SQL structure uses fixed table names and allowlisted ordering; runtime filters and pagination values are passed to prepare().
         $total = (int) $wpdb->get_var($count_sql);
 
         // Get records
@@ -441,6 +443,7 @@ class WC_Multi_Store_Webhook_Logger {
         $values[] = $offset;
 
         $sql = $wpdb->prepare($sql, ...$values);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Webhook logs use a custom table; live reports must include the latest received events. SQL structure uses fixed table names and allowlisted ordering; runtime filters and pagination values are passed to prepare().
         $results = $wpdb->get_results($sql, ARRAY_A);
 
         // Decode JSON fields
@@ -475,6 +478,7 @@ class WC_Multi_Store_Webhook_Logger {
         $date_limit = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
         // Total counts by type
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $type_counts = $wpdb->get_results($wpdb->prepare(
             "SELECT log_type, COUNT(*) as count
              FROM {$table_name}
@@ -484,6 +488,7 @@ class WC_Multi_Store_Webhook_Logger {
         ), ARRAY_A);
 
         // Status counts
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $status_counts = $wpdb->get_results($wpdb->prepare(
             "SELECT status, COUNT(*) as count
              FROM {$table_name}
@@ -493,6 +498,7 @@ class WC_Multi_Store_Webhook_Logger {
         ), ARRAY_A);
 
         // Store activity
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $store_activity = $wpdb->get_results($wpdb->prepare(
             "SELECT store_url, COUNT(*) as count,
                     SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
@@ -506,6 +512,7 @@ class WC_Multi_Store_Webhook_Logger {
         ), ARRAY_A);
 
         // Daily activity (last 7 days)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $daily_activity = $wpdb->get_results($wpdb->prepare(
             "SELECT DATE(created_at) as date, COUNT(*) as count
              FROM {$table_name}
@@ -517,6 +524,7 @@ class WC_Multi_Store_Webhook_Logger {
         ), ARRAY_A);
 
         // Total stock changes
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $stock_stats = $wpdb->get_row($wpdb->prepare(
             "SELECT
                 COUNT(*) as total_changes,
@@ -555,6 +563,7 @@ class WC_Multi_Store_Webhook_Logger {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $records = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE created_at < %s ORDER BY created_at ASC",
             $cutoff_date
@@ -564,6 +573,7 @@ class WC_Multi_Store_Webhook_Logger {
             self::archive_records_to_json('webhook-logs', $records, 'created_at');
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name} WHERE created_at < %s",
             $cutoff_date
@@ -678,6 +688,7 @@ class WC_Multi_Store_Webhook_Logger {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $log = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE id = %d",
             $log_id
@@ -723,6 +734,7 @@ class WC_Multi_Store_Webhook_Logger {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name} WHERE status = %s",
             $status
@@ -747,6 +759,7 @@ class WC_Multi_Store_Webhook_Logger {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name} WHERE created_at < %s",
             $cutoff_date
@@ -770,6 +783,7 @@ class WC_Multi_Store_Webhook_Logger {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name} WHERE log_type = %s",
             $log_type
@@ -792,6 +806,7 @@ class WC_Multi_Store_Webhook_Logger {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.
         return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
     }
 }

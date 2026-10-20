@@ -334,6 +334,7 @@ class WC_Multi_Store_Email_Notifications {
         $table_name = $wpdb->prefix . 'wc_mss_sync_history';
 
         // Single aggregation query instead of 5 separate queries
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Aggregate current sync history from the custom table; no equivalent WordPress query API exists. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $stats = $wpdb->get_row($wpdb->prepare(
             "SELECT
                 COUNT(*) AS total_syncs,
@@ -354,6 +355,7 @@ class WC_Multi_Store_Email_Notifications {
         $total_api_calls = (int) ($stats->total_api_calls ?? 0);
 
         // Syncs by store
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Aggregate current sync history from the custom table; no equivalent WordPress query API exists. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $syncs_by_store = $wpdb->get_results($wpdb->prepare(
             "SELECT store_url, COUNT(*) as total,
             SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful,

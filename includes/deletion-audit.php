@@ -93,6 +93,7 @@ class WC_Multi_Store_Deletion_Audit {
         // Insert audit log
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Deletion audits use a custom table and must reflect the latest deletion outcomes.
         $result = $wpdb->insert(
             $table_name,
             [
@@ -174,6 +175,7 @@ class WC_Multi_Store_Deletion_Audit {
             $update_format[] = '%s';
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deletion audits use a custom table and must reflect the latest deletion outcomes.
         $result = $wpdb->update(
             $table_name,
             $update_data,
@@ -304,6 +306,7 @@ class WC_Multi_Store_Deletion_Audit {
             $sql = $wpdb->prepare($sql, $where_values);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Deletion audits use a custom table and must reflect the latest deletion outcomes. SQL structure uses fixed table names and allowlisted ordering; runtime filters and pagination values are passed to prepare().
         $results = $wpdb->get_results($sql, ARRAY_A);
 
         // Decode JSON fields
@@ -346,6 +349,7 @@ class WC_Multi_Store_Deletion_Audit {
             $sql = $wpdb->prepare($sql, $where_values);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Deletion audits use a custom table and must reflect the latest deletion outcomes. SQL structure uses fixed table names and allowlisted ordering; runtime filters and pagination values are passed to prepare().
         return (int) $wpdb->get_var($sql);
     }
 
@@ -406,6 +410,7 @@ class WC_Multi_Store_Deletion_Audit {
 
         $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deletion audits use a custom table and must reflect the latest deletion outcomes.
         $records = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT * FROM {$table_name} WHERE deleted_at < %s ORDER BY deleted_at ASC",
@@ -418,6 +423,7 @@ class WC_Multi_Store_Deletion_Audit {
             self::archive_records_to_json('deletion-audit', $records, 'deleted_at');
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deletion audits use a custom table and must reflect the latest deletion outcomes.
         $result = $wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$table_name} WHERE deleted_at < %s",

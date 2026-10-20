@@ -60,7 +60,7 @@ $tables = [
 ];
 
 foreach ($tables as $table) {
-    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Explicit plugin uninstall removes only the fixed plugin-owned tables; schema removal cannot use a cached result.
     $wpdb->query("DROP TABLE IF EXISTS `{$table}`");
 }
 

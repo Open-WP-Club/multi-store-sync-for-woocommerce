@@ -99,6 +99,45 @@ class StockVerifierTest extends WC_Multi_Store_TestCase
         $this->assertCount(1, $result);
     }
 
+    public function test_discrepancy_filters_and_pagination_are_prepared_together(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $store = "https://shop.test/50%/ O'Reilly";
+        $wpdb->shouldReceive('prepare')->once()->with(
+            \Mockery::on(static fn(string $sql): bool =>
+                str_contains($sql, 'status = %s AND store_url = %s AND product_id = %d')
+                && str_contains($sql, 'ORDER BY difference ASC LIMIT %d OFFSET %d')
+                && !str_contains($sql, $store)
+            ),
+            ['pending', $store, 42, 25, 50]
+        )->andReturn('PREPARED');
+        $wpdb->shouldReceive('get_results')->once()->with('PREPARED', ARRAY_A)->andReturn([['id' => 7]]);
+
+        $this->assertSame([['id' => 7]], WC_Multi_Store_Stock_Verifier::get_discrepancies([
+            'status' => 'pending', 'store_url' => $store, 'product_id' => 42,
+            'orderby' => 'difference', 'order' => 'asc', 'limit' => 25, 'offset' => 50,
+        ]));
+    }
+
+    public function test_discrepancy_unknown_sort_columns_and_directions_use_safe_defaults(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        // The test mock returns the input unchanged: the allowlist must reject it first.
+        $wpdb->shouldReceive('prepare')->once()->with(
+            \Mockery::on(static fn(string $sql): bool => str_contains($sql, 'ORDER BY detected_at DESC LIMIT %d OFFSET %d')),
+            [50, 0]
+        )->andReturn('PREPARED');
+        $wpdb->shouldReceive('get_results')->once()->with('PREPARED', ARRAY_A)->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Stock_Verifier::get_discrepancies([
+            'status' => '', 'orderby' => 'missing_column', 'order' => 'ASC; DROP TABLE products',
+        ]));
+    }
+
     public function test_get_discrepancy_count_pending(): void
     {
         global $wpdb;

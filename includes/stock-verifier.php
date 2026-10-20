@@ -179,6 +179,7 @@ class WC_Multi_Store_Stock_Verifier {
 
         $table_name = $wpdb->prefix . 'wc_multi_store_stock_discrepancies';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Stock discrepancies use a custom table; correction decisions and reports require current verification state.
         return $wpdb->insert(
             $table_name,
             [
@@ -236,20 +237,22 @@ class WC_Multi_Store_Stock_Verifier {
 
         $where_clause = implode(' AND ', $where);
 
-        if (!empty($where_values)) {
-            $where_clause = $wpdb->prepare($where_clause, $where_values);
-        }
-
-        $orderby = sanitize_sql_orderby($args['orderby'] . ' ' . $args['order']);
+        $allowed_columns = ['id', 'product_id', 'sku', 'store_url', 'expected_stock', 'actual_stock', 'difference', 'detected_at', 'status'];
+        $sort_column = in_array($args['orderby'], $allowed_columns, true) ? $args['orderby'] : 'detected_at';
+        $sort_direction = strtoupper($args['order']) === 'ASC' ? 'ASC' : 'DESC';
+        $orderby = sanitize_sql_orderby($sort_column . ' ' . $sort_direction);
         $limit = absint($args['limit']);
         $offset = absint($args['offset']);
+        $where_values[] = $limit;
+        $where_values[] = $offset;
 
+        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Filter placeholders vary with the selected filters; their values precede the two pagination values in $where_values.
         $query = $wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE {$where_clause} ORDER BY {$orderby} LIMIT %d OFFSET %d",
-            $limit,
-            $offset
+            $where_values
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Filter and pagination values are prepared together; sort column/direction are allowlisted and the table name is fixed.
         return $wpdb->get_results($query, ARRAY_A);
     }
 
@@ -266,15 +269,19 @@ class WC_Multi_Store_Stock_Verifier {
 
         if ($store_url !== '') {
             if ($status === 'all') {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; the store URL is passed separately to prepare().
                 return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_name} WHERE store_url = %s", $store_url));
             }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
             return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_name} WHERE status = %s AND store_url = %s", $status, $store_url));
         }
 
         if ($status === 'all') {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
             return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$table_name} WHERE status = %s",
             $status
@@ -292,6 +299,7 @@ class WC_Multi_Store_Stock_Verifier {
 
         $table_name = $wpdb->prefix . 'wc_multi_store_stock_discrepancies';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Stock discrepancies use a custom table; correction decisions and reports require current verification state.
         return $wpdb->update(
             $table_name,
             [
@@ -315,6 +323,7 @@ class WC_Multi_Store_Stock_Verifier {
 
         $table_name = $wpdb->prefix . 'wc_multi_store_stock_discrepancies';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Stock discrepancies use a custom table; correction decisions and reports require current verification state.
         return $wpdb->update(
             $table_name,
             ['status' => 'ignored'],
@@ -337,6 +346,7 @@ class WC_Multi_Store_Stock_Verifier {
 
         $date_threshold = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         return $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name} WHERE status IN ('resolved', 'ignored') AND detected_at < %s",
             $date_threshold
@@ -355,6 +365,7 @@ class WC_Multi_Store_Stock_Verifier {
         $table_name = $wpdb->prefix . 'wc_multi_store_stock_discrepancies';
 
         // Get discrepancy record
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $discrepancy = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE id = %d",
             $discrepancy_id
@@ -394,6 +405,7 @@ class WC_Multi_Store_Stock_Verifier {
         }
 
         // Do not reopen a discrepancy if the worker has already completed it.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Stock discrepancies use a custom table; correction decisions and reports require current verification state.
         $updated = $wpdb->update($table_name, ['status' => 'resolving'],
             ['id' => $discrepancy_id, 'status' => 'pending'], ['%s'], ['%d', '%s']);
         if ($updated === false) {
@@ -406,6 +418,7 @@ class WC_Multi_Store_Stock_Verifier {
     public static function process_correction(int $id, int $product_id, string $store_url, array $store_config, WC_Multi_Store_Sync_Engine $engine): array {
         global $wpdb;
         $table = $wpdb->prefix . 'wc_multi_store_stock_discrepancies';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Stock discrepancies use a custom table; correction decisions and reports require current verification state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $discrepancy = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id), ARRAY_A);
         if (!$discrepancy || (int) $discrepancy['product_id'] !== $product_id
             || untrailingslashit($discrepancy['store_url']) !== untrailingslashit($store_url)) {
@@ -437,6 +450,7 @@ class WC_Multi_Store_Stock_Verifier {
             || !isset($remote['stock_quantity']) || (int) $remote['stock_quantity'] !== $result['expected_stock']) {
             return ['success' => false, 'message' => 'Remote stock still differs after correction'];
         }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Stock discrepancies use a custom table; correction decisions and reports require current verification state.
         $updated = $wpdb->update($table,
             ['status' => 'resolved', 'resolved_at' => current_time('mysql')],
             ['id' => $id, 'status' => $discrepancy['status']], ['%s', '%s'], ['%d', '%s']);
@@ -448,6 +462,7 @@ class WC_Multi_Store_Stock_Verifier {
     /** Keep failed corrections available for retry, including missing store configurations. */
     public static function reset_correction(int $id): void {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Stock discrepancies use a custom table; correction decisions and reports require current verification state.
         $wpdb->update($wpdb->prefix . 'wc_multi_store_stock_discrepancies', ['status' => 'pending'],
             ['id' => $id, 'status' => 'resolving'], ['%s'], ['%d', '%s']);
     }

@@ -45,6 +45,7 @@ class WC_Multi_Store_Product_Exclusion_Filter {
     private static function get_product_term_ids(int $product_id): array {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fetch category and tag IDs together for the current exclusion decision without loading full term objects.
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT tt.term_id, tt.taxonomy
              FROM {$wpdb->term_relationships} tr

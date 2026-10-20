@@ -368,6 +368,7 @@ class WC_Multi_Store_Orphan_Cleanup {
         global $wpdb;
 
         // Get all product IDs directly from database
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog snapshot for orphan detection; stale product IDs could cause incorrect deletions.
         $ids = $wpdb->get_col("
             SELECT ID
             FROM {$wpdb->posts}
@@ -377,6 +378,7 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         // Get all SKUs directly from postmeta - much more memory efficient
         // than loading each product object
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog snapshot for orphan detection; stale product IDs could cause incorrect deletions.
         $skus = $wpdb->get_col("
             SELECT DISTINCT pm.meta_value
             FROM {$wpdb->postmeta} pm

@@ -122,6 +122,7 @@ class WC_Multi_Store_Conflict_Detector {
                 $local_product_id = (int) $parts[0];
                 $store_url_hash   = $parts[1];
 
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
                 $wpdb->query($wpdb->prepare(
                     "INSERT IGNORE INTO {$hashes_table}
                         (local_product_id, store_url_hash, store_url, hash, snapshot, updated_at)
@@ -144,6 +145,7 @@ class WC_Multi_Store_Conflict_Detector {
         if (!empty($old_log)) {
             $log_table = $wpdb->prefix . self::LOG_TABLE;
             foreach (array_reverse($old_log) as $entry) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
                 $wpdb->insert($log_table, [
                     'local_product_id'  => (int) ($entry['local_product_id'] ?? 0),
                     'remote_product_id' => (int) ($entry['remote_product_id'] ?? 0),
@@ -228,6 +230,7 @@ class WC_Multi_Store_Conflict_Detector {
 
         $table = $wpdb->prefix . self::HASHES_TABLE;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         return $wpdb->query($wpdb->prepare(
             "INSERT INTO {$table}
                 (local_product_id, store_url_hash, store_url, hash, snapshot, updated_at)
@@ -252,6 +255,7 @@ class WC_Multi_Store_Conflict_Detector {
     public static function delete_hash(int $local_product_id, string $store_url): void {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $wpdb->delete(
             $wpdb->prefix . self::HASHES_TABLE,
             ['local_product_id' => $local_product_id, 'store_url_hash' => md5($store_url)],
@@ -267,6 +271,7 @@ class WC_Multi_Store_Conflict_Detector {
 
         $table = $wpdb->prefix . self::HASHES_TABLE;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         return $wpdb->get_var($wpdb->prepare(
             "SELECT hash FROM {$table} WHERE local_product_id = %d AND store_url_hash = %s LIMIT 1",
             $local_product_id,
@@ -282,6 +287,7 @@ class WC_Multi_Store_Conflict_Detector {
 
         $table = $wpdb->prefix . self::HASHES_TABLE;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $json = $wpdb->get_var($wpdb->prepare(
             "SELECT snapshot FROM {$table} WHERE local_product_id = %d AND store_url_hash = %s LIMIT 1",
             $local_product_id,
@@ -341,6 +347,7 @@ class WC_Multi_Store_Conflict_Detector {
     private static function log_conflict(int $local_product_id, int $remote_product_id, string $store_url, array $changed_fields): void {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $wpdb->insert(
             $wpdb->prefix . self::LOG_TABLE,
             [
@@ -371,6 +378,7 @@ class WC_Multi_Store_Conflict_Detector {
         $columns = "{$table}.*, (SELECT status FROM {$queue} WHERE source = CONCAT('conflict_resolution_', {$table}.id) AND sync_type = 'conflict_resolution' ORDER BY id DESC LIMIT 1) AS queue_status";
         if ($store_url !== '') {
             if ($include_resolved) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
                 $rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT {$columns} FROM {$table} WHERE store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                     $store_url,
@@ -378,6 +386,7 @@ class WC_Multi_Store_Conflict_Detector {
                     $offset
                 ), ARRAY_A);
             } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
                 $rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT {$columns} FROM {$table} WHERE resolved = 0 AND store_url = %s ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                     $store_url,
@@ -386,12 +395,14 @@ class WC_Multi_Store_Conflict_Detector {
                 ), ARRAY_A);
             }
         } elseif ($include_resolved) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
             $rows = $wpdb->get_results($wpdb->prepare(
                 "SELECT {$columns} FROM {$table} ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                 $limit,
                 $offset
             ), ARRAY_A);
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
             $rows = $wpdb->get_results($wpdb->prepare(
                 "SELECT {$columns} FROM {$table} WHERE resolved = 0 ORDER BY detected_at DESC LIMIT %d OFFSET %d",
                 $limit,
@@ -412,9 +423,10 @@ class WC_Multi_Store_Conflict_Detector {
         $table = $wpdb->prefix . self::LOG_TABLE;
         $where = $include_resolved ? '1=1' : 'resolved = 0';
         if ($store_url !== '') {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state. Predicate is one of two fixed literals; the optional store URL is passed separately to prepare().
             return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE {$where} AND store_url = %s", $store_url));
         }
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed predicates and plugin table name only.
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed predicates and plugin table name only. Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state. Predicate is one of two fixed literals; the optional store URL is passed separately to prepare().
         return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE {$where}");
     }
 
@@ -426,6 +438,7 @@ class WC_Multi_Store_Conflict_Detector {
             return false;
         }
         $table = $wpdb->prefix . self::LOG_TABLE;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $conflict = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table} WHERE id = %d AND resolved = 0",
             $id
@@ -452,6 +465,7 @@ class WC_Multi_Store_Conflict_Detector {
 
         $table = $wpdb->prefix . self::LOG_TABLE;
         $ids = $store_url !== ''
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
             ? $wpdb->get_col($wpdb->prepare("SELECT id FROM {$table} WHERE resolved = 0 AND store_url = %s", $store_url))
             : $wpdb->get_col("SELECT id FROM {$table} WHERE resolved = 0");
         $queued = 0;
@@ -472,6 +486,7 @@ class WC_Multi_Store_Conflict_Detector {
             return ['success' => false, 'message' => 'Invalid conflict resolution'];
         }
         $table = $wpdb->prefix . self::LOG_TABLE;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $conflict = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table} WHERE id = %d",
             $id
@@ -499,6 +514,7 @@ class WC_Multi_Store_Conflict_Detector {
             return ['success' => false, 'message' => $result['message'] ?? 'Conflict resolution did not complete'];
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $updated = $wpdb->update(
             $wpdb->prefix . self::LOG_TABLE,
             ['resolved' => 1, 'resolution' => $resolution, 'resolved_at' => current_time('mysql')],
@@ -547,8 +563,11 @@ class WC_Multi_Store_Conflict_Detector {
 
         $table = $wpdb->prefix . self::LOG_TABLE;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $total      = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $unresolved = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE resolved = 0");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
         $stores     = (int) $wpdb->get_var("SELECT COUNT(DISTINCT store_url) FROM {$table}");
 
         return [

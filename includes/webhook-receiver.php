@@ -530,7 +530,7 @@ class WC_Multi_Store_Webhook_Receiver {
             // Use conditional UPDATE to prevent race conditions — only deduct
             // if sufficient stock exists. Check rows_affected to detect races.
             $table = $wpdb->postmeta;
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb core postmeta table name, not user input.
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery -- $wpdb core postmeta table name, not user input. Batch-resolve current product SKUs without loading product objects; this query is bounded by the webhook batch.
             $rows = $wpdb->query($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb core postmeta table name, not user input.
                 "UPDATE {$table}

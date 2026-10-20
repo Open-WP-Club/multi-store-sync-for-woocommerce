@@ -86,6 +86,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $lock_name = 'wc_mss_enqueue_' . md5((string) $product_id . '|' . $store_url);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-scoped advisory locking must execute in MySQL; caching would break mutual exclusion.
         $lock_acquired = (int) $wpdb->get_var(
             $wpdb->prepare('SELECT GET_LOCK(%s, 2)', $lock_name)
         ) === 1;
@@ -105,6 +106,7 @@ class WC_Multi_Store_Queue_Table {
 
         // Check if already queued (pending or processing)
         // Include 'processing' to prevent duplicates when items are stuck processing
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition. Operation predicate is either a fixed literal or a separately prepared sync type/source pair; product and store values are prepared.
         $existing = $wpdb->get_row($wpdb->prepare(
             "SELECT id, status FROM {$table_name} WHERE product_id = %d AND store_url = %s AND status IN ('pending', 'processing'){$operation_filter}",
             $product_id,
@@ -123,6 +125,7 @@ class WC_Multi_Store_Queue_Table {
             // silently returning. This prevents data loss when a new operation
             // (e.g., status change) arrives while a previous sync is in progress.
             if ($existing_status === 'processing') {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
                 $result = $wpdb->insert(
                     $table_name,
                     [
@@ -167,6 +170,7 @@ class WC_Multi_Store_Queue_Table {
             }
 
             if (!empty($update_data)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
                 $wpdb->update(
                     $table_name,
                     $update_data,
@@ -179,6 +183,7 @@ class WC_Multi_Store_Queue_Table {
         }
 
         // Insert new queue item
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $result = $wpdb->insert(
             $table_name,
             [
@@ -199,6 +204,7 @@ class WC_Multi_Store_Queue_Table {
 
         return $result ? $wpdb->insert_id : false;
         } finally {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-scoped advisory locking must execute in MySQL; caching would break mutual exclusion.
             $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
         }
     }
@@ -221,6 +227,7 @@ class WC_Multi_Store_Queue_Table {
         // - attempts < 3
         // Order by priority (ASC), then store_url (ASC) for HTTP keep-alive optimization,
         // then created_at (ASC)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $items = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$table_name}
             WHERE status = 'pending'
@@ -246,6 +253,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         return $wpdb->update(
             $table_name,
             [
@@ -269,6 +277,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         return $wpdb->update(
             $table_name,
             [
@@ -295,12 +304,14 @@ class WC_Multi_Store_Queue_Table {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         // Increment attempts
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $wpdb->query($wpdb->prepare(
             "UPDATE {$table_name} SET attempts = attempts + 1 WHERE id = %d",
             $id
         ));
 
         // Get current attempts
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $attempts = $wpdb->get_var($wpdb->prepare(
             "SELECT attempts FROM {$table_name} WHERE id = %d",
             $id
@@ -309,6 +320,7 @@ class WC_Multi_Store_Queue_Table {
         // If no_retry flag is set or max attempts reached, mark as failed permanently
         if ($no_retry || $attempts >= 3) {
             // Move to dead letter queue before marking as failed
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
             $item = $wpdb->get_row(
                 $wpdb->prepare("SELECT * FROM {$table_name} WHERE id = %d", $id),
                 ARRAY_A
@@ -318,6 +330,7 @@ class WC_Multi_Store_Queue_Table {
                 WC_Multi_Store_Dead_Letter_Queue::add_from_queue($item);
             }
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
             return $wpdb->update(
                 $table_name,
                 [
@@ -334,6 +347,7 @@ class WC_Multi_Store_Queue_Table {
             $retry_delay = pow(2, $attempts) * 5; // Exponential backoff: 10s, 20s, 40s
             $scheduled_at = (new DateTimeImmutable())->add(new DateInterval("PT{$retry_delay}M"))->format('Y-m-d H:i:s');
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
             return $wpdb->update(
                 $table_name,
                 [
@@ -358,6 +372,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $row = $wpdb->get_row(
             "SELECT
                 SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
@@ -407,6 +422,7 @@ class WC_Multi_Store_Queue_Table {
             LIMIT %d OFFSET %d";
 
         if ($status !== 'all') {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
             $items = $wpdb->get_results(
                 $wpdb->prepare(
                     "SELECT * FROM {$table_name} WHERE status = %s {$order_sql}",
@@ -417,6 +433,7 @@ class WC_Multi_Store_Queue_Table {
                 ARRAY_A
             );
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
             $items = $wpdb->get_results(
                 $wpdb->prepare("SELECT * FROM {$table_name} {$order_sql}", $limit, max(0, $offset)),
                 ARRAY_A
@@ -454,6 +471,7 @@ class WC_Multi_Store_Queue_Table {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $cutoff_date = (new DateTimeImmutable())->sub(new DateInterval('P' . (int) $days . 'D'))->format('Y-m-d H:i:s');
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name}
             WHERE status IN ('completed', 'failed')
@@ -491,6 +509,7 @@ class WC_Multi_Store_Queue_Table {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $cutoff_time = (new DateTimeImmutable())->sub(new DateInterval('PT' . (int) $minutes . 'M'))->format('Y-m-d H:i:s');
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $reset_count = $wpdb->query($wpdb->prepare(
             "UPDATE {$table_name}
             SET status = 'pending', started_at = NULL
@@ -522,6 +541,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $item = $wpdb->get_row(
             $wpdb->prepare("SELECT * FROM {$table_name} WHERE id = %d AND status = 'failed'", $id),
             ARRAY_A
@@ -531,6 +551,7 @@ class WC_Multi_Store_Queue_Table {
             return false;
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $result = $wpdb->update(
             $table_name,
             [
@@ -553,6 +574,7 @@ class WC_Multi_Store_Queue_Table {
         // Mark corresponding DLQ entry as retried so it doesn't accumulate duplicates
         if (class_exists('WC_Multi_Store_Dead_Letter_Queue')) {
             $dlq_table = $wpdb->prefix . WC_Multi_Store_Dead_Letter_Queue::TABLE_NAME;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
             $wpdb->query($wpdb->prepare(
                 "UPDATE {$dlq_table}
                  SET status = 'retried', retried_at = %s
@@ -583,6 +605,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $reset_count = $wpdb->query(
             "UPDATE {$table_name}
             SET status = 'pending',
@@ -598,6 +621,7 @@ class WC_Multi_Store_Queue_Table {
             // Also mark corresponding DLQ entries as retried
             if (class_exists('WC_Multi_Store_Dead_Letter_Queue')) {
                 $dlq_table = $wpdb->prefix . WC_Multi_Store_Dead_Letter_Queue::TABLE_NAME;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
                 $wpdb->query($wpdb->prepare(
                     "UPDATE {$dlq_table} SET status = 'retried', retried_at = %s WHERE status = 'dead'",
                     current_time('mysql')
@@ -623,6 +647,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $deleted = $wpdb->query(
             "DELETE FROM {$table_name} WHERE status = 'failed'"
         );
@@ -644,6 +669,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $deleted = $wpdb->query(
             "DELETE FROM {$table_name} WHERE status = 'completed'"
         );
@@ -665,6 +691,7 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $deleted = $wpdb->query(
             "DELETE FROM {$table_name} WHERE status = 'pending'"
         );

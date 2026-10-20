@@ -10,6 +10,8 @@ All notable changes to this project are documented in this file.
 - Fixed: Orphan Cleanup processes selected products only from the corresponding store.
 - Fixed: late cancellation responses no longer resume verification polling after leaving the page.
 - Tests: expanded coverage for asynchronous verification, bulk-action failures, remote-data escaping, and release metadata consistency.
+- Fixed: discrepancy queries prepare filters and pagination together and restrict sorting to known columns.
+- Improved: documented necessary direct database calls at their use sites and made PHPCS and Plugin Check required CI checks.
 
 ## 5.0.0
 

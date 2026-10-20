@@ -68,6 +68,7 @@ class WC_Multi_Store_Circuit_Breaker {
         global $wpdb;
 
         $lock_name     = 'wc_mss_cb_' . md5($store_url);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-scoped advisory locking must execute in MySQL; caching would break mutual exclusion.
         $lock_acquired = (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 2)', $lock_name)) === 1;
 
         try {
@@ -92,6 +93,7 @@ class WC_Multi_Store_Circuit_Breaker {
             set_transient(self::get_key($store_url), $state, $open_duration * 2);
         } finally {
             if ($lock_acquired) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-scoped advisory locking must execute in MySQL; caching would break mutual exclusion.
                 $wpdb->query($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
             }
         }

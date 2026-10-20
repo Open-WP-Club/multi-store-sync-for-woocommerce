@@ -177,6 +177,7 @@ class WC_Multi_Store_API_Usage_Tracker {
 
         $column_list = implode(', ', array_keys($columns));
         $sql = "INSERT INTO {$table_name} ({$column_list}) VALUES " . implode(', ', $placeholder_groups);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Live API usage aggregates use a custom table and must include the latest buffered writes. Column names and NULL/placeholder groups come from the fixed format map; every row value is passed separately to prepare().
         $wpdb->query($wpdb->prepare($sql, $values));
     }
 
@@ -218,6 +219,7 @@ class WC_Multi_Store_API_Usage_Tracker {
         $where_clause = implode(' AND ', $where);
 
         // Single aggregation query instead of 6 separate queries
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         $stats = $wpdb->get_row(
             "SELECT
                 COUNT(*) AS total_requests,
@@ -294,6 +296,7 @@ class WC_Multi_Store_API_Usage_Tracker {
             $args['end_date']
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         $results = $wpdb->get_results($sql, ARRAY_A);
 
         // Calculate success rate for each store
@@ -350,6 +353,7 @@ class WC_Multi_Store_API_Usage_Tracker {
             ORDER BY total_requests DESC
             LIMIT %d", absint($args['limit']));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         return $wpdb->get_results($sql, ARRAY_A);
     }
 
@@ -391,6 +395,7 @@ class WC_Multi_Store_API_Usage_Tracker {
             GROUP BY DATE(created_at)
             ORDER BY date ASC";
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         return $wpdb->get_results($sql, ARRAY_A);
     }
 
@@ -414,6 +419,7 @@ class WC_Multi_Store_API_Usage_Tracker {
             $limit
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         return $wpdb->get_results($sql, ARRAY_A);
     }
 
@@ -449,6 +455,7 @@ class WC_Multi_Store_API_Usage_Tracker {
             self::EXPORT_MAX_ROWS
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         $results = $wpdb->get_results($sql, ARRAY_A);
 
         // Build rows as arrays and let fputcsv() below handle quoting/escaping
@@ -496,6 +503,7 @@ class WC_Multi_Store_API_Usage_Tracker {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         $records = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$table_name}
             WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)
@@ -507,6 +515,7 @@ class WC_Multi_Store_API_Usage_Tracker {
             self::archive_records_to_json('api-usage', $records, 'created_at');
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         return $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name}
             WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",

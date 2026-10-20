@@ -292,6 +292,7 @@ class WC_Multi_Store_Action_Scheduler_Manager {
         global $wpdb;
 
         // Step 1: find expired timeout rows for our prefix (read-only).
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
         $expired = $wpdb->get_results(
             "SELECT t.option_id  AS timeout_id,
                     v.option_id  AS value_id,
@@ -317,7 +318,7 @@ class WC_Multi_Store_Action_Scheduler_Manager {
         $deleted = 0;
         foreach (array_chunk($ids, 500) as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- generated %d list from database IDs; $wpdb->options is a core table name.
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- generated %d list from database IDs; $wpdb->options is a core table name. Bulk transient maintenance must query current option rows; cached IDs could miss or delete refreshed entries.
             $rows         = $wpdb->query($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- generated %d list from database IDs; $wpdb->options is a core table.
                 "DELETE FROM {$wpdb->options} WHERE option_id IN ($placeholders)",

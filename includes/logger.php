@@ -198,6 +198,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         $table_name = $wpdb->prefix . 'wc_mss_sync_history';
 
         // Get records to archive (older than $days_to_keep days)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Archive and remove current records from the custom history table; cached rows could omit newly completed syncs. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $records = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT * FROM {$table_name} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY) ORDER BY created_at ASC",
@@ -241,6 +242,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         }
 
         // Delete archived records from database
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Archive and remove current records from the custom history table; cached rows could omit newly completed syncs. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $deleted = $wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$table_name} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",

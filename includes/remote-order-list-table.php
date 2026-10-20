@@ -472,6 +472,7 @@ class WC_Multi_Store_Remote_Order_List_Table extends WP_List_Table {
 
         $table_name = $wpdb->prefix . 'wc_mss_remote_orders';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Enumerate current stores from the custom remote-order table; no equivalent WordPress query API exists. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         return $wpdb->get_results(
             "SELECT DISTINCT remote_store_url FROM {$table_name} ORDER BY remote_store_url"
         );

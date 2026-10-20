@@ -35,9 +35,8 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
         $long_url = 'https://very-long-domain-name-that-should-cause-truncation-' . str_repeat('x', 200) . '.com';
         $key = $method->invoke(null, 'remote_product', array($long_url, 'SKU123', 'sku'));
 
-        // WordPress transients have max 172 characters - key is truncated to 140 + underscore + 32 md5 = 173
-        // The implementation uses 140 + 1 + 32 = 173, which is close enough to the limit
-        $this->assertLessThanOrEqual(173, strlen($key));
+        // WordPress silently rejects transient names longer than 172 characters.
+        $this->assertLessThanOrEqual(172, strlen($key));
         // Should contain md5 hash for truncated keys
         $this->assertMatchesRegularExpression('/[a-f0-9]{32}$/', $key);
     }
@@ -208,15 +207,27 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
      */
     public function test_clear_remote_terms_for_all_stores(): void
     {
-        global $wpdb;
-        $wpdb = \Mockery::mock('wpdb');
-        $wpdb->options = 'wp_options';
-        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($s) => $s);
-        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, $pattern) => $sql);
-        $wpdb->shouldReceive('query')->once()->with(\Mockery::type('string'));
-
+        // Configured stores include disabled stores: both must lose stale terms.
+        Functions\when('get_option')->alias(static fn($name, $default = false) =>
+            $name === 'wc_multi_store_sync_stores' ? [
+                'https://active.test' => ['enabled' => true],
+                'https://disabled.test' => ['enabled' => false],
+            ] : $default
+        );
+        $deleted = [];
+        Functions\when('delete_transient')->alias(static function ($key) use (&$deleted): bool {
+            $deleted[] = $key;
+            return true;
+        });
         WC_Multi_Store_Cache_Manager::clear_remote_terms();
-        $this->assertTrue(true);
+        $method = new ReflectionMethod(WC_Multi_Store_Cache_Manager::class, 'build_cache_key');
+        $expected = [];
+        foreach (['https://active.test', 'https://disabled.test'] as $store) {
+            foreach (['categories', 'tags'] as $type) {
+                $expected[] = $method->invoke(null, 'remote_terms', [$store, $type]);
+            }
+        }
+        $this->assertSame($expected, $deleted);
     }
 
     /**
@@ -422,6 +433,25 @@ class CacheManagerTest extends WC_Multi_Store_TestCase
 
         $result = WC_Multi_Store_Cache_Manager::clear_store_cache('https://nonexistent.com');
         $this->assertFalse($result);
+    }
+
+    public function test_distinct_store_urls_skus_and_part_boundaries_do_not_share_cache_keys(): void
+    {
+        $method = new ReflectionMethod(WC_Multi_Store_Cache_Manager::class, 'build_cache_key');
+        $keys = [];
+        foreach ([
+            ['https://shop.test', 'AB-1', 'sku'],
+            ['https://shop.test', 'AB.1', 'sku'],
+            ['https://shop.test', 'ab-1', 'sku'],
+            ['https://shop.test', 'AB/1', 'sku'],
+            ['https://shop.test/a.b', 'AB-1', 'sku'],
+            ['https://shop.test/ab', 'AB-1', 'sku'],
+            ['https://shop.test', 'AB_1', 'sku'],
+            ['https://shop.test_AB', '1', 'sku'],
+        ] as $parts) {
+            $keys[] = $method->invoke(null, 'remote_product', $parts);
+        }
+        $this->assertCount(count($keys), array_unique($keys));
     }
 
 }
