@@ -141,10 +141,15 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      * @param string $message Log message
      * @param string $level Log level (info, warning, error, debug)
      * @param string $context Additional context string
+     * @param string $channel Optional separate log file: written to "{LOG_HANDLE}-{channel}" (own source in WooCommerce > Status > Logs)
      * @return void
      */
-    public static function write(string $message, string $level = 'info', string $context = ''): void {
-        self::instance()->do_log($message, $level, $context !== '' ? ['context' => $context] : []);
+    public static function write(string $message, string $level = 'info', string $context = '', string $channel = ''): void {
+        $context_data = $context !== '' ? ['context' => $context] : [];
+        if ($channel !== '') {
+            $context_data['source'] = self::LOG_HANDLE . '-' . sanitize_key($channel);
+        }
+        self::instance()->do_log($message, $level, $context_data);
     }
 
     /**
@@ -171,7 +176,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      */
     private function do_log(string $message, string $level = 'info', array $context = []): void {
         if (function_exists('wc_get_logger')) {
-            wc_get_logger()?->log(strtolower($level), $message, array_merge($context, ['source' => self::LOG_HANDLE]));
+            wc_get_logger()?->log(strtolower($level), $message, array_merge(['source' => self::LOG_HANDLE], $context));
         }
     }
 
@@ -334,7 +339,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      * @return string|null
      */
     private function find_most_recent_log_file(): ?string {
-        $files = glob(dirname($this->log_file) . '/' . self::LOG_HANDLE . '-*.log');
+        $files = glob(dirname($this->log_file) . '/' . self::LOG_HANDLE . '-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.log');
 
         if (empty($files)) {
             return null;

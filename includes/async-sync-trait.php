@@ -13,6 +13,15 @@ if (!defined('ABSPATH')) {
 trait WC_Multi_Store_Async_Sync {
 
     /**
+     * Write to this feature's own log file (the class's LOG_CHANNEL constant, if set), keeping
+     * non-product syncs out of the main product-sync log.
+     */
+    private static function sync_log(string $message, string $level = 'info'): void {
+        $channel = defined(static::class . '::LOG_CHANNEL') ? constant(static::class . '::LOG_CHANNEL') : '';
+        WC_Multi_Store_Logger::write($message, $level, '', $channel);
+    }
+
+    /**
      * Queue an Action Scheduler action, logging (not failing) if Action
      * Scheduler isn't available.
      *
@@ -21,7 +30,7 @@ trait WC_Multi_Store_Async_Sync {
      */
     private function schedule_async(string $hook, array $args): void {
         if (!WC_Multi_Store_Action_Scheduler_Manager::is_available()) {
-            WC_Multi_Store_Logger::write(
+            self::sync_log(
                 "Action Scheduler unavailable — skipped queuing {$hook}",
                 'warning'
             );
@@ -46,7 +55,7 @@ trait WC_Multi_Store_Async_Sync {
         }
         $message = $hook . ' failed for ' . implode(', ', $failed)
             . ($retry_id ? '; retry scheduled.' : '; no further retry scheduled.');
-        WC_Multi_Store_Logger::write($message, 'error');
+        self::sync_log($message, 'error');
         // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Action Scheduler records this as a failed action.
         throw new \RuntimeException($message);
     }

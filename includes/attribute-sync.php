@@ -20,6 +20,8 @@ class WC_Multi_Store_Attribute_Sync {
     use WC_Multi_Store_Ajax_Auth_Guard;
     use WC_Multi_Store_Async_Sync;
 
+    const LOG_CHANNEL = 'attributes';
+
     const ASYNC_SYNC_ATTRIBUTE_HOOK = 'wc_mss_sync_attribute_async';
     const ASYNC_DELETE_ATTRIBUTE_HOOK = 'wc_mss_delete_attribute_async';
     const ASYNC_SYNC_TERM_HOOK = 'wc_mss_sync_attribute_term_async';
@@ -218,7 +220,7 @@ class WC_Multi_Store_Attribute_Sync {
     public function sync_attribute_to_store(WC_Multi_Store_API_Client $client, array $data): bool {
         $existing = $this->find_remote_attribute($client, $data['slug']);
         if (is_wp_error($existing)) {
-            WC_Multi_Store_Logger::write($existing->get_error_message(), 'error');
+            self::sync_log($existing->get_error_message(), 'error');
             return false;
         }
         $response = $existing
@@ -226,7 +228,7 @@ class WC_Multi_Store_Attribute_Sync {
             : $client->post('products/attributes', $data);
 
         if (is_wp_error($response)) {
-            WC_Multi_Store_Logger::write(sprintf(
+            self::sync_log(sprintf(
                 'Failed to sync attribute "%s": %s',
                 $data['slug'],
                 $response->get_error_message()
@@ -273,7 +275,7 @@ class WC_Multi_Store_Attribute_Sync {
     public function sync_term_to_store(WC_Multi_Store_API_Client $client, string $attribute_slug, array $data): bool {
         $remote_attribute = $this->find_remote_attribute($client, $attribute_slug);
         if (is_wp_error($remote_attribute) || !$remote_attribute) {
-            WC_Multi_Store_Logger::write(sprintf(
+            self::sync_log(sprintf(
                 'Skipped term sync: attribute "%s" not found remotely',
                 $attribute_slug
             ), 'warning');
@@ -283,7 +285,7 @@ class WC_Multi_Store_Attribute_Sync {
         $endpoint = 'products/attributes/' . $remote_attribute['id'] . '/terms';
         $existing = $this->find_remote_term($client, (int) $remote_attribute['id'], $data['slug']);
         if (is_wp_error($existing)) {
-            WC_Multi_Store_Logger::write($existing->get_error_message(), 'error');
+            self::sync_log($existing->get_error_message(), 'error');
             return false;
         }
         $response = $existing
@@ -291,7 +293,7 @@ class WC_Multi_Store_Attribute_Sync {
             : $client->post($endpoint, $data);
 
         if (is_wp_error($response)) {
-            WC_Multi_Store_Logger::write(sprintf(
+            self::sync_log(sprintf(
                 'Failed to sync attribute term "%s": %s',
                 $data['slug'],
                 $response->get_error_message()

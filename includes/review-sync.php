@@ -14,6 +14,8 @@ class WC_Multi_Store_Review_Sync {
     use WC_Multi_Store_Ajax_Auth_Guard;
     use WC_Multi_Store_Async_Sync;
 
+    const LOG_CHANNEL = 'reviews';
+
     /**
      * TTL for the per-store SKU→remote-product-ID lookup cache, same
      * rationale as WC_Multi_Store_Coupon_Sync::REMOTE_ID_CACHE_TTL.
@@ -83,9 +85,15 @@ class WC_Multi_Store_Review_Sync {
         }
 
         if (($commentdata['comment_type'] ?? '') !== 'review') {
+            self::sync_log(sprintf(
+                'Review sync: comment #%d ignored, comment_type is "%s" (not "review")',
+                $comment_id,
+                (string) ($commentdata['comment_type'] ?? '')
+            ), 'info');
             return;
         }
 
+        self::sync_log(sprintf('Review sync: queuing new review #%d', $comment_id), 'info');
         $this->schedule_async(self::ASYNC_SYNC_HOOK, [$comment_id]);
     }
 
@@ -157,6 +165,7 @@ class WC_Multi_Store_Review_Sync {
      */
     public function sync_review_by_id(int $comment_id, int $attempt = 0, ?array $store_urls = null): void {
         if (!WC_Multi_Store_Settings::get('enabled') || empty(self::get_settings()['enabled'])) {
+            self::sync_log(sprintf('Review sync: job for #%d skipped, sync is disabled', $comment_id), 'info');
             return;
         }
         // Loop guard: skip reviews that arrived here via sync (see
@@ -165,11 +174,13 @@ class WC_Multi_Store_Review_Sync {
         // the REST field's update_callback, which runs after comment_post
         // already scheduled this very job.
         if (get_comment_meta($comment_id, self::SYNCED_MARKER_META, true)) {
+            self::sync_log(sprintf('Review sync: review #%d skipped, it arrived via sync (loop guard)', $comment_id), 'info');
             return;
         }
 
         $comment = get_comment($comment_id);
         if (!$comment instanceof \WP_Comment || $comment->comment_type !== 'review') {
+            self::sync_log(sprintf('Review sync: comment #%d skipped, not found or not a review', $comment_id), 'info');
             return;
         }
 
@@ -198,12 +209,20 @@ class WC_Multi_Store_Review_Sync {
     public function sync_review_to_all_stores(\WP_Comment $comment, ?array $store_urls = null): array {
         $product = wc_get_product((int) $comment->comment_post_ID);
         if (!$product || !$product->get_sku()) {
+            self::sync_log(sprintf(
+                'Review sync: review #%d skipped, product #%d not found or has no SKU',
+                (int) $comment->comment_ID,
+                (int) $comment->comment_post_ID
+            ), 'warning');
             return [];
         }
 
         $sku = $product->get_sku();
         $data = $this->extract_review_data($comment);
         $stores = self::get_sync_stores($store_urls);
+        if (!$stores) {
+            self::sync_log(sprintf('Review sync: review #%d skipped, no active stores configured', (int) $comment->comment_ID), 'warning');
+        }
         $results = [];
 
         foreach ($stores as $store) {
@@ -220,7 +239,7 @@ class WC_Multi_Store_Review_Sync {
     public function sync_review_to_store(WC_Multi_Store_API_Client $client, string $sku, array $data, string $store_url): bool {
         $remote_product_id = $this->resolve_remote_product_id($client, $sku, $store_url);
         if (is_wp_error($remote_product_id) || !$remote_product_id) {
-            WC_Multi_Store_Logger::write(sprintf(
+            self::sync_log(sprintf(
                 'Skipped review sync to %s: product SKU "%s" not found remotely',
                 $store_url,
                 $sku
@@ -232,15 +251,25 @@ class WC_Multi_Store_Review_Sync {
 
         $existing = $this->find_remote_review($client, $remote_product_id, $data['reviewer_email']);
         if (is_wp_error($existing)) {
-            WC_Multi_Store_Logger::write($existing->get_error_message(), 'error');
+            self::sync_log($existing->get_error_message(), 'error');
             return false;
         }
         $response = $existing
             ? $client->put('products/reviews/' . $existing['id'], $data)
             : $client->post('products/reviews', $data);
 
+        if (!is_wp_error($response)) {
+            self::sync_log(sprintf(
+                'Review sync: review by "%s" %s on %s (SKU "%s")',
+                $data['reviewer_email'],
+                $existing ? 'updated' : 'created',
+                $store_url,
+                $sku
+            ), 'info');
+        }
+
         if (is_wp_error($response)) {
-            WC_Multi_Store_Logger::write(sprintf(
+            self::sync_log(sprintf(
                 'Failed to sync review by "%s" to %s: %s',
                 $data['reviewer_email'],
                 $store_url,

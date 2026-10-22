@@ -15,6 +15,8 @@ class WC_Multi_Store_Shipping_Class_Sync {
     use WC_Multi_Store_Ajax_Auth_Guard;
     use WC_Multi_Store_Async_Sync;
 
+    const LOG_CHANNEL = 'shipping-classes';
+
     /**
      * Cache key prefix for shipping classes
      */
@@ -89,7 +91,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
             return;
         }
 
-        WC_Multi_Store_Logger::write(sprintf(
+        self::sync_log(sprintf(
             'Shipping class created locally: "%s" (slug: %s) - queuing sync to remote stores',
             $term->name,
             $term->slug
@@ -111,7 +113,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
             return;
         }
 
-        WC_Multi_Store_Logger::write(sprintf(
+        self::sync_log(sprintf(
             'Shipping class updated locally: "%s" - queuing sync to remote stores',
             $term->name
         ));
@@ -127,7 +129,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
             return;
         }
 
-        WC_Multi_Store_Logger::write(sprintf(
+        self::sync_log(sprintf(
             'Shipping class deleted locally: "%s" - queuing removal from remote stores',
             $term->name
         ));
@@ -184,7 +186,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
     public function sync_shipping_class_to_store(WC_Multi_Store_API_Client $client, WP_Term $term, string $store_url): bool {
         $remote_class = $this->find_remote_shipping_class($client, $term->slug, $store_url);
         if (is_wp_error($remote_class)) {
-            WC_Multi_Store_Logger::write($remote_class->get_error_message(), 'error');
+            self::sync_log($remote_class->get_error_message(), 'error');
             return false;
         }
 
@@ -201,7 +203,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
         }
 
         if (is_wp_error($response)) {
-            WC_Multi_Store_Logger::write(sprintf(
+            self::sync_log(sprintf(
                 'Failed to sync shipping class "%s" to %s: %s',
                 $term->name,
                 $store_url,
@@ -213,7 +215,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
         // Clear cache for this store
         delete_transient(self::CACHE_PREFIX . md5($store_url));
 
-        WC_Multi_Store_Logger::write(sprintf(
+        self::sync_log(sprintf(
             'Shipping class "%s" synced to %s (ID: %d)',
             $term->name,
             $store_url,
@@ -254,13 +256,13 @@ class WC_Multi_Store_Shipping_Class_Sync {
 
                 if ($success) {
                     delete_transient(self::CACHE_PREFIX . md5($store['store_url']));
-                    WC_Multi_Store_Logger::write(sprintf(
+                    self::sync_log(sprintf(
                         'Shipping class "%s" deleted from %s',
                         $name,
                         $store['store_url']
                     ));
                 } else {
-                    WC_Multi_Store_Logger::write(sprintf(
+                    self::sync_log(sprintf(
                         'Failed to delete shipping class "%s" from %s: %s',
                         $name,
                         $store['store_url'],

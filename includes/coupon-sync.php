@@ -14,6 +14,8 @@ class WC_Multi_Store_Coupon_Sync {
     use WC_Multi_Store_Ajax_Auth_Guard;
     use WC_Multi_Store_Async_Sync;
 
+    const LOG_CHANNEL = 'coupons';
+
     /**
      * TTL for the per-store SKU→remote-product-ID / slug→remote-category-ID
      * lookup cache used by resolve_remote_ids(). Kept short relative to
@@ -62,7 +64,7 @@ class WC_Multi_Store_Coupon_Sync {
             return;
         }
 
-        WC_Multi_Store_Logger::write(sprintf(
+        self::sync_log(sprintf(
             'Coupon saved: "%s" (ID: %d) - queuing sync to remote stores',
             $coupon->get_code(),
             $coupon_id
@@ -89,7 +91,7 @@ class WC_Multi_Store_Coupon_Sync {
         // so new WC_Coupon($coupon_id) would come back empty.
         $code = $coupon->get_code();
 
-        WC_Multi_Store_Logger::write(sprintf(
+        self::sync_log(sprintf(
             'Coupon deleted: "%s" (ID: %d) - queuing removal from remote stores',
             $code,
             $coupon_id
@@ -190,7 +192,7 @@ class WC_Multi_Store_Coupon_Sync {
         try {
             $data = $this->extract_coupon_data($coupon);
         } catch (\RuntimeException $e) {
-            WC_Multi_Store_Logger::write($e->getMessage(), 'error');
+            self::sync_log($e->getMessage(), 'error');
             return array_fill_keys(array_column($stores, 'store_url'), false);
         }
         $results = [];
@@ -211,7 +213,7 @@ class WC_Multi_Store_Coupon_Sync {
         try {
             $data = $this->resolve_remote_ids($client, $data, $store_url);
         } catch (\RuntimeException $e) {
-            WC_Multi_Store_Logger::write('Coupon sync aborted for ' . $store_url . ': ' . $e->getMessage(), 'error');
+            self::sync_log('Coupon sync aborted for ' . $store_url . ': ' . $e->getMessage(), 'error');
             return false;
         }
 
@@ -219,7 +221,7 @@ class WC_Multi_Store_Coupon_Sync {
         $remote_coupon = $this->find_remote_coupon($client, $coupon->get_code());
 
         if (is_wp_error($remote_coupon)) {
-            WC_Multi_Store_Logger::write($remote_coupon->get_error_message(), 'error');
+            self::sync_log($remote_coupon->get_error_message(), 'error');
             return false;
         }
 
@@ -230,7 +232,7 @@ class WC_Multi_Store_Coupon_Sync {
         }
 
         if (is_wp_error($response)) {
-            WC_Multi_Store_Logger::write(sprintf(
+            self::sync_log(sprintf(
                 'Failed to sync coupon "%s" to %s: %s',
                 $coupon->get_code(),
                 $store_url,
@@ -239,7 +241,7 @@ class WC_Multi_Store_Coupon_Sync {
             return false;
         }
 
-        WC_Multi_Store_Logger::write(sprintf(
+        self::sync_log(sprintf(
             'Coupon "%s" synced to %s (remote ID: %d)',
             $coupon->get_code(),
             $store_url,
@@ -273,7 +275,7 @@ class WC_Multi_Store_Coupon_Sync {
                 $results[$store['store_url']] = $success;
 
                 if ($success) {
-                    WC_Multi_Store_Logger::write(sprintf(
+                    self::sync_log(sprintf(
                         'Coupon "%s" deleted from %s',
                         $code,
                         $store['store_url']
