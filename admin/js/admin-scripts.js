@@ -611,7 +611,12 @@
                         if (log.error_message) details += '\n' + log.error_message;
                         if (log.request_data) details += '\n' + JSON.stringify(log.request_data, null, 2);
                         wcMssNotice('#wc-mss-webhook-notices', details, 'info');
+                    } else {
+                        wcMssNotice('#wc-mss-webhook-notices', (response.data && response.data.message) || wcMssAdmin.i18n.request_failed, 'error');
                     }
+                },
+                error: function() {
+                    wcMssNotice('#wc-mss-webhook-notices', wcMssAdmin.i18n.request_failed, 'error');
                 }
             });
         }
@@ -621,6 +626,8 @@
                 action: 'wc_mss_export_webhook_logs',
                 nonce: wcMssAdmin.nonce,
                 log_type: document.getElementById('webhook-log-type-filter')?.value || '',
+                status: document.getElementById('webhook-log-status-filter')?.value || '',
+                product_sku: document.getElementById('webhook-log-sku-filter')?.value || '',
                 date_from: document.getElementById('webhook-log-date-from')?.value || '',
                 date_to: document.getElementById('webhook-log-date-to')?.value || ''
             };
@@ -630,8 +637,13 @@
                 data: serialize(filters),
                 success: function(response) {
                     if (response.success && response.data.csv_content) {
-                        var csvData = atob(response.data.csv_content);
-                        var blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+                        // atob() yields a binary string; hand the raw bytes to the Blob so UTF-8 survives.
+                        var csvBinary = atob(response.data.csv_content);
+                        var csvBytes = new Uint8Array(csvBinary.length);
+                        for (var i = 0; i < csvBinary.length; i++) {
+                            csvBytes[i] = csvBinary.charCodeAt(i);
+                        }
+                        var blob = new Blob([csvBytes], { type: 'text/csv;charset=utf-8;' });
                         var url = URL.createObjectURL(blob);
                         var a = document.createElement('a');
                         a.href = url;
@@ -653,7 +665,8 @@
         function escapeHtml(text) {
             var div = document.createElement('div');
             div.textContent = text;
-            return div.innerHTML;
+            // innerHTML leaves quotes alone; escape them so values are safe inside attributes too.
+            return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         function deleteWebhookLogs(deleteType, days) {
@@ -675,7 +688,7 @@
                         wcMssNotice(null, response.data.message + "\n" + __("Remaining records: ", 'multi-store-sync-for-woocommerce') + response.data.remaining);
                         loadWebhookLogs(1);
                     } else {
-                        wcMssNotice(null, __("Error", 'multi-store-sync-for-woocommerce') + ": " + (response.data.message || __("Unknown error", 'multi-store-sync-for-woocommerce')));
+                        wcMssNotice(null, __("Error", 'multi-store-sync-for-woocommerce') + ": " + (response.data.message || __("Unknown error", 'multi-store-sync-for-woocommerce')), 'error');
                     }
                 },
                 error: function() {
@@ -735,10 +748,12 @@
         if (dlqRetryAllBtn) {
             dlqRetryAllBtn.addEventListener('click', function() {
                 if (!confirm(dlqRetryAllBtn.dataset.confirm)) return;
-                this.disabled = true;
+                var retryBtn = this;
+                retryBtn.disabled = true;
                 wcMssDlqAction('wc_mss_dlq_retry_all', {}, function(ok, msg) {
                     wcMssNotice(null, msg, ok ? 'success' : 'error');
                     if (ok) location.reload();
+                    else retryBtn.disabled = false;
                 });
             });
         }
@@ -747,10 +762,12 @@
         if (dlqClearAllBtn) {
             dlqClearAllBtn.addEventListener('click', function() {
                 if (!confirm(dlqClearAllBtn.dataset.confirm)) return;
-                this.disabled = true;
+                var clearBtn = this;
+                clearBtn.disabled = true;
                 wcMssDlqAction('wc_mss_dlq_clear_all', {}, function(ok, msg) {
                     wcMssNotice(null, msg, ok ? 'success' : 'error');
                     if (ok) location.reload();
+                    else clearBtn.disabled = false;
                 });
             });
         }
@@ -767,7 +784,8 @@
                 btn.disabled = true;
                 btn.textContent = btn.dataset.labelLoading;
 
-                var includeKeys = document.getElementById('wc-mss-export-include-keys').checked;
+                var includeKeysBox = document.getElementById('wc-mss-export-include-keys');
+                var includeKeys = !!(includeKeysBox && includeKeysBox.checked);
 
                 wcMssAdminUI.response('action=wc_mss_export_config&nonce=' + wcMssAdmin.nonce + '&include_keys=' + (includeKeys ? '1' : '0'))
                 .then(function(data) {
@@ -1276,8 +1294,11 @@
                         });
                 }
 
+                var mappingRequestSeq = 0;
+
                 storeSelect.on('change', function () {
                     var storeUrl = $(this).val();
+                    var requestSeq = ++mappingRequestSeq;
 
                     tablesWrap.hide();
                     emptyWrap.hide();
@@ -1295,6 +1316,8 @@
                         ajaxPost('wc_mss_get_remote_terms', { store_url: storeUrl, taxonomy: 'category' }),
                         ajaxPost('wc_mss_get_remote_terms', { store_url: storeUrl, taxonomy: 'tag' }),
                     ]).then(function (results) {
+                        // A newer store selection superseded this request; drop the stale response.
+                        if (requestSeq !== mappingRequestSeq) { return; }
                         loading.hide();
 
                         var mappingsResp = results[0];
@@ -1316,6 +1339,7 @@
                         tagBody.html(buildRows(data.local_tags, data.tag_mappings, remoteTags));
                         tablesWrap.show();
                     }).catch(function () {
+                        if (requestSeq !== mappingRequestSeq) { return; }
                         loading.hide();
                         emptyWrap.text(i18n.load_failed).show();
                     });
@@ -1468,8 +1492,11 @@
                         });
                 }
 
+                var attrRequestSeq = 0;
+
                 storeSelect.on('change', function () {
                     var storeUrl = $(this).val();
+                    var requestSeq = ++attrRequestSeq;
 
                     tablesWrap.hide();
                     emptyWrap.hide();
@@ -1486,6 +1513,7 @@
                         ajaxPost('wc_mss_get_attribute_mappings', { store_url: storeUrl }),
                         ajaxPost('wc_mss_get_remote_terms', { store_url: storeUrl, taxonomy: 'attribute' }),
                     ]).then(function (results) {
+                        if (requestSeq !== attrRequestSeq) { return; }
                         loading.hide();
 
                         var mappingsResp = results[0];
@@ -1506,6 +1534,7 @@
                         valueGroups.html(buildValueGroups(data.local_attributes, data.value_mappings));
                         tablesWrap.show();
                     }).catch(function () {
+                        if (requestSeq !== attrRequestSeq) { return; }
                         loading.hide();
                         emptyWrap.text(i18n.load_failed).show();
                     });

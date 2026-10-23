@@ -172,12 +172,22 @@ class WC_Multi_Store_Category_Deletion_Sync {
             foreach ($batch as $product_id) {
                 // Queue product deletion - uses optimized SQL, no product loading
                 // Audit log will be created in the queue processor when deletion actually happens
-                WC_MSS()->queue_manager->add_product_deletion(
+                $queued = WC_MSS()->queue_manager->add_product_deletion(
                     $product_id,
                     $deletion_reason . '_delete',
                     3, // Lower priority for bulk operations
                     $stores
                 );
+
+                // Never delete the local product when the remote deletion could not be queued:
+                // the remote copy would be orphaned with nothing left to trigger its removal.
+                if (!$queued) {
+                    WC_Multi_Store_Logger::write(sprintf(
+                        'Product ID %d kept: its remote deletion could not be queued',
+                        $product_id
+                    ), 'error');
+                    continue;
+                }
 
                 // Delete the local product
                 wp_delete_post($product_id, true);
@@ -212,8 +222,12 @@ class WC_Multi_Store_Category_Deletion_Sync {
         ));
 
         foreach ($product_ids as $product_id) {
-            // Remove all categories and set to Uncategorized
-            wp_set_object_terms($product_id, [$uncategorized], 'product_cat', false);
+            // The deleted category is already gone here. Only a product left with no category at all
+            // moves to Uncategorized; its other categories must survive.
+            $remaining = wp_get_object_terms($product_id, 'product_cat', ['fields' => 'ids']);
+            if (is_wp_error($remaining) || empty($remaining)) {
+                wp_set_object_terms($product_id, [$uncategorized], 'product_cat', false);
+            }
 
             // Queue product for sync
             WC_MSS()->queue_manager->add_product(

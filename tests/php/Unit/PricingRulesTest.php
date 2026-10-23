@@ -194,7 +194,8 @@ class PricingRulesTest extends WC_Multi_Store_TestCase
         $result = WC_Multi_Store_Pricing_Rules::apply_pricing_rules($product_data, $pricing_rules);
 
         $this->assertEquals('0', $result['regular_price']);
-        $this->assertEquals('0', $result['sale_price']);
+        // A sale price that is not below the (clamped) regular price is dropped.
+        $this->assertArrayNotHasKey('sale_price', $result);
     }
 
     /**

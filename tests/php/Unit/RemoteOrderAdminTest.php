@@ -155,6 +155,18 @@ class RemoteOrderAdminTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('john@example.com', $result);
     }
 
+    public function test_format_address_with_only_one_name_part_raises_no_warning(): void
+    {
+        $method = (new ReflectionClass($this->admin))->getMethod('format_address');
+        Functions\when('esc_html')->alias(fn($v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'));
+
+        $lastOnly = $method->invoke($this->admin, ['last_name' => 'Doe']);
+        $firstOnly = $method->invoke($this->admin, ['first_name' => 'Jane']);
+
+        $this->assertStringContainsString('Doe', $lastOnly);
+        $this->assertStringContainsString('Jane', $firstOnly);
+    }
+
     public function test_format_address_with_minimal_address(): void
     {
         $ref = new ReflectionClass($this->admin);

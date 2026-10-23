@@ -8,6 +8,8 @@
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class BulkActionsTest extends WC_Multi_Store_TestCase
 {
@@ -145,6 +147,9 @@ class BulkActionsTest extends WC_Multi_Store_TestCase
 
     // ── handle_bulk_actions – mss_bulk_delete ────────────────────
 
+    // bulk_delete_products() define()s DOING_BULK_EDIT, which would otherwise leak into every later test.
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function test_handle_bulk_delete_action(): void
     {
         $_REQUEST['_wpnonce'] = 'test_nonce';
@@ -210,6 +215,9 @@ class BulkActionsTest extends WC_Multi_Store_TestCase
         $this->assertEquals(0, $result);
     }
 
+    // bulk_delete_products() define()s DOING_BULK_EDIT, which would otherwise leak into every later test.
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function test_bulk_delete_queues_each_product(): void
     {
         $this->setUpWpdbMock();

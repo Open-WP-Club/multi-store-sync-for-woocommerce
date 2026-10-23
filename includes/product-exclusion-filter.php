@@ -82,7 +82,7 @@ class WC_Multi_Store_Product_Exclusion_Filter {
         if (!empty($store_config['exclude_categories'])) {
             $all_category_ids = self::expand_with_ancestors($category_ids);
 
-            foreach ($store_config['exclude_categories'] as $excluded_cat_id) {
+            foreach (self::normalize_ids($store_config['exclude_categories']) as $excluded_cat_id) {
                 if (in_array($excluded_cat_id, $all_category_ids)) {
                     return true;
                 }
@@ -91,7 +91,7 @@ class WC_Multi_Store_Product_Exclusion_Filter {
 
         // Check excluded tags
         if (!empty($store_config['exclude_tags'])) {
-            foreach ($store_config['exclude_tags'] as $excluded_tag_id) {
+            foreach (self::normalize_ids($store_config['exclude_tags']) as $excluded_tag_id) {
                 if (in_array($excluded_tag_id, $tag_ids)) {
                     return true;
                 }
@@ -123,7 +123,7 @@ class WC_Multi_Store_Product_Exclusion_Filter {
         if (!empty($store_config['exclude_categories']) && !empty($product_cats)) {
             $all_cat_ids = self::expand_with_ancestors($product_cats);
 
-            foreach ($store_config['exclude_categories'] as $excluded_cat_id) {
+            foreach (self::normalize_ids($store_config['exclude_categories']) as $excluded_cat_id) {
                 if (in_array($excluded_cat_id, $all_cat_ids)) {
                     $term = get_term($excluded_cat_id, 'product_cat');
                     if ($term && !is_wp_error($term)) {
@@ -135,7 +135,7 @@ class WC_Multi_Store_Product_Exclusion_Filter {
 
         // Check excluded tags
         if (!empty($store_config['exclude_tags']) && !empty($product_tags)) {
-            foreach ($store_config['exclude_tags'] as $excluded_tag_id) {
+            foreach (self::normalize_ids($store_config['exclude_tags']) as $excluded_tag_id) {
                 if (in_array($excluded_tag_id, $product_tags)) {
                     $term = get_term($excluded_tag_id, 'product_tag');
                     if ($term && !is_wp_error($term)) {
@@ -166,4 +166,24 @@ class WC_Multi_Store_Product_Exclusion_Filter {
         return $all_ids;
     }
 
+
+    /**
+     * Turn a configured exclusion list into positive integer term IDs.
+     *
+     * Anything that is not an ID (a stray `true`, text, nested arrays, a bare string) is dropped, so
+     * a corrupt option can neither exclude every product nor raise a foreach warning.
+     *
+     * @param mixed $ids Configured exclusion IDs
+     * @return int[]
+     */
+    private static function normalize_ids(mixed $ids): array {
+        $clean = [];
+        foreach ((array) $ids as $id) {
+            if ((is_int($id) || is_string($id)) && is_numeric($id) && (int) $id > 0) {
+                $clean[] = (int) $id;
+            }
+        }
+
+        return $clean;
+    }
 }

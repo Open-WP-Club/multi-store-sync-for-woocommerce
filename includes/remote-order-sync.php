@@ -138,6 +138,10 @@ class WC_Multi_Store_Remote_Order_Sync {
             // Process each order
             foreach ($response as $order_data) {
                 try {
+                    if (!is_array($order_data)) {
+                        throw new Exception('Unexpected order entry in API response');
+                    }
+
                     $result = $this->process_order($order_data, $store_url);
 
                     if ($result === 'created') {
@@ -145,10 +149,10 @@ class WC_Multi_Store_Remote_Order_Sync {
                     } elseif ($result === 'updated') {
                         $updated++;
                     }
-                } catch (Exception $e) {
+                } catch (\Throwable $e) {
                     WC_Multi_Store_Logger::write(
                         sprintf('Error processing order #%s from %s: %s',
-                            $order_data['id'] ?? 'unknown',
+                            is_array($order_data) ? ($order_data['id'] ?? 'unknown') : 'unknown',
                             $store_url,
                             $e->getMessage()
                         ),
@@ -223,11 +227,15 @@ class WC_Multi_Store_Remote_Order_Sync {
                 return 'skipped'; // No changes
             }
 
-            WC_Multi_Store_Remote_Order_Table::update($existing_id, $prepared_data);
+            if (!WC_Multi_Store_Remote_Order_Table::update($existing_id, $prepared_data)) {
+                throw new Exception('Could not update the stored order');
+            }
             return 'updated';
         } else {
             // Create new order
-            WC_Multi_Store_Remote_Order_Table::insert($prepared_data);
+            if (!WC_Multi_Store_Remote_Order_Table::insert($prepared_data)) {
+                throw new Exception('Could not store the order');
+            }
             return 'created';
         }
     }

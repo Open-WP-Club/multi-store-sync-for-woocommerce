@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.3.0 — 2026-10-23
+
+- New: **Primary Site Wins** (Settings). When on, the main store is the source of truth: sync conflicts resolve themselves by overwriting the remote edit (closed as `auto_overwrite` after the sync succeeds), stock discrepancies are corrected from the main store (max 3 attempts per product and store per day), and Weekly Verification always auto-corrects. Existing unresolved conflicts are queued when the option is turned on. Removing remote products that no longer exist locally stays a separate Orphan Cleanup setting.
+- Fixed: Orphan Cleanup aborts instead of flagging every remote product as an orphan (and auto-trashing them) when the local SKU list is empty or unreadable.
+- Fixed: bracketed IPv6 link-local addresses (`[fe80::1]`) are now blocked by the store URL and cache-purge URL checks like `169.254.x.x`.
+- Fixed: newly created and renamed remote categories/tags were written to a cache key nothing read, so every following product re-detected them as missing.
+- Fixed: stock allocation no longer returns negative quantities for backorder (negative) stock, ignores negative reserves, and caps the extra reserve percentage at 100.
+- Fixed: a sale price equal to the regular price after clamping is removed instead of kept as `0`.
+- Fixed: the product "delete from stores" box can save "no store selected"; browsers send nothing when every checkbox is unticked.
+- Fixed: attribute sync looks through every page of remote attributes instead of only the first 100, so large stores no longer get duplicates; an attribute named `0` no longer returns the whole value-mapping table.
+- Fixed: the webhook log export now applies the status and SKU filters that the list shows, and keeps UTF-8 characters in the CSV.
+- Fixed: sorting remote orders by the Order column; weekly-verification recipient lists with a trailing comma; a PHP warning for addresses with only a first or last name; price discrepancy messages are escaped; corrupt shipping-class cache entries are ignored.
+- Fixed (admin): quotes are escaped in mapping tables, store switches ignore stale responses, failed webhook delete/detail requests show an error, Dead Letter Queue buttons re-enable after a failure, config export tolerates a missing checkbox.
+- Fixed (webhooks): the CSV export could be split into extra cells by a crafted SKU/error message, defeating the formula-injection guard; failed deductions no longer block WooCommerce's retry; negative or non-numeric quantities never deduct stock; one failing line no longer aborts the rest of an order or crashes on a product deleted mid-request; log filters accept a literal `0`, a zero page size no longer errors, and an invalid retention setting can no longer wipe every log.
+- Fixed (queue): deletions, restores and status changes are no longer swallowed by a pending regular sync of the same product; items for an inactive store are failed instead of synced; claiming an item is atomic so two workers cannot process it twice; an item that keeps crashing the worker is parked as failed after three resets instead of looping forever; a failed database read or an invalid batch size no longer causes a fatal error.
+- Fixed (images): local attachments are only read from inside the uploads directory, remote image URLs must be http(s) and not a link-local address, and URLs without a path get a safe filename.
+- Fixed (configuration): a redacted export now also hides the application password; importing validates everything before writing anything, restores each redacted credential separately, rejects malformed store entries, keeps unknown or wrongly typed values out of the settings (batch sizes, hours and retention are clamped like the Settings screen).
+- Fixed (data safety): deleting a category no longer removes products whose remote deletion could not be queued, and "uncategorize" keeps a product's other categories; deletion-audit cleanup keeps rows it could not archive; sync-history cleanup/deletion no longer wipes everything for a zero or fractional age and only matches the exact store host.
+- Fixed (orders and scheduling): remote order sync reports failed inserts/updates and survives malformed API entries, unchanged orders are no longer rewritten on every run, a date-only "to" filter includes that whole day, peak hours that cross midnight work and batch sizes are at least 1.
+- Fixed (robustness): sync profile import rejects malformed files and sanitises names, product exclusion lists tolerate corrupt values, empty health-alert recipients fall back to the admin email, and corrupt order/health options no longer cause fatal errors.
+- Tests: added coverage for most previously untested classes and the admin scripts; the suite now passes in random order.
+
 ## 5.2.0 — 2026-10-20
 
 - Changed: unified actionable sync lists and read-only reports using native WordPress list tables, notices, cards, and the WordPress dialog.

@@ -216,13 +216,17 @@ class WC_Multi_Store_Sync_Profiles {
      */
     public static function import(string $json): ?string {
         $data = json_decode($json, true);
-        if (!$data || !is_array($data)) {
+        if (!$data || !is_array($data) || array_is_list($data)) {
             return null;
         }
 
-        // Validate required fields
-        if (empty($data['name'])) {
-            $data['name'] = 'Imported Profile';
+        // Validate required fields: the name must be plain text, and settings must be a list of values.
+        $name = isset($data['name']) && is_string($data['name']) ? sanitize_text_field($data['name']) : '';
+        $data['name'] = $name !== '' ? $name : 'Imported Profile';
+        foreach (['sync_settings', 'store_settings'] as $section) {
+            if (isset($data[$section]) && !is_array($data[$section])) {
+                unset($data[$section]);
+            }
         }
 
         $data['name'] .= ' (Imported)';

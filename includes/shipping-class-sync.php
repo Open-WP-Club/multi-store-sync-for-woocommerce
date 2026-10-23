@@ -335,7 +335,7 @@ class WC_Multi_Store_Shipping_Class_Sync {
         $cache_key = self::CACHE_PREFIX . md5($store_url);
         $cached = get_transient($cache_key);
 
-        if ($cached !== false) {
+        if (is_array($cached)) {
             return $cached;
         }
 

@@ -84,7 +84,7 @@ class WC_Multi_Store_Attribute_Remapper {
         $key = md5($store_url);
         $store_mappings = $all[$key] ?? [];
 
-        if ($attribute_name) {
+        if ($attribute_name !== '') {
             $attr_key = sanitize_title($attribute_name);
             return $store_mappings[$attr_key] ?? [];
         }

@@ -9,6 +9,28 @@ use Brain\Monkey\Actions;
 
 class ProductEditTest extends WC_Multi_Store_TestCase
 {
+    /** @var list<array{0: string, 1: array}> Recorded update_post_meta()/add_meta_box() calls. */
+    private array $recorded = [];
+
+    /** Record calls to the given functions instead of executing them. */
+    private function recordCalls(string ...$functions): void
+    {
+        $this->recorded = [];
+        foreach ($functions as $fn) {
+            Functions\when($fn)->alias(function (...$args) use ($fn) {
+                $this->recorded[] = [$fn, $args];
+                return true;
+            });
+        }
+    }
+
+    /** @param array<string, array> $stores */
+    private function stubStores(array $stores): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('get_option')->alias(fn($option, $default = false) => $option === 'wc_multi_store_sync_stores' ? $stores : $default);
+    }
+
     private ?WC_Multi_Store_Product_Edit $editor = null;
 
     protected function setUp(): void
@@ -67,32 +89,60 @@ class ProductEditTest extends WC_Multi_Store_TestCase
 
     // ─── Constructor hooks ─────────────────────────
 
-    public function test_constructor_completes_without_errors(): void
+    public function test_constructor_registers_expected_hooks(): void
     {
-        // Constructor calls add_action 5 times (mocked via when)
-        $editor = new WC_Multi_Store_Product_Edit();
+        $this->recordCalls('add_action');
 
-        $this->assertInstanceOf(WC_Multi_Store_Product_Edit::class, $editor);
+        new WC_Multi_Store_Product_Edit();
+
+        $hooks = array_map(static fn(array $c): array => [$c[1][0], $c[1][2] ?? 10, $c[1][3] ?? 1], $this->recorded);
+        $this->assertSame([
+            ['add_meta_boxes', 10, 1],
+            ['add_meta_boxes', 10, 1],
+            ['wp_ajax_wc_mss_sync_product', 10, 1],
+            ['wp_ajax_wc_mss_preview_sync', 10, 1],
+            ['save_post_product', 10, 1],
+            ['admin_enqueue_scripts', 10, 1],
+        ], $hooks);
+        foreach ($this->recorded as [, $args]) {
+            $this->assertIsCallable($args[1]);
+        }
     }
 
     // ─── add_sync_metabox ──────────────────────────
 
-    public function test_add_sync_metabox_does_not_throw(): void
+    public function test_add_sync_metabox_registers_side_metabox_on_product_screen(): void
     {
-        // add_meta_box is mocked in setUp; verify no exception
+        $this->recordCalls('add_meta_box');
+
         $this->editor->add_sync_metabox();
 
-        $this->assertTrue(true);
+        $this->assertCount(1, $this->recorded);
+        [$id, $title, $callback, $screen, $context, $priority] = $this->recorded[0][1];
+        $this->assertSame('wc_multi_store_sync_actions', $id);
+        $this->assertSame('Multi-Store Sync', $title);
+        $this->assertSame('product', $screen);
+        $this->assertSame('side', $context);
+        $this->assertSame('high', $priority);
+        $this->assertIsCallable($callback);
     }
 
     // ─── add_store_deletion_metabox ────────────────
 
-    public function test_add_store_deletion_metabox_does_not_throw(): void
+    public function test_add_store_deletion_metabox_registers_default_priority_side_metabox(): void
     {
-        // add_meta_box is mocked in setUp; verify no exception
+        $this->recordCalls('add_meta_box');
+
         $this->editor->add_store_deletion_metabox();
 
-        $this->assertTrue(true);
+        $this->assertCount(1, $this->recorded);
+        [$id, $title, $callback, $screen, $context, $priority] = $this->recorded[0][1];
+        $this->assertSame('wc_multi_store_deletion_settings', $id);
+        $this->assertSame('Selective Store Deletion', $title);
+        $this->assertSame('product', $screen);
+        $this->assertSame('side', $context);
+        $this->assertSame('default', $priority);
+        $this->assertIsCallable($callback);
     }
 
     // ─── save_store_deletion_settings ──────────────
@@ -100,18 +150,20 @@ class ProductEditTest extends WC_Multi_Store_TestCase
     public function test_save_store_deletion_settings_skips_without_nonce(): void
     {
         $_POST = [];
+        $this->recordCalls('update_post_meta', 'wp_verify_nonce');
 
         $this->editor->save_store_deletion_settings(1);
 
-        // Reached here without calling update_post_meta
-        $this->assertTrue(true);
+        $this->assertSame([], $this->recorded, 'Without a nonce nothing is verified or saved');
     }
 
     public function test_save_store_deletion_settings_skips_invalid_nonce(): void
     {
         $_POST = [
             'wc_mss_store_deletion_nonce' => 'invalid',
+            '_wc_mss_delete_from_stores' => [md5('https://a.example') => '1'],
         ];
+        $this->recordCalls('update_post_meta');
 
         Functions\expect('wp_verify_nonce')
             ->once()
@@ -120,16 +172,73 @@ class ProductEditTest extends WC_Multi_Store_TestCase
 
         $this->editor->save_store_deletion_settings(1);
 
-        $this->assertTrue(true);
+        $this->assertSame([], $this->recorded, 'An invalid nonce must not write post meta');
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
+    }
+
+    public function test_save_store_deletion_settings_skips_without_edit_capability(): void
+    {
+        $_POST = ['wc_mss_store_deletion_nonce' => 'good'];
+        Functions\when('wp_verify_nonce')->justReturn(1);
+        Functions\expect('current_user_can')->once()->with('edit_product', 9)->andReturn(false);
+        $this->recordCalls('update_post_meta');
+
+        $this->editor->save_store_deletion_settings(9);
+
+        $this->assertSame([], $this->recorded);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
+    }
+
+    public function test_save_store_deletion_settings_stores_checked_state_per_active_store(): void
+    {
+        $a = 'https://a.example';
+        $b = 'https://b.example';
+        $this->stubStores([
+            $a => ['status' => 'active', 'name' => 'A'],
+            $b => ['status' => 'active', 'name' => 'B'],
+            'https://off.example' => ['status' => 'inactive'],
+        ]);
+        $_POST = [
+            'wc_mss_store_deletion_nonce' => 'good',
+            '_wc_mss_delete_from_stores' => [md5($a) => '1'],
+        ];
+        Functions\when('wp_verify_nonce')->justReturn(1);
+        Functions\when('current_user_can')->justReturn(true);
+        $this->recordCalls('update_post_meta');
+
+        $this->editor->save_store_deletion_settings(5);
+
+        $this->assertSame([
+            ['update_post_meta', [5, '_wc_mss_selective_deletion', [md5($a) => true, md5($b) => false]]],
+            ['update_post_meta', [5, '_wc_mss_deletion_stores_map', [md5($a) => $a, md5($b) => $b]]],
+        ], $this->recorded);
+    }
+
+    public function test_save_store_deletion_settings_treats_missing_checkbox_array_as_none_selected(): void
+    {
+        $a = 'https://a.example';
+        $this->stubStores([$a => ['status' => 'active']]);
+        $_POST = ['wc_mss_store_deletion_nonce' => 'good'];
+        Functions\when('wp_verify_nonce')->justReturn(1);
+        Functions\when('current_user_can')->justReturn(true);
+        $this->recordCalls('update_post_meta');
+
+        $this->editor->save_store_deletion_settings(5);
+
+        $this->assertSame([5, '_wc_mss_selective_deletion', [md5($a) => false]], $this->recorded[0][1]);
     }
 
     // ─── enqueue_scripts ───────────────────────────
 
     public function test_enqueue_scripts_skips_non_product_pages(): void
     {
-        $this->expectNotToPerformAssertions();
+        Functions\expect('wp_enqueue_script')->never();
+        Functions\expect('wp_enqueue_style')->never();
+        Functions\expect('wp_localize_script')->never();
 
         $this->editor->enqueue_scripts('edit.php');
+
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_enqueue_scripts_skips_when_no_post(): void
@@ -137,9 +246,12 @@ class ProductEditTest extends WC_Multi_Store_TestCase
         global $post;
         $post = null;
 
-        $this->expectNotToPerformAssertions();
+        Functions\expect('wp_enqueue_script')->never();
+        Functions\expect('wp_enqueue_style')->never();
 
         $this->editor->enqueue_scripts('post.php');
+
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_enqueue_scripts_skips_non_product_post_type(): void
@@ -147,19 +259,19 @@ class ProductEditTest extends WC_Multi_Store_TestCase
         global $post;
         $post = new WP_Post(['ID' => 1, 'post_type' => 'page']);
 
-        $this->expectNotToPerformAssertions();
+        Functions\expect('wp_enqueue_script')->never();
+        Functions\expect('wp_enqueue_style')->never();
 
         $this->editor->enqueue_scripts('post.php');
+
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
     public function test_enqueue_scripts_loads_on_product_edit(): void
     {
-        if (!defined('WC_MSS_PLUGIN_URL')) {
-            define('WC_MSS_PLUGIN_URL', 'http://example.com/wp-content/plugins/wc-multi-store-sync/');
-        }
-        if (!defined('WC_MSS_VERSION')) {
-            define('WC_MSS_VERSION', '2.0.0');
-        }
+        define('WC_MSS_PLUGIN_URL', 'http://example.com/wp-content/plugins/wc-multi-store-sync/');
 
         global $post;
         $post = new WP_Post(['ID' => 1, 'post_type' => 'product']);
@@ -168,9 +280,9 @@ class ProductEditTest extends WC_Multi_Store_TestCase
             ->once()
             ->with(
                 'wc-mss-product-sync',
-                \Mockery::type('string'),
+                'http://example.com/wp-content/plugins/wc-multi-store-sync/admin/js/product-sync.js',
                 ['jquery'],
-                \Mockery::any(),
+                WC_MSS_VERSION,
                 true
             );
 
@@ -179,29 +291,34 @@ class ProductEditTest extends WC_Multi_Store_TestCase
             ->with(
                 'wc-mss-product-sync',
                 'wcMssProduct',
-                \Mockery::type('array')
+                \Mockery::on(static fn($data): bool => is_array($data)
+                    && $data['ajaxUrl'] === 'http://example.com/wp-admin/admin-ajax.php'
+                    && $data['syncNonce'] === 'nonce_wc_mss_sync_product'
+                    && $data['previewNonce'] === 'nonce_wc_mss_preview_sync'
+                    && isset($data['i18n']['syncing'], $data['i18n']['errorOccurred']))
             );
 
         Functions\expect('wp_create_nonce')
             ->twice()
-            ->andReturn('test_nonce');
+            ->andReturnUsing(static fn(string $action): string => 'nonce_' . $action);
 
         Functions\expect('admin_url')
             ->once()
+            ->with('admin-ajax.php')
             ->andReturn('http://example.com/wp-admin/admin-ajax.php');
 
         Functions\expect('wp_enqueue_style')
             ->once()
             ->with(
                 'wc-mss-product-edit',
-                \Mockery::type('string'),
+                'http://example.com/wp-content/plugins/wc-multi-store-sync/admin/css/product-edit.css',
                 [],
-                \Mockery::any()
+                WC_MSS_VERSION
             );
 
         $this->editor->enqueue_scripts('post.php');
 
-        $this->assertTrue(true);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     // ─── ajax_sync_product ─────────────────────────

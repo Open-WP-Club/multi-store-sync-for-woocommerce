@@ -145,7 +145,8 @@ class WC_Multi_Store_Stock_Verifier {
 
             // Log discrepancy if found
             if ($has_discrepancy) {
-                self::log_discrepancy($result);
+                $discrepancy_id = self::log_discrepancy($result);
+                self::maybe_auto_correct_from_primary($discrepancy_id, $product_id, $store_url);
 
                 WC_Multi_Store_Logger::write(sprintf(
                     'Stock discrepancy detected: Product #%d (SKU: %s) on %s - Expected: %d, Actual: %d, Difference: %+d',
@@ -166,6 +167,41 @@ class WC_Multi_Store_Stock_Verifier {
                 'error' => 'API Error: ' . $e->getMessage(),
             ];
         }
+    }
+
+    /** Corrections tried per product and store before a human has to look (per 24 hours). */
+    private const int AUTO_CORRECT_MAX_ATTEMPTS = 3;
+
+    /**
+     * In primary-wins mode, queue a correction for a freshly found stock discrepancy.
+     *
+     * A correction re-syncs stock and can schedule another verification, so a remote that keeps
+     * disagreeing (for example one that rewrites stock itself) would loop forever. The attempt
+     * counter stops that and leaves the discrepancy pending for manual review.
+     *
+     * @param int|false $discrepancy_id Row id from log_discrepancy()
+     * @return bool True when a correction was queued
+     */
+    private static function maybe_auto_correct_from_primary(int|false $discrepancy_id, int $product_id, string $store_url): bool {
+        if (!$discrepancy_id || !WC_Multi_Store_Settings::is_primary_authoritative()) {
+            return false;
+        }
+
+        $counter_key = 'wc_mss_auto_stock_fix_' . md5($product_id . '|' . untrailingslashit($store_url));
+        $attempts = (int) get_transient($counter_key);
+        if ($attempts >= self::AUTO_CORRECT_MAX_ATTEMPTS) {
+            WC_Multi_Store_Logger::write(sprintf(
+                'Auto-correction skipped for product #%d on %s: %d attempts in 24h did not fix the stock. Left pending for review.',
+                $product_id,
+                $store_url,
+                $attempts
+            ), 'warning');
+            return false;
+        }
+        set_transient($counter_key, $attempts + 1, DAY_IN_SECONDS);
+
+        $result = self::auto_correct($discrepancy_id);
+        return $result === true;
     }
 
     /**

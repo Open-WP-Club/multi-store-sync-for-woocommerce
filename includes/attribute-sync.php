@@ -310,16 +310,23 @@ class WC_Multi_Store_Attribute_Sync {
      * (typically small) full list and matches client-side.
      */
     private function find_remote_attribute(WC_Multi_Store_API_Client $client, string $slug): array|\WP_Error|null {
-        $response = $client->get('products/attributes', ['per_page' => 100]);
-        if (is_wp_error($response)) {
-            return $response;
-        }
+        $wanted = wc_attribute_taxonomy_slug($slug);
+        $page = 1;
 
-        foreach ($response as $attribute) {
-            if (wc_attribute_taxonomy_slug($attribute['slug'] ?? '') === wc_attribute_taxonomy_slug($slug)) {
-                return $attribute;
+        // Walk every page: a store with more than 100 attributes would otherwise report an
+        // existing one as missing and get a duplicate on the next sync.
+        do {
+            $response = $client->get('products/attributes', ['per_page' => 100, 'page' => $page++]);
+            if (is_wp_error($response)) {
+                return $response;
             }
-        }
+
+            foreach ($response as $attribute) {
+                if (wc_attribute_taxonomy_slug($attribute['slug'] ?? '') === $wanted) {
+                    return $attribute;
+                }
+            }
+        } while (count($response) === 100);
 
         return null;
     }

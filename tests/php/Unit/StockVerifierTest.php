@@ -261,8 +261,40 @@ class StockVerifierTest extends WC_Multi_Store_TestCase
 
     public function test_schedule_verification_not_available(): void
     {
-        // Action Scheduler not available in tests, should return early
+        // Action Scheduler not available in tests: nothing may be scheduled
+        $scheduled = 0;
+        Functions\when('as_schedule_single_action')->alias(function () use (&$scheduled) {
+            $scheduled++;
+            return 1;
+        });
+
         WC_Multi_Store_Stock_Verifier::schedule_verification(1, 'https://store.com', 10);
-        $this->assertTrue(true);
+
+        $this->assertSame(0, $scheduled);
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function test_schedule_verification_schedules_single_delayed_action(): void
+    {
+        class_alias(\stdClass::class, 'ActionScheduler');
+        Functions\when('as_schedule_recurring_action')->justReturn(1);
+        $calls = [];
+        Functions\when('as_schedule_single_action')->alias(function (...$args) use (&$calls) {
+            $calls[] = $args;
+            return 1;
+        });
+
+        $before = time();
+        WC_Multi_Store_Stock_Verifier::schedule_verification(7, 'https://store.com', 10);
+        $after = time();
+
+        $this->assertCount(1, $calls);
+        $this->assertGreaterThanOrEqual($before + 30, $calls[0][0], 'Verification runs 30s later so the sync can finish');
+        $this->assertLessThanOrEqual($after + 30, $calls[0][0]);
+        $this->assertSame(
+            ['wc_multi_store_verify_stock', [7, 'https://store.com', 10], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP],
+            array_slice($calls[0], 1)
+        );
     }
 }

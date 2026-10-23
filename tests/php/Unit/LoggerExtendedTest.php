@@ -73,7 +73,8 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
 
         WC_Multi_Store_Logger::write('Static message', 'warning');
 
-        $this->assertTrue(true); // Mockery::close() in tearDown() verifies the ->with() expectation above
+        // The Mockery ->once()->with() expectation above is the proof: exact level, message and context were delegated.
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_write_with_context_string_passes_through(): void
@@ -85,7 +86,7 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
 
         WC_Multi_Store_Logger::write('Message', 'info', 'extra info');
 
-        $this->assertTrue(true);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_log_delegates_to_wc_logger_with_context(): void
@@ -98,7 +99,7 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
         $logger = $this->createLogger();
         $logger->log('error', 'Something failed', ['sku' => 'ABC-123']);
 
-        $this->assertTrue(true);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_log_without_context(): void
@@ -111,7 +112,7 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
         $logger = $this->createLogger();
         $logger->log('info', 'Test message');
 
-        $this->assertTrue(true);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     // ── PSR-3 convenience methods ────────────────────────────────
@@ -126,7 +127,7 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
         $logger = $this->createLogger();
         $logger->error('Critical failure');
 
-        $this->assertTrue(true);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_psr3_warning_method(): void
@@ -139,7 +140,7 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
         $logger = $this->createLogger();
         $logger->warning('Something concerning');
 
-        $this->assertTrue(true);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_psr3_debug_method(): void
@@ -152,7 +153,7 @@ class LoggerExtendedTest extends WC_Multi_Store_TestCase
         $logger = $this->createLogger();
         $logger->debug('Debug info');
 
-        $this->assertTrue(true);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     // ── get_log with actual file ─────────────────────────────────

@@ -99,7 +99,7 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
         $product->shouldReceive('get_sku')->andReturn('IMG-TEST');
 
         // Mock the WP functions that Image Proxy uses internally
-        $tmpFile = tempnam(sys_get_temp_dir(), 'img_test_');
+        $tmpFile = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'img_test_');
         file_put_contents($tmpFile, 'fake image data');
         Functions\when('get_attached_file')->justReturn($tmpFile);
         Functions\when('get_post_mime_type')->justReturn('image/jpeg');
@@ -126,7 +126,7 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
         $product->shouldReceive('get_gallery_image_ids')->andReturn([]);
         $product->shouldReceive('get_sku')->andReturn('IMG-OK');
 
-        $tmpFile = tempnam(sys_get_temp_dir(), 'img_test_');
+        $tmpFile = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'img_test_');
         file_put_contents($tmpFile, 'fake image data');
         Functions\when('get_attached_file')->justReturn($tmpFile);
         Functions\when('get_post_mime_type')->justReturn('image/jpeg');
@@ -202,7 +202,7 @@ class SyncEngineImageTermTest extends WC_Multi_Store_TestCase
         $product->shouldReceive('get_gallery_image_ids')->andReturn([20]);
         $product->shouldReceive('get_sku')->andReturn('IMG-MIX');
 
-        $tmpFile = tempnam(sys_get_temp_dir(), 'img_test_');
+        $tmpFile = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'img_test_');
         file_put_contents($tmpFile, 'fake image data');
         Functions\when('get_attached_file')->justReturn($tmpFile);
         Functions\when('get_post_mime_type')->justReturn('image/jpeg');

@@ -285,14 +285,60 @@ class SyncEngineFunctionalTest extends WC_Multi_Store_TestCase
 
     public function test_clear_term_cache_clears_all_store_caches(): void
     {
+        $deleted = [];
+        Functions\when('delete_transient')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+        $logged = $this->captureLogLines();
+
         WC_Multi_Store_Sync_Engine::clear_term_cache();
-        $this->assertTrue(true);
+
+        // The only configured store (store1) loses both its category and tag caches.
+        $this->assertCount(2, $deleted);
+        $this->assertStringContainsString('remote_terms_' . md5('https://store1.com') . '_' . md5('categories'), $deleted[0]);
+        $this->assertStringContainsString('remote_terms_' . md5('https://store1.com') . '_' . md5('tags'), $deleted[1]);
+        $this->assertSame(['Cleared term cache for all stores'], $logged());
     }
 
     public function test_clear_term_cache_clears_specific_store(): void
     {
-        WC_Multi_Store_Sync_Engine::clear_term_cache('https://store1.com');
-        $this->assertTrue(true);
+        $deleted = [];
+        Functions\when('delete_transient')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+        $logged = $this->captureLogLines();
+
+        WC_Multi_Store_Sync_Engine::clear_term_cache('https://other.com');
+
+        $this->assertCount(2, $deleted);
+        foreach ($deleted as $key) {
+            $this->assertStringContainsString(md5('https://other.com'), $key);
+            $this->assertStringNotContainsString(md5('https://store1.com'), $key, 'Other stores keep their cache');
+        }
+        $this->assertSame(['Cleared term cache for store: https://other.com'], $logged());
+    }
+
+    /**
+     * Capture logger output; returns a callable yielding the logged messages.
+     *
+     * @return callable(): list<string>
+     */
+    private function captureLogLines(): callable
+    {
+        $sink = new class {
+            /** @var list<string> */
+            public array $messages = [];
+
+            public function log(string $level, string $message, array $context = []): void
+            {
+                $this->messages[] = $message;
+            }
+        };
+        Functions\when('wc_get_logger')->justReturn($sink);
+
+        return static fn(): array => $sink->messages;
     }
 
     // ── Result structure ─────────────────────────────────────────

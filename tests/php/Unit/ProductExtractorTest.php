@@ -507,13 +507,13 @@ class ProductExtractorTest extends WC_Multi_Store_TestCase
 
         Functions\expect('update_post_meta')
             ->once()
-            ->with(123, \Mockery::type('string'), $expected_hash)
+            ->with(123, '_mss_images_hash_' . md5('https://store.com'), $expected_hash)
             ->andReturn(true);
 
         $this->extractor->save_synced_images_hash(123, 'https://store.com', $filenames);
 
-        // Method is void, verify that expectation was met
-        $this->assertTrue(true);
+        // Method is void: the exact meta key (per-store) and hash in the expectation is the proof.
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     /**
@@ -571,14 +571,25 @@ class ProductExtractorTest extends WC_Multi_Store_TestCase
             ->once()
             ->andReturn('https://example.com/image.jpg');
 
+        $saved = [];
         Functions\expect('update_post_meta')
             ->times(5)
-            ->andReturn(true);
+            ->andReturnUsing(function ($id, $key, $value) use (&$saved) {
+                $saved[$key] = [$id, $value];
+                return true;
+            });
 
         $this->extractor->save_all_sync_hashes($product, 'https://store.com');
 
-        // Method is void, verify that expectations were met
-        $this->assertTrue(true);
+        $suffix = md5('https://store.com');
+        $this->assertSame(
+            ['_mss_images_hash_' . $suffix, '_mss_cats_hash_' . $suffix, '_mss_tags_hash_' . $suffix, '_mss_desc_hash_' . $suffix, '_mss_attrs_hash_' . $suffix],
+            array_keys($saved)
+        );
+        $this->assertSame([123, md5(serialize([1, 2]))], $saved['_mss_cats_hash_' . $suffix]);
+        $this->assertSame([123, md5(serialize([10]))], $saved['_mss_tags_hash_' . $suffix]);
+        $this->assertSame([123, md5(serialize(['Product description', 'Short description']))], $saved['_mss_desc_hash_' . $suffix]);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     /**
@@ -654,13 +665,13 @@ class ProductExtractorTest extends WC_Multi_Store_TestCase
 
         Functions\expect('update_post_meta')
             ->once()
-            ->with(123, \Mockery::type('string'), $expected_hash)
+            ->with(123, '_mss_desc_hash_' . md5('https://store.com'), $expected_hash)
             ->andReturn(true);
 
         $this->extractor->save_synced_description_hash(123, 'https://store.com', 'Full description', 'Short');
 
-        // Method is void, verify that expectation was met
-        $this->assertTrue(true);
+        // Method is void: the exact meta key (per-store) and hash in the expectation is the proof.
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     /**
@@ -750,13 +761,13 @@ class ProductExtractorTest extends WC_Multi_Store_TestCase
 
         Functions\expect('update_post_meta')
             ->once()
-            ->with(123, \Mockery::type('string'), $expected_hash)
+            ->with(123, '_mss_attrs_hash_' . md5('https://store.com'), $expected_hash)
             ->andReturn(true);
 
         $this->extractor->save_synced_attributes_hash($product, 'https://store.com');
 
-        // Method is void, verify that expectation was met
-        $this->assertTrue(true);
+        // Method is void: the exact meta key (per-store) and hash in the expectation is the proof.
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     /**

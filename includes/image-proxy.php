@@ -42,7 +42,7 @@ class WC_Multi_Store_Image_Proxy {
 
         // Prefer local file — no HTTP round-trip needed
         $file_path = get_attached_file($attachment_id);
-        if ($file_path && file_exists($file_path)) {
+        if ($file_path && self::is_inside_uploads($file_path)) {
             return [
                 'file_path' => $file_path,
                 'filename'  => basename($file_path),
@@ -52,15 +52,51 @@ class WC_Multi_Store_Image_Proxy {
 
         // File not on local disk (S3, cloud storage, etc.) — use the public URL
         $url = wp_get_attachment_url($attachment_id);
-        if (!$url) {
+        if (!$url || !self::is_fetchable_url($url)) {
             return null;
         }
 
+        $filename = basename((string) parse_url($url, PHP_URL_PATH));
+
         return [
             'url'       => $url,
-            'filename'  => basename(parse_url($url, PHP_URL_PATH)),
+            'filename'  => $filename !== '' ? $filename : 'image-' . $attachment_id,
             'mime_type' => $mime_type,
         ];
+    }
+
+    /**
+     * A local attachment is only read when it is a real file inside the uploads directory;
+     * a tampered _wp_attached_file meta must not make the plugin upload /etc/hosts.
+     */
+    private static function is_inside_uploads(string $file_path): bool {
+        if (!is_file($file_path)) {
+            return false;
+        }
+
+        $uploads = wp_upload_dir();
+        $base = realpath($uploads['basedir']);
+        $real = realpath($file_path);
+        if ($base === false || $real === false) {
+            return false;
+        }
+
+        return str_starts_with($real, rtrim($base, '/\\') . DIRECTORY_SEPARATOR);
+    }
+
+    /** Only http(s) URLs are fetched, and never literal link-local (cloud metadata) addresses. */
+    private static function is_fetchable_url(string $url): bool {
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        $host = trim((string) parse_url($url, PHP_URL_HOST), '[]');
+        if ($host === '') {
+            return false;
+        }
+
+        return !filter_var($host, FILTER_VALIDATE_IP) || WC_Multi_Store_Settings::is_safe_remote_url($url);
     }
 
     /**

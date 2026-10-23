@@ -231,6 +231,9 @@ class WC_Multi_Store_Health_Check {
      */
     private function track_failures(string $store_url, array $result): void {
         $failure_counts = get_option('wc_mss_health_failure_counts', []);
+        if (!is_array($failure_counts)) {
+            $failure_counts = [];
+        }
 
         if (!$result['healthy']) {
             // Increment failure count
@@ -265,7 +268,9 @@ class WC_Multi_Store_Health_Check {
             return;
         }
 
-        $recipients = $email_settings['recipients'] ?? get_option('admin_email');
+        $recipients = !empty($email_settings['recipients']) && trim((string) (is_array($email_settings['recipients']) ? implode('', $email_settings['recipients']) : $email_settings['recipients'])) !== ''
+            ? $email_settings['recipients']
+            : get_option('admin_email');
         $site_name = get_bloginfo('name');
 
         $subject = sprintf(

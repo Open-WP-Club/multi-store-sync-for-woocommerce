@@ -505,7 +505,7 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
                 && str_contains($sql, 'date_created >= %s')
                 && str_contains($sql, 'date_created <= %s')
             ),
-            ['completed', 'buyer@example.com', '2026-01-01', '2026-01-31']
+            ['completed', 'buyer@example.com', '2026-01-01', '2026-01-31 23:59:59']
         )->andReturn('FILTERED COUNT');
         $wpdb->shouldReceive('get_var')->once()->with('FILTERED COUNT')->andReturn('4');
 
@@ -573,6 +573,23 @@ class RemoteOrderTableTest extends WC_Multi_Store_TestCase
 
         $this->assertSame([], WC_Multi_Store_Remote_Order_Table::get_orders([
             'orderby' => 'total',
+            'order' => 'asc',
+            'limit' => 10,
+        ]));
+    }
+
+    public function test_get_orders_can_sort_by_order_number_as_the_list_table_column_requests(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->once()->andReturn(' LIMIT 10 OFFSET 0');
+        $wpdb->shouldReceive('get_results')->once()->with(
+            \Mockery::on(fn(string $sql): bool => str_contains($sql, 'ORDER BY order_number ASC'))
+        )->andReturn([]);
+
+        $this->assertSame([], WC_Multi_Store_Remote_Order_Table::get_orders([
+            'orderby' => 'order_number',
             'order' => 'asc',
             'limit' => 10,
         ]));

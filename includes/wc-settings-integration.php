@@ -575,6 +575,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'image_proxy_enabled' => isset($post['image_proxy_enabled']),
             'delete_orphan_variations' => isset($post['delete_orphan_variations']),
             'cleanup_on_uninstall' => isset($post['cleanup_on_uninstall']),
+            'primary_authoritative' => isset($post['primary_authoritative']),
             'circuit_breaker_threshold' => max(1, min(100, intval($post['circuit_breaker_threshold'] ?? 10))),
             'circuit_breaker_duration'  => max(60, min(86400, intval($post['circuit_breaker_duration'] ?? 1800))),
         ];
@@ -687,6 +688,19 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
 
         if (WC_Multi_Store_Settings::update_all($settings)) {
             WC_Admin_Settings::add_message(__('Settings saved successfully.', 'multi-store-sync-for-woocommerce'));
+
+            // Turning the mode on also clears what is already waiting: queue the primary's data
+            // for every unresolved conflict (they resolve once the queue processes them).
+            if ($settings['primary_authoritative'] && empty($previous_settings['primary_authoritative'])) {
+                $queued_conflicts = WC_Multi_Store_Conflict_Detector::resolve_all('', 'overwrite');
+                if ($queued_conflicts > 0) {
+                    WC_Admin_Settings::add_message(sprintf(
+                        /* translators: %d: number of conflicts queued for resolution. */
+                        _n('%d existing conflict was queued to be overwritten from the primary site.', '%d existing conflicts were queued to be overwritten from the primary site.', $queued_conflicts, 'multi-store-sync-for-woocommerce'),
+                        $queued_conflicts
+                    ));
+                }
+            }
 
             $category_match_changed = ($previous_settings['category_match_by'] ?? 'slug') !== $settings['category_match_by']
                 || ($previous_settings['category_match_mode'] ?? 'full_path') !== $settings['category_match_mode'];

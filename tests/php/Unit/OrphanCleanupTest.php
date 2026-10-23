@@ -707,7 +707,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
-        $wpdb->shouldReceive('get_col')->andReturn([], []);
+        $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-ONLY']);
 
         $remote = [['id' => 1, 'name' => 'Orphan', 'sku' => 'ORPHAN-SKU', 'price' => '10', 'stock_quantity' => 2]];
         Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
@@ -1280,7 +1280,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
-        $wpdb->shouldReceive('get_col')->andReturn([], []); // no local products/SKUs
+        $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-ONLY']);
 
         $remote = [['id' => 42, 'name' => 'Orphan', 'sku' => 'ORPHAN-SKU', 'price' => '10', 'stock_quantity' => 2]];
 
@@ -1339,7 +1339,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
-        $wpdb->shouldReceive('get_col')->andReturn([], []);
+        $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-ONLY']);
 
         Functions\when('get_option')->alias(function ($option, $default = false) {
             return match ($option) {

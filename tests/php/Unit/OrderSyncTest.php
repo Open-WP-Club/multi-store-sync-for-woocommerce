@@ -8,6 +8,53 @@ use Brain\Monkey\Functions;
 
 class OrderSyncTest extends WC_Multi_Store_TestCase
 {
+    /** @var object{lines: list<array{0: string, 1: string}>} */
+    private object $logSink;
+
+    /** Capture logger output (wc_get_logger() sink). */
+    private function captureLogs(): void
+    {
+        $this->logSink = new class {
+            /** @var list<array{0: string, 1: string}> */
+            public array $lines = [];
+
+            public function log(string $level, string $message, array $context = []): void
+            {
+                $this->lines[] = [$level, $message];
+            }
+        };
+        Functions\when('wc_get_logger')->justReturn($this->logSink);
+    }
+
+    /** @return list<string> */
+    private function loggedMessages(): array
+    {
+        return array_column($this->logSink->lines, 1);
+    }
+
+    /** Swap WC_MSS()->queue_manager for a Mockery double (setUp restores a real one). */
+    private function mockQueueManager(): \Mockery\MockInterface
+    {
+        $queue = \Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        WC_Multi_Store_Sync::instance()->queue_manager = $queue;
+        return $queue;
+    }
+
+    /** @param list<int> $productIds */
+    private function orderWithProducts(array $productIds): \Mockery\MockInterface
+    {
+        $items = [];
+        foreach ($productIds as $id) {
+            $item = \Mockery::mock('WC_Order_Item_Product');
+            $item->shouldReceive('get_product_id')->andReturn($id);
+            $item->shouldReceive('get_variation_id')->andReturn(0);
+            $items[] = $item;
+        }
+        $order = \Mockery::mock('WC_Order');
+        $order->shouldReceive('get_items')->andReturn($items);
+        return $order;
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -56,65 +103,76 @@ class OrderSyncTest extends WC_Multi_Store_TestCase
 
     public function test_on_order_status_changed_disabled_does_nothing(): void
     {
-        // Override get_option to disable auto sync
         Functions\when('get_option')->alias(function ($option, $default = false) {
             if ($option === 'wc_multi_store_sync_orders') {
                 return ['auto_sync_enabled' => false];
             }
             return $default;
         });
-
-        // Clear cached settings by creating a new instance
-        $sync = new WC_Multi_Store_Order_Sync();
+        $this->captureLogs();
+        $this->mockQueueManager()->shouldNotReceive('add_products');
+        // A mock order with no expectations fails the test if its items are read.
         $order = \Mockery::mock('WC_Order');
 
-        // Should return without queuing anything - no exception means success
-        $sync->on_order_status_changed(1, 'pending', 'processing', $order);
-        $this->assertTrue(true);
+        (new WC_Multi_Store_Order_Sync())->on_order_status_changed(1, 'pending', 'processing', $order);
+
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_order_status_changed_wrong_status_does_nothing(): void
     {
-        $sync = new WC_Multi_Store_Order_Sync();
+        $this->captureLogs();
+        $this->mockQueueManager()->shouldNotReceive('add_products');
         $order = \Mockery::mock('WC_Order');
 
         // 'on-hold' is not in sync_statuses, so should return early
-        $sync->on_order_status_changed(1, 'pending', 'on-hold', $order);
-        $this->assertTrue(true);
+        (new WC_Multi_Store_Order_Sync())->on_order_status_changed(1, 'pending', 'on-hold', $order);
+
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_order_status_changed_queues_products_for_valid_status(): void
     {
-        $sync = new WC_Multi_Store_Order_Sync();
+        $this->captureLogs();
+        $order = $this->orderWithProducts([100, 200]);
+        $this->mockQueueManager()
+            ->shouldReceive('add_products')
+            ->once()
+            ->with([100, 200], 'order_1', 10)
+            ->andReturn(2);
 
-        $item1 = \Mockery::mock('WC_Order_Item_Product');
-        $item1->shouldReceive('get_product_id')->andReturn(100);
-        $item1->shouldReceive('get_variation_id')->andReturn(0);
+        (new WC_Multi_Store_Order_Sync())->on_order_status_changed(1, 'pending', 'processing', $order);
 
-        $item2 = \Mockery::mock('WC_Order_Item_Product');
-        $item2->shouldReceive('get_product_id')->andReturn(200);
-        $item2->shouldReceive('get_variation_id')->andReturn(0);
-
-        $order = \Mockery::mock('WC_Order');
-        $order->shouldReceive('get_items')->andReturn([$item1, $item2]);
-
-        // Should call QueueManager::add_products for small order (< 10 items)
-        $sync->on_order_status_changed(1, 'pending', 'processing', $order);
-        $this->assertTrue(true);
+        $this->assertSame([
+            'Order #1 status changed: pending → processing (triggering sync)',
+            'Order #1: 2 product(s) queued for sync (will be processed by next cron run)',
+        ], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_new_order_disabled_does_nothing(): void
     {
         Functions\when('get_option')->alias(function ($option, $default = false) {
             if ($option === 'wc_multi_store_sync_orders') {
-                return ['auto_sync_enabled' => false];
+                return ['auto_sync_enabled' => false, 'sync_on_new' => true];
             }
             return $default;
         });
+        $this->captureLogs();
+        $lookups = 0;
+        Functions\when('wc_get_order')->alias(function () use (&$lookups) {
+            $lookups++;
+            return false;
+        });
+        $this->mockQueueManager()->shouldNotReceive('add_products');
 
-        $sync = new WC_Multi_Store_Order_Sync();
-        $sync->on_new_order(1);
-        $this->assertTrue(true);
+        (new WC_Multi_Store_Order_Sync())->on_new_order(1);
+
+        $this->assertSame(0, $lookups, 'The order must not even be loaded when auto sync is off');
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_new_order_sync_on_new_disabled_does_nothing(): void
@@ -128,26 +186,39 @@ class OrderSyncTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
+        $this->captureLogs();
+        $lookups = 0;
+        Functions\when('wc_get_order')->alias(function () use (&$lookups) {
+            $lookups++;
+            return false;
+        });
+        $this->mockQueueManager()->shouldNotReceive('add_products');
 
-        $sync = new WC_Multi_Store_Order_Sync();
-        $sync->on_new_order(1);
-        $this->assertTrue(true);
+        (new WC_Multi_Store_Order_Sync())->on_new_order(1);
+
+        $this->assertSame(0, $lookups);
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_new_order_gets_order_and_queues(): void
     {
-        $item = \Mockery::mock('WC_Order_Item_Product');
-        $item->shouldReceive('get_product_id')->andReturn(100);
-        $item->shouldReceive('get_variation_id')->andReturn(0);
+        $this->captureLogs();
+        $order = $this->orderWithProducts([100]);
+        Functions\expect('wc_get_order')->once()->with(42)->andReturn($order);
+        $this->mockQueueManager()
+            ->shouldReceive('add_products')
+            ->once()
+            ->with([100], 'order_42', 10)
+            ->andReturn(1);
 
-        $order = \Mockery::mock('WC_Order');
-        $order->shouldReceive('get_items')->andReturn([$item]);
+        (new WC_Multi_Store_Order_Sync())->on_new_order(42);
 
-        Functions\when('wc_get_order')->justReturn($order);
-
-        $sync = new WC_Multi_Store_Order_Sync();
-        $sync->on_new_order(42);
-        $this->assertTrue(true);
+        $this->assertSame([
+            'New order #42 created (triggering sync)',
+            'Order #42: 1 product(s) queued for sync (will be processed by next cron run)',
+        ], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_get_order_product_ids_extracts_variation_ids(): void
@@ -237,19 +308,38 @@ class OrderSyncTest extends WC_Multi_Store_TestCase
 
     public function test_process_debounced_order_with_no_transient_does_nothing(): void
     {
+        $this->captureLogs();
         Functions\when('get_transient')->justReturn(false);
+        $deleted = 0;
+        Functions\when('delete_transient')->alias(function () use (&$deleted) {
+            $deleted++;
+            return true;
+        });
+        $this->mockQueueManager()->shouldNotReceive('add_products');
 
-        // Should return early without queuing
         WC_Multi_Store_Order_Sync::process_debounced_order(42);
-        $this->assertTrue(true);
+
+        $this->assertSame(0, $deleted);
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_process_debounced_order_with_empty_products_does_nothing(): void
     {
+        $this->captureLogs();
         Functions\when('get_transient')->justReturn([]);
+        $deleted = 0;
+        Functions\when('delete_transient')->alias(function () use (&$deleted) {
+            $deleted++;
+            return true;
+        });
+        $this->mockQueueManager()->shouldNotReceive('add_products');
 
         WC_Multi_Store_Order_Sync::process_debounced_order(42);
-        $this->assertTrue(true);
+
+        $this->assertSame(0, $deleted);
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_process_debounced_order_queues_products_and_clears_transient(): void

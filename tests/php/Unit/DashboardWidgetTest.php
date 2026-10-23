@@ -38,11 +38,17 @@ class DashboardWidgetTest extends WC_Multi_Store_TestCase
 
     public function test_constructor_registers_hooks(): void
     {
-        Functions\expect('add_action')
-            ->twice();
+        $hooks = [];
+        Functions\when('add_action')->alias(function ($hook, $callback) use (&$hooks) {
+            $hooks[$hook] = $callback;
+            return true;
+        });
 
         $widget = new WC_Multi_Store_Dashboard_Widget();
-        $this->assertInstanceOf(WC_Multi_Store_Dashboard_Widget::class, $widget);
+
+        $this->assertSame([$widget, 'register_widget'], $hooks['wp_dashboard_setup']);
+        $this->assertSame([$widget, 'ajax_dashboard_stats'], $hooks['wp_ajax_wc_mss_dashboard_stats']);
+        $this->assertCount(2, $hooks);
     }
 
     // ─── register_widget ───────────────────────────
@@ -61,7 +67,8 @@ class DashboardWidgetTest extends WC_Multi_Store_TestCase
         $widget = new WC_Multi_Store_Dashboard_Widget();
         $widget->register_widget();
 
-        $this->assertTrue(true); // Verify no exception
+        // The never() expectation above is the proof: no dashboard widget without the capability.
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_register_widget_adds_widget_when_capable(): void
@@ -73,12 +80,14 @@ class DashboardWidgetTest extends WC_Multi_Store_TestCase
             ->once()
             ->andReturn(true);
 
-        Functions\expect('wp_add_dashboard_widget')
-            ->once();
-
         $widget = new WC_Multi_Store_Dashboard_Widget();
+
+        Functions\expect('wp_add_dashboard_widget')
+            ->once()
+            ->with('wc_mss_dashboard_widget', 'Multi-Store Sync', [$widget, 'render_widget']);
+
         $widget->register_widget();
 
-        $this->assertTrue(true); // Verify no exception
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 }

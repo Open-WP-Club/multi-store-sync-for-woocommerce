@@ -29,6 +29,12 @@ $stats = WC_Multi_Store_Conflict_Detector::get_stats();
         <?php esc_html_e('Resolutions run through the sync queue. Overwrite sends local data; Keep Remote accepts the current remote version without changing the local product; Merge keeps remotely changed fields and syncs the rest. These decisions apply to this conflict; future syncs still follow the normal store rules. A conflict is marked resolved only after successful processing. Sync must be enabled for the queue to run.', 'multi-store-sync-for-woocommerce'); ?>
     </p>
 
+    <?php if (WC_Multi_Store_Settings::is_primary_authoritative()): ?>
+        <div class="notice notice-info inline">
+            <p><?php esc_html_e('Primary Site Wins is on: conflicts are resolved automatically by overwriting the remote edit with this site\'s data, and are closed as "auto_overwrite" once that sync succeeds. Nothing here needs a decision.', 'multi-store-sync-for-woocommerce'); ?></p>
+        </div>
+    <?php endif; ?>
+
     <?php if (empty($conflict_settings['enabled'])): ?>
         <div class="notice notice-warning inline">
             <p>

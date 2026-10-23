@@ -821,8 +821,12 @@ class WC_Multi_Store_Queue_Manager {
                 continue;
             }
 
-            // Mark as processing
-            WC_Multi_Store_Queue_Table::mark_processing($item_id);
+            // Claim the item. The update only matches rows that are still pending, so if another
+            // runner got there first nothing changes and we must not process it a second time.
+            if (!WC_Multi_Store_Queue_Table::mark_processing($item_id)) {
+                if ($notify) $notify('skipped', 'Item already claimed by another worker');
+                continue;
+            }
 
             $result = null;
             try {
@@ -836,6 +840,13 @@ class WC_Multi_Store_Queue_Manager {
                 }
 
                 $store_config = $stores[$store_url];
+                if (($store_config['status'] ?? '') !== 'active') {
+                    WC_Multi_Store_Queue_Table::mark_failed($item_id, 'Store is not active', true);
+                    $error_count++;
+                    $processed++;
+                    if ($notify) $notify('error', 'Store is not active');
+                    continue;
+                }
                 $result = null;
                 $transient_key = null; // Track transient for cleanup on success only
 

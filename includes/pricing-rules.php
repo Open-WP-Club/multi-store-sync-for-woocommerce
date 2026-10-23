@@ -168,7 +168,7 @@ class WC_Multi_Store_Pricing_Rules {
         if (
             isset($product_data['regular_price']) &&
             isset($product_data['sale_price']) &&
-            !empty($product_data['sale_price']) &&
+            (string) $product_data['sale_price'] !== '' &&
             floatval($product_data['sale_price']) >= floatval($product_data['regular_price'])
         ) {
             // Sale price should be less than regular price, so remove it

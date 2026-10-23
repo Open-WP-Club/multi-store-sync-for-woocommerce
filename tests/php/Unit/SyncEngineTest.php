@@ -189,18 +189,15 @@ class SyncEngineTest extends WC_Multi_Store_TestCase
      */
     public function test_constructor_signature(): void
     {
-        $reflection = new ReflectionClass('WC_Multi_Store_Sync_Engine');
-        $constructor = $reflection->getConstructor();
+        $constructor = (new ReflectionClass('WC_Multi_Store_Sync_Engine'))->getConstructor();
 
-        if ($constructor) {
-            $params = $constructor->getParameters();
-            // If there are parameters, the first one should be optional (API client)
-            if (count($params) > 0) {
-                $this->assertTrue($params[0]->isOptional());
-            }
-        }
-
-        $this->assertTrue(true);
+        $this->assertNotNull($constructor);
+        $params = $constructor->getParameters();
+        $this->assertCount(1, $params);
+        $this->assertSame('api_client', $params[0]->getName());
+        $this->assertTrue($params[0]->isOptional());
+        $this->assertTrue($params[0]->allowsNull());
+        $this->assertSame(WC_Multi_Store_API_Client::class, $params[0]->getType()->getName());
     }
 
     /**

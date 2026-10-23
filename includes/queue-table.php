@@ -100,9 +100,16 @@ class WC_Multi_Store_Queue_Table {
 
         // Corrections and conflict decisions must keep their identity across enqueue and retry.
         $is_resolution = in_array($sync_type, ['conflict_resolution', 'stock_correction'], true);
-        $operation_filter = $is_resolution
-            ? $wpdb->prepare(" AND sync_type = %s AND source = %s", $sync_type, $source)
-            : " AND sync_type NOT IN ('conflict_resolution', 'stock_correction')";
+        // Deletions, restores and status changes are different operations from a regular sync:
+        // a pending full_product row must not swallow them (the remote deletion would never run).
+        $is_distinct_operation = in_array($sync_type, ['delete_product', 'delete_variation', 'delete_orphan', 'restore_product', 'status_change'], true);
+        if ($is_resolution) {
+            $operation_filter = $wpdb->prepare(" AND sync_type = %s AND source = %s", $sync_type, $source);
+        } elseif ($is_distinct_operation) {
+            $operation_filter = $wpdb->prepare(" AND sync_type = %s", $sync_type);
+        } else {
+            $operation_filter = " AND sync_type NOT IN ('conflict_resolution', 'stock_correction', 'delete_product', 'delete_variation', 'delete_orphan', 'restore_product', 'status_change')";
+        }
 
         // Check if already queued (pending or processing)
         // Include 'processing' to prevent duplicates when items are stuck processing
@@ -220,6 +227,8 @@ class WC_Multi_Store_Queue_Table {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $current_time = current_time('mysql');
+        // LIMIT 0 would make the queue look permanently empty and a negative LIMIT is a SQL error.
+        $limit = max(1, (int) $limit);
 
         // Get items that are:
         // - status = pending
@@ -239,7 +248,8 @@ class WC_Multi_Store_Queue_Table {
             $limit
         ), ARRAY_A);
 
-        return $items;
+        // $wpdb returns null when the query fails; treat that as "nothing to do" instead of a TypeError.
+        return is_array($items) ? $items : [];
     }
 
     /**
@@ -260,9 +270,9 @@ class WC_Multi_Store_Queue_Table {
                 'status' => 'processing',
                 'started_at' => current_time('mysql'),
             ],
-            ['id' => $id],
+            ['id' => $id, 'status' => 'pending'],
             ['%s', '%s'],
-            ['%d']
+            ['%d', '%s']
         );
     }
 
@@ -344,7 +354,7 @@ class WC_Multi_Store_Queue_Table {
             );
         } else {
             // Retry - keep as pending, schedule for later
-            $retry_delay = pow(2, $attempts) * 5; // Exponential backoff: 10s, 20s, 40s
+            $retry_delay = pow(2, $attempts) * 5; // Exponential backoff: 10, 20, 40 minutes (the interval below is in minutes)
             $scheduled_at = (new DateTimeImmutable())->add(new DateInterval("PT{$retry_delay}M"))->format('Y-m-d H:i:s');
 
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
@@ -469,7 +479,7 @@ class WC_Multi_Store_Queue_Table {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $cutoff_date = (new DateTimeImmutable())->sub(new DateInterval('P' . (int) $days . 'D'))->format('Y-m-d H:i:s');
+        $cutoff_date = (new DateTimeImmutable())->sub(new DateInterval('P' . max(0, (int) $days) . 'D'))->format('Y-m-d H:i:s');
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $deleted = $wpdb->query($wpdb->prepare(
@@ -507,14 +517,20 @@ class WC_Multi_Store_Queue_Table {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $cutoff_time = (new DateTimeImmutable())->sub(new DateInterval('PT' . (int) $minutes . 'M'))->format('Y-m-d H:i:s');
+        $cutoff_time = (new DateTimeImmutable())->sub(new DateInterval('PT' . max(0, (int) $minutes) . 'M'))->format('Y-m-d H:i:s');
 
+        // Every reset counts as an attempt. An item that keeps crashing the worker (fatal error,
+        // timeout) never reaches mark_failed(), so without this it would be retried forever; after
+        // the third strike it is parked as failed where it is visible and can be retried by hand.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $reset_count = $wpdb->query($wpdb->prepare(
             "UPDATE {$table_name}
-            SET status = 'pending', started_at = NULL
+            SET status = IF(attempts + 1 >= 3, 'failed', 'pending'),
+                completed_at = IF(attempts + 1 >= 3, %s, completed_at),
+                attempts = attempts + 1, started_at = NULL
             WHERE status = 'processing'
             AND started_at < %s",
+            current_time('mysql'),
             $cutoff_time
         ));
 

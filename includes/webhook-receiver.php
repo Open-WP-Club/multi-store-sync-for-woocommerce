@@ -292,6 +292,9 @@ class WC_Multi_Store_Webhook_Receiver {
 
         // Check if this order status should trigger stock sync
         $trigger_statuses = $webhook_settings['trigger_statuses'] ?? ['processing', 'completed'];
+        if (!is_array($trigger_statuses)) {
+            $trigger_statuses = ['processing', 'completed'];
+        }
 
         if (!in_array($order_status, $trigger_statuses)) {
             WC_Multi_Store_Logger::write(sprintf(
@@ -378,9 +381,11 @@ class WC_Multi_Store_Webhook_Receiver {
             $duration
         ));
 
-        // Only set the dedup marker after successful processing so a failed
-        // first attempt does not poison the legitimate WooCommerce retry.
-        set_transient($dedup_key, 1, HOUR_IN_SECONDS);
+        // Mark the order as handled unless every line failed. A retry is only safe when nothing
+        // was deducted; after a partial success it would deduct the successful lines again.
+        if ($result['products_processed'] > 0 || $result['products_failed'] === 0) {
+            set_transient($dedup_key, 1, HOUR_IN_SECONDS);
+        }
 
         return new WP_REST_Response($result, 200);
     }
@@ -400,7 +405,9 @@ class WC_Multi_Store_Webhook_Receiver {
         $deducted_products = [];
 
         foreach ($line_items as $item) {
-            $quantity = absint($item['quantity'] ?? 0);
+            // A negative quantity must never deduct (absint() would turn -4 into 4).
+            $raw_quantity = $item['quantity'] ?? 0;
+            $quantity = is_numeric($raw_quantity) && $raw_quantity > 0 ? absint($raw_quantity) : 0;
             $sku = sanitize_text_field($item['sku'] ?? '');
             $product_id = absint($item['product_id'] ?? 0);
             $variation_id = absint($item['variation_id'] ?? 0);
@@ -429,8 +436,14 @@ class WC_Multi_Store_Webhook_Receiver {
                 continue;
             }
 
-            // Deduct stock from main store
-            $deduction_result = $this->deduct_stock($main_product, $quantity, $order_id, $store_url);
+            // Deduct stock from main store. One bad line must not abort the order: earlier lines
+            // are already deducted, so an escaping exception would make a retry deduct them twice.
+            try {
+                $deduction_result = $this->deduct_stock($main_product, $quantity, $order_id, $store_url);
+            } catch (\Throwable $e) {
+                WC_Multi_Store_Logger::write(sprintf('Stock deduction crashed for SKU %s: %s', $sku, $e->getMessage()), 'error');
+                $deduction_result = new WP_Error('deduction_failed', 'Stock deduction failed unexpectedly');
+            }
 
             if (is_wp_error($deduction_result)) {
                 $errors[] = sprintf(
@@ -551,7 +564,7 @@ class WC_Multi_Store_Webhook_Receiver {
                     'insufficient_stock',
                     sprintf(
                         'Insufficient stock for %s (current: %d, requested: %d) — concurrent deduction detected',
-                        $product->get_sku(),
+                        $product ? $product->get_sku() : '#' . $product_id,
                         $actual_stock,
                         $quantity
                     )

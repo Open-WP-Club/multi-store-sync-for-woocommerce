@@ -79,6 +79,7 @@ class WeeklyVerificationEmailNotifierTest extends WC_Multi_Store_TestCase
 
     public function test_format_discrepancy_message_price(): void
     {
+        Functions\when('esc_html')->alias(fn($v) => htmlspecialchars((string) $v, ENT_QUOTES));
         $message = WC_Multi_Store_Weekly_Verification_Email_Notifier::format_discrepancy_message([
             'type' => 'price',
             'field' => 'regular_price',

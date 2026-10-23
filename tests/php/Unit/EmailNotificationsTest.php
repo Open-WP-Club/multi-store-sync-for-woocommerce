@@ -8,6 +8,30 @@ use Brain\Monkey\Functions;
 
 class EmailNotificationsTest extends WC_Multi_Store_TestCase
 {
+    /** @var list<array{to: mixed, subject: mixed}> Emails passed to wp_mail(). */
+    private array $mails = [];
+
+    /** Record outgoing mail instead of sending it. */
+    private function captureMail(): void
+    {
+        $this->mails = [];
+        Functions\when('wp_mail')->alias(function ($to, $subject = '') {
+            $this->mails[] = ['to' => $to, 'subject' => $subject];
+            return true;
+        });
+    }
+
+    /** @param array<string, mixed> $email  wc_multi_store_sync_email_settings override */
+    private function stubEmailSettings(array $email, ?array $conflict = null): void
+    {
+        Functions\when('get_option')->alias(function ($option, $default = false) use ($email, $conflict) {
+            if ($option === 'admin_email') return 'admin@example.com';
+            if ($option === 'wc_multi_store_sync_email_settings') return $email;
+            if ($option === 'wc_mss_conflict_settings' && $conflict !== null) return $conflict;
+            return $default;
+        });
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -82,12 +106,21 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
 
     public function test_update_settings(): void
     {
+        $saved = [];
+        Functions\when('update_option')->alias(function ($option, $value) use (&$saved) {
+            $saved[$option] = $value;
+            return true;
+        });
+
         $result = WC_Multi_Store_Email_Notifications::update_settings([
             'enabled' => true,
             'recipient_email' => 'new@example.com',
         ]);
 
         $this->assertTrue($result);
+        $this->assertArrayHasKey('wc_multi_store_sync_email_settings', $saved);
+        $this->assertTrue($saved['wc_multi_store_sync_email_settings']['enabled']);
+        $this->assertSame('new@example.com', $saved['wc_multi_store_sync_email_settings']['recipient_email']);
     }
 
     public function test_is_enabled_false_by_default(): void
@@ -110,28 +143,34 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
 
     public function test_send_failed_sync_notification_disabled(): void
     {
-        // Notifications disabled by default, should return without sending
+        // Notifications disabled by default: nothing is sent and no daily slot is claimed
+        $this->captureMail();
+        $slots = 0;
+        Functions\when('set_transient')->alias(function () use (&$slots) {
+            $slots++;
+            return true;
+        });
+        Functions\expect('wc_get_product')->never();
+
         $notifier = new WC_Multi_Store_Email_Notifications();
         $notifier->send_failed_sync_notification(1, 'https://store.com', 'Error');
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->mails);
+        $this->assertSame(0, $slots);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_send_failed_sync_notification_product_not_found(): void
     {
-        Functions\when('get_option')->alias(function ($option, $default = false) {
-            if ($option === 'admin_email') return 'admin@example.com';
-            if ($option === 'wc_multi_store_sync_email_settings') {
-                return ['enabled' => true, 'failed_sync_enabled' => true];
-            }
-            return $default;
-        });
-
-        Functions\when('wc_get_product')->justReturn(false);
+        $this->stubEmailSettings(['enabled' => true, 'failed_sync_enabled' => true]);
+        $this->captureMail();
+        Functions\expect('wc_get_product')->once()->with(999)->andReturn(false);
 
         $notifier = new WC_Multi_Store_Email_Notifications();
         $notifier->send_failed_sync_notification(999, 'https://store.com', 'Error');
-        // Should return early without sending
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->mails, 'A deleted product must not produce an email');
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_send_failed_sync_notification_sends_email(): void
@@ -169,9 +208,12 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
 
     public function test_send_api_error_notification_disabled(): void
     {
+        $this->captureMail();
+
         $notifier = new WC_Multi_Store_Email_Notifications();
         $notifier->send_api_error_notification('https://store.com', 'Connection refused');
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->mails);
     }
 
     public function test_send_api_error_notification_sends_email(): void
@@ -203,22 +245,16 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
 
     public function test_send_low_stock_notification_above_threshold(): void
     {
-        Functions\when('get_option')->alias(function ($option, $default = false) {
-            if ($option === 'admin_email') return 'admin@example.com';
-            if ($option === 'wc_multi_store_sync_email_settings') {
-                return [
-                    'enabled' => true,
-                    'low_stock_enabled' => true,
-                    'low_stock_threshold' => 10,
-                ];
-            }
-            return $default;
-        });
+        $this->stubEmailSettings(['enabled' => true, 'low_stock_enabled' => true, 'low_stock_threshold' => 10]);
+        $this->captureMail();
+        Functions\expect('wc_get_product')->never();
 
         // Stock (15) is above threshold (10), should NOT send
         $notifier = new WC_Multi_Store_Email_Notifications();
         $notifier->send_low_stock_notification(1, 'https://store.com', 15);
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->mails);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_send_low_stock_notification_below_threshold(): void
@@ -399,9 +435,14 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
     public function test_send_conflict_notification_disabled(): void
     {
         // Notifications disabled by default, should return without sending
+        $this->captureMail();
+        Functions\expect('wc_get_product')->never();
+
         $notifier = new WC_Multi_Store_Email_Notifications();
         $notifier->send_conflict_notification(1, 123, 'https://store.com', ['name']);
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->mails);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_send_conflict_notification_notify_email_setting_disabled(): void
@@ -467,22 +508,15 @@ class EmailNotificationsTest extends WC_Multi_Store_TestCase
 
     public function test_send_conflict_notification_product_not_found(): void
     {
-        Functions\when('get_option')->alias(function ($option, $default = false) {
-            if ($option === 'admin_email') return 'admin@example.com';
-            if ($option === 'wc_multi_store_sync_email_settings') {
-                return ['enabled' => true];
-            }
-            if ($option === 'wc_mss_conflict_settings') {
-                return ['notify_email' => true];
-            }
-            return $default;
-        });
-
-        Functions\when('wc_get_product')->justReturn(false);
+        $this->stubEmailSettings(['enabled' => true], ['notify_email' => true]);
+        $this->captureMail();
+        Functions\expect('wc_get_product')->once()->with(999)->andReturn(false);
 
         $notifier = new WC_Multi_Store_Email_Notifications();
         $notifier->send_conflict_notification(999, 123, 'https://store.com', ['name']);
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->mails);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
     public function test_daily_summary_uses_the_wordpress_calendar_day_across_dst(): void
     {

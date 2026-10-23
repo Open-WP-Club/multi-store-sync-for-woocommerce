@@ -68,7 +68,8 @@ class WC_Multi_Store_Stock_Allocator {
 
         $allocated = floor($total_stock * ($percentage / 100));
 
-        return intval($allocated);
+        // Backorder (negative) stock must never turn into a negative allocation.
+        return max(0, intval($allocated));
     }
 
     /**
@@ -116,7 +117,7 @@ class WC_Multi_Store_Stock_Allocator {
         // Calculate allocation based on priority weight
         $allocated = floor($total_stock * ($priority / $total_priority));
 
-        return intval($allocated);
+        return max(0, intval($allocated));
     }
 
     /**
@@ -127,7 +128,7 @@ class WC_Multi_Store_Stock_Allocator {
      * @return int Allocated stock
      */
     private static function calculate_reserve_allocation(int $total_stock, array $allocation_rules): int {
-        $reserve_qty = intval($allocation_rules['reserve_quantity'] ?? 0);
+        $reserve_qty = max(0, intval($allocation_rules['reserve_quantity'] ?? 0));
         $reserve_percentage = floatval($allocation_rules['reserve_percentage'] ?? 0);
 
         // Calculate reserve amount
@@ -144,7 +145,8 @@ class WC_Multi_Store_Stock_Allocator {
 
         // Apply additional percentage if specified
         if (isset($allocation_rules['percentage']) && $allocation_rules['percentage'] > 0) {
-            $allocated = floor($allocated * ($allocation_rules['percentage'] / 100));
+            // Same 0-100 bound as the standalone percentage strategy.
+            $allocated = floor($allocated * (min(100, floatval($allocation_rules['percentage'])) / 100));
         }
 
         return intval($allocated);
@@ -172,7 +174,7 @@ class WC_Multi_Store_Stock_Allocator {
 
         $allocated = floor($total_stock / $active_stores);
 
-        return intval($allocated);
+        return max(0, intval($allocated));
     }
 
     /**

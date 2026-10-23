@@ -330,6 +330,11 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         $merged['check_categories'] = ($sync_settings['sync_type_default'] === 'full_product');
         $merged['check_full_product'] = ($sync_settings['sync_type_default'] === 'full_product');
 
+        // Primary-wins mode: whatever verification finds is corrected from the primary.
+        if (!empty($sync_settings['primary_authoritative'])) {
+            $merged['auto_correct'] = true;
+        }
+
         return $merged;
     }
 

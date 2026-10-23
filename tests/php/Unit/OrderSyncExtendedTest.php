@@ -11,6 +11,53 @@ use Brain\Monkey\Functions;
 
 class OrderSyncExtendedTest extends WC_Multi_Store_TestCase
 {
+    /** @var object{lines: list<array{0: string, 1: string}>} */
+    private object $logSink;
+
+    /** Capture logger output (wc_get_logger() sink). */
+    private function captureLogs(): void
+    {
+        $this->logSink = new class {
+            /** @var list<array{0: string, 1: string}> */
+            public array $lines = [];
+
+            public function log(string $level, string $message, array $context = []): void
+            {
+                $this->lines[] = [$level, $message];
+            }
+        };
+        Functions\when('wc_get_logger')->justReturn($this->logSink);
+    }
+
+    /** @return list<string> */
+    private function loggedMessages(): array
+    {
+        return array_column($this->logSink->lines, 1);
+    }
+
+    /** Swap WC_MSS()->queue_manager for a Mockery double (setUp restores a real one). */
+    private function mockQueueManager(): \Mockery\MockInterface
+    {
+        $queue = \Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        WC_Multi_Store_Sync::instance()->queue_manager = $queue;
+        return $queue;
+    }
+
+    /** @param list<int> $productIds */
+    private function orderWithProducts(array $productIds): \Mockery\MockInterface
+    {
+        $items = [];
+        foreach ($productIds as $id) {
+            $item = \Mockery::mock('WC_Order_Item_Product');
+            $item->shouldReceive('get_product_id')->andReturn($id);
+            $item->shouldReceive('get_variation_id')->andReturn(0);
+            $items[] = $item;
+        }
+        $order = \Mockery::mock('WC_Order');
+        $order->shouldReceive('get_items')->andReturn($items);
+        return $order;
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -191,37 +238,51 @@ class OrderSyncExtendedTest extends WC_Multi_Store_TestCase
 
     public function test_empty_order_does_not_queue(): void
     {
-        $sync = new WC_Multi_Store_Order_Sync();
-
+        $this->captureLogs();
         $order = \Mockery::mock('WC_Order');
         $order->shouldReceive('get_items')->andReturn([]);
+        $this->mockQueueManager()->shouldNotReceive('add_products');
+        $transients = 0;
+        Functions\when('set_transient')->alias(function () use (&$transients) {
+            $transients++;
+            return true;
+        });
 
-        // Should complete without error
-        $sync->on_order_status_changed(10, 'pending', 'processing', $order);
-        $this->assertTrue(true);
+        (new WC_Multi_Store_Order_Sync())->on_order_status_changed(10, 'pending', 'processing', $order);
+
+        $this->assertSame(0, $transients);
+        $this->assertSame([
+            'Order #10 status changed: pending → processing (triggering sync)',
+            'Order #10 has no products to sync',
+        ], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     // ── on_new_order edge cases ──────────────────────────────────
 
     public function test_on_new_order_null_order_does_nothing(): void
     {
-        Functions\when('wc_get_order')->justReturn(null);
+        $this->captureLogs();
+        Functions\expect('wc_get_order')->once()->with(999)->andReturn(null);
+        $this->mockQueueManager()->shouldNotReceive('add_products');
 
-        $sync = new WC_Multi_Store_Order_Sync();
-        $sync->on_new_order(999);
+        (new WC_Multi_Store_Order_Sync())->on_new_order(999);
 
-        // Should not throw
-        $this->assertTrue(true);
+        // Only the trigger line is logged; a missing order is silently skipped.
+        $this->assertSame(['New order #999 created (triggering sync)'], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_new_order_false_order_does_nothing(): void
     {
-        Functions\when('wc_get_order')->justReturn(false);
+        $this->captureLogs();
+        Functions\expect('wc_get_order')->once()->with(999)->andReturn(false);
+        $this->mockQueueManager()->shouldNotReceive('add_products');
 
-        $sync = new WC_Multi_Store_Order_Sync();
-        $sync->on_new_order(999);
+        (new WC_Multi_Store_Order_Sync())->on_new_order(999);
 
-        $this->assertTrue(true);
+        $this->assertSame(['New order #999 created (triggering sync)'], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     // ── process_debounced_order ───────────────────────────────────
@@ -254,16 +315,15 @@ class OrderSyncExtendedTest extends WC_Multi_Store_TestCase
 
     public function test_cached_settings_used_for_status_check(): void
     {
-        // First construction caches settings
-        $sync = new WC_Multi_Store_Order_Sync();
-
+        $this->captureLogs();
+        $this->mockQueueManager()->shouldNotReceive('add_products');
         $order = \Mockery::mock('WC_Order');
 
-        // 'refunded' is not in sync_statuses
-        $sync->on_order_status_changed(1, 'processing', 'refunded', $order);
+        // 'refunded' is not in the default sync_statuses (processing, completed)
+        (new WC_Multi_Store_Order_Sync())->on_order_status_changed(1, 'processing', 'refunded', $order);
 
-        // Should complete without error (early return because status not in list)
-        $this->assertTrue(true);
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_order_status_changed_with_custom_sync_statuses(): void
@@ -278,21 +338,19 @@ class OrderSyncExtendedTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
+        $this->captureLogs();
+        $order = $this->orderWithProducts([100]);
+        $queue = $this->mockQueueManager();
+        $queue->shouldReceive('add_products')->once()->with([100], 'order_1', 10)->andReturn(1);
 
         $sync = new WC_Multi_Store_Order_Sync();
-
-        $item = \Mockery::mock('WC_Order_Item_Product');
-        $item->shouldReceive('get_product_id')->andReturn(100);
-        $item->shouldReceive('get_variation_id')->andReturn(0);
-
-        $order = \Mockery::mock('WC_Order');
-        $order->shouldReceive('get_items')->andReturn([$item]);
-
-        // 'on-hold' is now a valid sync status
+        // 'on-hold' is now a valid sync status, 'processing' (the default) no longer is.
         $sync->on_order_status_changed(1, 'pending', 'on-hold', $order);
+        $sync->on_order_status_changed(2, 'pending', 'processing', $order);
 
-        // Should not throw - products get queued
-        $this->assertTrue(true);
+        $this->assertContains('Order #1 status changed: pending → on-hold (triggering sync)', $this->loggedMessages());
+        $this->assertNotContains('Order #2 status changed: pending → processing (triggering sync)', $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     // ── get_order_product_ids edge cases ──────────────────────────

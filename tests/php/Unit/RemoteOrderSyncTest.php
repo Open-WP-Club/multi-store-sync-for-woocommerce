@@ -234,18 +234,79 @@ class RemoteOrderSyncTest extends WC_Multi_Store_TestCase
 
     public function test_schedule_sync_not_available_does_nothing(): void
     {
-        // Action Scheduler functions don't exist in tests, so is_available() returns false
+        // The ActionScheduler class doesn't exist in tests, so is_available() returns false
+        $calls = [];
+        foreach (['as_schedule_recurring_action', 'as_unschedule_all_actions'] as $fn) {
+            Functions\when($fn)->alias(function () use (&$calls, $fn) {
+                $calls[] = $fn;
+            });
+        }
+
         WC_Multi_Store_Remote_Order_Sync::schedule_sync('daily');
-        $this->assertTrue(true);
+
+        $this->assertSame([], $calls);
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('scheduleIntervals')]
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function test_schedule_sync_replaces_existing_action_with_mapped_interval(string $interval, int $seconds): void
+    {
+        class_alias(\stdClass::class, 'ActionScheduler');
+        Functions\when('as_schedule_single_action')->justReturn(1);
+        $calls = [];
+        foreach (['as_schedule_recurring_action', 'as_unschedule_all_actions'] as $fn) {
+            Functions\when($fn)->alias(function (...$args) use (&$calls, $fn) {
+                $calls[] = [$fn, $args];
+                return 1;
+            });
+        }
+
+        $before = time();
+        WC_Multi_Store_Remote_Order_Sync::schedule_sync($interval);
+
+        $group = WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP;
+        $this->assertCount(2, $calls);
+        $this->assertSame(['as_unschedule_all_actions', ['wc_multi_store_sync_remote_orders', [], $group]], $calls[0]);
+        $this->assertSame('as_schedule_recurring_action', $calls[1][0]);
+        $this->assertGreaterThanOrEqual($before, $calls[1][1][0]);
+        $this->assertSame([$seconds, 'wc_multi_store_sync_remote_orders', [], $group], array_slice($calls[1][1], 1));
+    }
+
+    /** @return array<string, array{0: string, 1: int}> */
+    public static function scheduleIntervals(): array
+    {
+        return [
+            'hourly' => ['hourly', HOUR_IN_SECONDS],
+            'twicedaily' => ['twicedaily', 12 * HOUR_IN_SECONDS],
+            'daily' => ['daily', DAY_IN_SECONDS],
+            'unknown falls back to daily' => ['weekly', DAY_IN_SECONDS],
+        ];
     }
 
     // Patchwork may persist as_unschedule_all_actions from HealthCheckTrackingTest,
     // so run this in a separate process where the function won't exist.
     #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
     public function test_unschedule_sync_without_function_does_nothing(): void
     {
-        // as_unschedule_all_actions doesn't exist, so should return early
+        // as_unschedule_all_actions doesn't exist in this fresh process, so the
+        // guard must return early instead of fataling with "undefined function".
+        $this->assertFalse(function_exists('as_unschedule_all_actions'));
+
         WC_Multi_Store_Remote_Order_Sync::unschedule_sync();
-        $this->assertTrue(true);
+
+        $this->assertFalse(function_exists('as_unschedule_all_actions'));
+    }
+
+    public function test_unschedule_sync_clears_the_remote_order_hook(): void
+    {
+        Functions\expect('as_unschedule_all_actions')
+            ->once()
+            ->with('wc_multi_store_sync_remote_orders', [], WC_Multi_Store_Action_Scheduler_Manager::ACTION_GROUP);
+
+        WC_Multi_Store_Remote_Order_Sync::unschedule_sync();
+
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 }

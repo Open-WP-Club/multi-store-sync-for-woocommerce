@@ -21,6 +21,27 @@ use Brain\Monkey\Functions;
 
 class BugfixRegressionTest extends WC_Multi_Store_TestCase
 {
+    /** @var list<array{0: int, 1: string, 2: int}> add_product() calls recorded by recordingQueue(). */
+    private array $queued = [];
+
+    /**
+     * Replace WC_MSS()->queue_manager with a recording double.
+     * Returns the previous manager so the caller can restore it in a finally block.
+     */
+    private function recordingQueue(): WC_Multi_Store_Queue_Manager
+    {
+        $this->queued = [];
+        $sync = WC_Multi_Store_Sync::instance();
+        $original = $sync->queue_manager;
+        $queue = \Mockery::mock('WC_Multi_Store_Queue_Manager');
+        $queue->shouldReceive('add_product')->andReturnUsing(function (int $id, string $trigger, int $priority) {
+            $this->queued[] = [$id, $trigger, $priority];
+            return true;
+        });
+        $sync->queue_manager = $queue;
+        return $original;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // FIX: WC_MSS_WEBHOOK_PROCESSING prevents infinite sync loops
     // ═══════════════════════════════════════════════════════════════
@@ -41,6 +62,7 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
 
         $this->setUpHooksMocks();
         WC_Multi_Store_Hooks::clear_settings_cache();
+        $this->recordingQueue();
 
         $hooks = new WC_Multi_Store_Hooks();
 
@@ -51,7 +73,9 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
         $wpdb->shouldNotReceive('insert');
 
         $hooks->on_product_save(100);
-        $this->assertTrue(true, 'on_product_save should skip when WC_MSS_WEBHOOK_PROCESSING is defined');
+
+        $this->assertSame([], $this->queued, 'on_product_save must not queue when WC_MSS_WEBHOOK_PROCESSING is defined');
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     /**
@@ -63,22 +87,22 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
         $this->setUpHooksMocks();
         WC_Multi_Store_Hooks::clear_settings_cache();
 
-        WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = true;
-
-        $sync = WC_Multi_Store_Sync::instance();
-        $original_qm = $sync->queue_manager;
-        $queue_mock = \Mockery::mock('WC_Multi_Store_Queue_Manager');
-        $queue_mock->shouldNotReceive('add_product');
-        $sync->queue_manager = $queue_mock;
+        $original_qm = $this->recordingQueue();
 
         try {
             $hooks = new WC_Multi_Store_Hooks();
-            $hooks->on_new_product(100);
-        } finally {
-            $sync->queue_manager = $original_qm;
-        }
 
-        $this->assertTrue(true);
+            WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = true;
+            $hooks->on_new_product(100);
+            $this->assertSame([], $this->queued, 'Webhook-originated saves must not be re-queued');
+
+            // Control: the same call queues once the webhook flag is cleared.
+            WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = false;
+            $hooks->on_new_product(100);
+            $this->assertSame([[100, 'new_product', WC_Multi_Store_Queue_Manager::PRIORITY_HIGH]], $this->queued);
+        } finally {
+            WC_Multi_Store_Sync::instance()->queue_manager = $original_qm;
+        }
     }
 
     /**
@@ -89,22 +113,22 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
         $this->setUpHooksMocks();
         WC_Multi_Store_Hooks::clear_settings_cache();
 
-        WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = true;
-
-        $sync = WC_Multi_Store_Sync::instance();
-        $original_qm = $sync->queue_manager;
-        $queue_mock = \Mockery::mock('WC_Multi_Store_Queue_Manager');
-        $queue_mock->shouldNotReceive('add_product');
-        $sync->queue_manager = $queue_mock;
+        $original_qm = $this->recordingQueue();
 
         try {
             $hooks = new WC_Multi_Store_Hooks();
-            $hooks->on_variation_save(200);
-        } finally {
-            $sync->queue_manager = $original_qm;
-        }
 
-        $this->assertTrue(true);
+            WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = true;
+            $hooks->on_variation_save(200);
+            $this->assertSame([], $this->queued);
+
+            // Control: queues the parent (50, from setUpHooksMocks) once the flag is cleared.
+            WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = false;
+            $hooks->on_variation_save(200);
+            $this->assertSame([[50, 'variation_save', WC_Multi_Store_Queue_Manager::PRIORITY_NORMAL]], $this->queued);
+        } finally {
+            WC_Multi_Store_Sync::instance()->queue_manager = $original_qm;
+        }
     }
 
     /**
@@ -115,24 +139,28 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
         $this->setUpHooksMocks();
         WC_Multi_Store_Hooks::clear_settings_cache();
 
-        WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = true;
-
-        $sync = WC_Multi_Store_Sync::instance();
-        $original_qm = $sync->queue_manager;
-        $queue_mock = \Mockery::mock('WC_Multi_Store_Queue_Manager');
-        $queue_mock->shouldNotReceive('add_product');
-        $sync->queue_manager = $queue_mock;
+        $original_qm = $this->recordingQueue();
 
         $product = \Mockery::mock('WC_Product');
+        $product->shouldReceive('get_status')->andReturn('publish');
+        $product->shouldReceive('get_id')->andReturn(300);
+        $product->shouldReceive('get_stock_quantity')->andReturn(4);
+        $product->shouldReceive('get_sku')->andReturn('SKU-300');
 
         try {
             $hooks = new WC_Multi_Store_Hooks();
-            $hooks->on_stock_change($product);
-        } finally {
-            $sync->queue_manager = $original_qm;
-        }
 
-        $this->assertTrue(true);
+            WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = true;
+            $hooks->on_stock_change($product);
+            $this->assertSame([], $this->queued);
+
+            // Control: a normal stock change is queued with critical priority.
+            WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = false;
+            $hooks->on_stock_change($product);
+            $this->assertSame([[300, 'stock_change', WC_Multi_Store_Queue_Manager::PRIORITY_CRITICAL]], $this->queued);
+        } finally {
+            WC_Multi_Store_Sync::instance()->queue_manager = $original_qm;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -355,6 +383,7 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        $logged = $this->captureLogs();
 
         $synchronizer = new WC_Multi_Store_Variation_Synchronizer();
         $method = new ReflectionMethod($synchronizer, 'log_batch_partial_failures');
@@ -366,8 +395,10 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
             ],
         ];
 
+        // No exception (it would fail the test) and nothing logged for an all-success batch.
         $method->invoke($synchronizer, $batch_result, 999);
-        $this->assertTrue(true, 'Should handle all-success batch cleanly');
+
+        $this->assertSame([], $logged());
     }
 
     /**
@@ -379,12 +410,14 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        $logged = $this->captureLogs();
 
         $synchronizer = new WC_Multi_Store_Variation_Synchronizer();
         $method = new ReflectionMethod($synchronizer, 'log_batch_partial_failures');
 
         $method->invoke($synchronizer, [], 999);
-        $this->assertTrue(true, 'Should handle empty result without errors');
+
+        $this->assertSame([], $logged());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -471,15 +504,22 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
 
         Functions\when('wp_get_post_parent_id')->justReturn(0);
 
+        $original_qm = $this->recordingQueue();
+
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->shouldNotReceive('insert');
 
-        $hooks = new WC_Multi_Store_Hooks();
-        $hooks->on_variation_save(200);
+        try {
+            $hooks = new WC_Multi_Store_Hooks();
+            $hooks->on_variation_save(200);
+        } finally {
+            WC_Multi_Store_Sync::instance()->queue_manager = $original_qm;
+        }
 
-        $this->assertTrue(true, 'Should not queue when variation has no parent');
+        $this->assertSame([], $this->queued, 'An orphan variation has no parent product to queue');
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -736,5 +776,26 @@ class BugfixRegressionTest extends WC_Multi_Store_TestCase
         $product->shouldReceive('get_date_on_sale_to')->andReturn($options['date_on_sale_to']);
 
         return $product;
+    }
+
+    /**
+     * Capture logger output; returns a callable yielding the "level: message" lines.
+     *
+     * @return callable(): list<string>
+     */
+    private function captureLogs(): callable
+    {
+        $sink = new class {
+            /** @var list<string> */
+            public array $lines = [];
+
+            public function log(string $level, string $message, array $context = []): void
+            {
+                $this->lines[] = $level . ': ' . $message;
+            }
+        };
+        Functions\when('wc_get_logger')->justReturn($sink);
+
+        return static fn(): array => $sink->lines;
     }
 }

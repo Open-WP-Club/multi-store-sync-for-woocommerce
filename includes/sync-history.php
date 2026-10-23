@@ -353,6 +353,11 @@ class WC_Multi_Store_Sync_History {
     public static function cleanup_old_records(int $days = 90): int {
         global $wpdb;
 
+        // 0 or less would delete the entire history ("older than now").
+        if ($days < 1) {
+            $days = 90;
+        }
+
         $table_name = $wpdb->prefix . self::$table_name;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Filtered history reports must reflect completed syncs; this custom table has no WordPress query or cache invalidation API. Table name is prefix plus a fixed constant; dynamic filter fragments are prepared and ordering is allowlisted/sanitized.
@@ -419,7 +424,17 @@ class WC_Multi_Store_Sync_History {
         }
 
         if (!empty($args['store_url'])) {
-            $where[] = self::store_url_like_clause($wpdb, $args['store_url']);
+            // Deleting must hit exactly one store: a substring match would also remove the history
+            // of my-shop.com and shop.com.au when asked for shop.com. Compare scheme-less hosts.
+            $store_host = rtrim((string) preg_replace('#^https?://#', '', (string) $args['store_url']), '/');
+            if ($store_host === '') {
+                WC_Multi_Store_Logger::write('Delete by criteria ignored: store URL is empty after normalising', 'warning');
+                return 0;
+            }
+            $where[] = $wpdb->prepare(
+                "TRIM(TRAILING '/' FROM REPLACE(REPLACE(store_url, 'https://', ''), 'http://', '')) = %s",
+                $store_host
+            );
         }
 
         if (!empty($args['sync_type'])) {
@@ -431,7 +446,12 @@ class WC_Multi_Store_Sync_History {
         }
 
         if (!empty($args['days_old'])) {
-            $where[] = $wpdb->prepare('created_at < DATE_SUB(NOW(), INTERVAL %d DAY)', absint($args['days_old']));
+            // '0.5' is truthy but absint() gives 0, which would mean "older than now" (everything).
+            $days_old = absint($args['days_old']);
+            if ($days_old < 1) {
+                return 0;
+            }
+            $where[] = $wpdb->prepare('created_at < DATE_SUB(NOW(), INTERVAL %d DAY)', $days_old);
         }
 
         // Safety check - don't delete everything without explicit criteria

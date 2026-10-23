@@ -277,9 +277,9 @@ class QueueTableTest extends WC_Multi_Store_TestCase
                     $data['status'] === 'processing'
                     && isset($data['started_at'])
                 ),
-                ['id' => 1],
+                ['id' => 1, 'status' => 'pending'],
                 ['%s', '%s'],
-                ['%d']
+                ['%d', '%s']
             )
             ->andReturn(1);
 
@@ -800,7 +800,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $wpdb->insert_id = 100;
         $this->expectEnqueueLock($wpdb);
         $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql, ...$args) => $sql);
-        $wpdb->shouldReceive('get_row')->once()->with(\Mockery::on(fn($sql) => str_contains($sql, "AND sync_type NOT IN ('conflict_resolution', 'stock_correction')")), ARRAY_A)->andReturn(null);
+        $wpdb->shouldReceive('get_row')->once()->with(\Mockery::on(fn($sql) => str_contains($sql, "AND sync_type NOT IN ('conflict_resolution', 'stock_correction',")), ARRAY_A)->andReturn(null);
         $wpdb->shouldReceive('insert')->once()->andReturn(1);
         $this->assertSame(100, WC_Multi_Store_Queue_Table::add(42, 'https://store.com'));
     }

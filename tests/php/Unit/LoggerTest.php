@@ -73,18 +73,26 @@ class LoggerTest extends WC_Multi_Store_TestCase
         $logger = new WC_Multi_Store_Logger();
         $prop = new ReflectionProperty($logger, 'rotation_days');
 
-        $this->assertLessThanOrEqual(30, $prop->getValue($logger));
+        $this->assertSame(30, $prop->getValue($logger));
     }
 
     // ── schedule_archival ──────────────────────────────────────────
 
     public function test_schedule_archival_returns_early_when_scheduler_unavailable(): void
     {
-        // Without real Action Scheduler functions, is_available() returns false
-        // and schedule_archival should return early without error.
+        // Without the ActionScheduler class, is_available() returns false and
+        // schedule_archival must return before looking up or creating any action.
+        $calls = [];
+        foreach (['as_next_scheduled_action', 'as_schedule_recurring_action'] as $fn) {
+            Functions\when($fn)->alias(function (...$args) use (&$calls, $fn) {
+                $calls[] = $fn;
+                return false;
+            });
+        }
+
         WC_Multi_Store_Logger::schedule_archival();
 
-        $this->assertTrue(true);
+        $this->assertSame([], $calls);
     }
 
     // ── clear_log ──────────────────────────────────────────────────

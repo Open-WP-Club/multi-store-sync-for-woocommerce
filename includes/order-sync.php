@@ -45,7 +45,9 @@ class WC_Multi_Store_Order_Sync {
      * @return array
      */
     private static function get_order_settings(): array {
-        return get_option('wc_multi_store_sync_orders', []);
+        $settings = get_option('wc_multi_store_sync_orders', []);
+
+        return is_array($settings) ? $settings : [];
     }
 
     /**
@@ -66,8 +68,11 @@ class WC_Multi_Store_Order_Sync {
 
         // Check if this status should trigger sync
         $sync_statuses = $settings['sync_statuses'] ?? ['processing', 'completed'];
+        if (!is_array($sync_statuses)) {
+            $sync_statuses = ['processing', 'completed'];
+        }
 
-        if (!in_array($new_status, $sync_statuses)) {
+        if (!in_array($new_status, $sync_statuses, true)) {
             return;
         }
 

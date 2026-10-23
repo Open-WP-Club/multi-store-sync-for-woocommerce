@@ -185,6 +185,20 @@ if (!defined('ABSPATH')) {
 
                 <tr>
                     <th scope="row">
+                        <label for="primary_authoritative"><?php esc_html_e('Primary Site Wins', 'multi-store-sync-for-woocommerce'); ?></label>
+                    </th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="primary_authoritative" id="primary_authoritative" value="1"
+                                   <?php checked(!empty($settings['primary_authoritative']), true); ?>>
+                            <?php esc_html_e('Treat this site as the single source of truth and fix differences automatically', 'multi-store-sync-for-woocommerce'); ?>
+                        </label>
+                        <p class="description"><?php esc_html_e('Edits made directly on a remote store are overwritten from this site. Sync conflicts are resolved automatically (and closed once the overwrite succeeds), stock discrepancies are corrected from this site (up to 3 attempts per product and store per day), and Weekly Verification always auto-corrects what it finds. Turning this on also queues every conflict that is already waiting. Removing remote products that no longer exist here stays a separate, explicit setting (Orphan Cleanup auto-trash).', 'multi-store-sync-for-woocommerce'); ?></p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
                         <label for="auto_sync_new_products"><?php esc_html_e('Auto-Sync New Products', 'multi-store-sync-for-woocommerce'); ?></label>
                     </th>
                     <td>

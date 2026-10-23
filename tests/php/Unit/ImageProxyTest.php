@@ -93,7 +93,7 @@ class ImageProxyTest extends WC_Multi_Store_TestCase
     public function test_get_image_data_returns_null_for_non_image_mime(): void
     {
         // Create a temporary file to pass the file_exists check
-        $tmp = tempnam(sys_get_temp_dir(), 'test_');
+        $tmp = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'test_');
 
         Functions\when('get_attached_file')->justReturn($tmp);
         Functions\when('get_post_mime_type')->justReturn('application/pdf');
@@ -107,7 +107,7 @@ class ImageProxyTest extends WC_Multi_Store_TestCase
 
     public function test_get_image_data_returns_null_for_null_mime(): void
     {
-        $tmp = tempnam(sys_get_temp_dir(), 'test_');
+        $tmp = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'test_');
 
         Functions\when('get_attached_file')->justReturn($tmp);
         Functions\when('get_post_mime_type')->justReturn(null);
@@ -121,7 +121,7 @@ class ImageProxyTest extends WC_Multi_Store_TestCase
 
     public function test_get_image_data_returns_data_for_valid_image(): void
     {
-        $tmp = tempnam(sys_get_temp_dir(), 'test_img_');
+        $tmp = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'test_img_');
         file_put_contents($tmp, 'fake-image-data');
 
         Functions\when('get_attached_file')->justReturn($tmp);
@@ -142,7 +142,7 @@ class ImageProxyTest extends WC_Multi_Store_TestCase
 
     public function test_get_image_data_supports_png(): void
     {
-        $tmp = tempnam(sys_get_temp_dir(), 'png_');
+        $tmp = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'png_');
         file_put_contents($tmp, 'fake-png');
 
         Functions\when('get_attached_file')->justReturn($tmp);
@@ -158,7 +158,7 @@ class ImageProxyTest extends WC_Multi_Store_TestCase
 
     public function test_get_image_data_supports_webp(): void
     {
-        $tmp = tempnam(sys_get_temp_dir(), 'webp_');
+        $tmp = tempnam(sys_get_temp_dir() . '/wc-mss-tests', 'webp_');
         file_put_contents($tmp, 'fake-webp');
 
         Functions\when('get_attached_file')->justReturn($tmp);

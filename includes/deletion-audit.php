@@ -419,8 +419,10 @@ class WC_Multi_Store_Deletion_Audit {
             ARRAY_A
         );
 
-        if (!empty($records)) {
-            self::archive_records_to_json('deletion-audit', $records, 'deleted_at');
+        // The audit trail is evidence: never delete rows that could not be archived first.
+        if (!empty($records) && self::archive_records_to_json('deletion-audit', $records, 'deleted_at') === false) {
+            WC_Multi_Store_Logger::write('Deletion audit cleanup skipped: the archive file could not be written', 'error');
+            return 0;
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deletion audits use a custom table and must reflect the latest deletion outcomes.

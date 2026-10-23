@@ -586,11 +586,16 @@ class StockVerifierEdgeCaseTest extends WC_Multi_Store_TestCase
 
     public function test_schedule_verification_does_nothing_when_action_scheduler_unavailable(): void
     {
-        // Action Scheduler is not available in test environment
+        // Action Scheduler is not available in test environment: nothing may be scheduled
+        $scheduled = 0;
+        Functions\when('as_schedule_single_action')->alias(function () use (&$scheduled) {
+            $scheduled++;
+            return 1;
+        });
+
         WC_Multi_Store_Stock_Verifier::schedule_verification(1, 'https://store.com', 10);
 
-        // Should return early without error
-        $this->assertTrue(true);
+        $this->assertSame(0, $scheduled);
     }
 
     // ── Discrepancy with multiple filters combined ───────────────

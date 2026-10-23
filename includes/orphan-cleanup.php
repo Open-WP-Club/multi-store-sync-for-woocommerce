@@ -279,6 +279,17 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         // PERFORMANCE FIX: Get local products ONCE before loop instead of inside
         $local_products = $this->get_local_product_identifiers();
+
+        // A failed or empty local SKU query would classify every remote product as an orphan,
+        // and auto-trash would then delete them all. Refuse to scan instead.
+        if (!is_array($local_products['skus']) || $local_products['skus'] === []) {
+            WC_Multi_Store_Logger::write('Orphan scan aborted: local SKU list is empty or could not be read.', 'error');
+            return [
+                'success' => false,
+                'message' => __('Could not read local product SKUs, so the orphan scan was aborted to avoid deleting valid remote products.', 'multi-store-sync-for-woocommerce'),
+            ];
+        }
+
         // Convert to set for O(1) lookup instead of O(n) in_array
         $local_skus_set = array_flip($local_products['skus']);
 

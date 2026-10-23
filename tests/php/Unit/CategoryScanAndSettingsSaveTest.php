@@ -395,6 +395,20 @@ class CategoryScanAndSettingsSaveTest extends WC_Multi_Store_TestCase
         $this->assertTrue($saved['delete_orphan_variations']);
     }
 
+    public function test_save_settings_persists_primary_authoritative_both_ways(): void
+    {
+        $base = [
+            'enabled' => '1', 'sync_type_default' => 'full_product', 'auth_method' => 'basic_auth',
+            'match_products_by' => 'sku', 'deletion_mode' => 'trash', 'webhook_secret' => '',
+        ];
+
+        $on = $this->callHandleSaveSettings($base + ['primary_authoritative' => '1']);
+        $off = $this->callHandleSaveSettings($base);
+
+        $this->assertTrue($on['primary_authoritative']);
+        $this->assertFalse($off['primary_authoritative']);
+    }
+
     public function test_save_settings_persists_delete_orphan_variations_when_unchecked(): void
     {
         $saved = $this->callHandleSaveSettings([

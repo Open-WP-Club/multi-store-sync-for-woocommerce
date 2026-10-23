@@ -8,6 +8,57 @@ use Brain\Monkey\Functions;
 
 class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
 {
+    /** @var object{lines: list<array{0: string, 1: string}>} */
+    private object $logSink;
+
+    private ?WC_Multi_Store_Queue_Manager $originalQueueManager = null;
+
+    /** @var list<int> IDs passed to wp_delete_post(). */
+    private array $deletedPosts = [];
+
+    /** @var list<int> IDs passed to wp_set_object_terms(). */
+    private array $recategorized = [];
+
+    /** Capture logger output and the destructive WordPress calls. */
+    private function captureSideEffects(): void
+    {
+        $this->logSink = new class {
+            /** @var list<array{0: string, 1: string}> */
+            public array $lines = [];
+
+            public function log(string $level, string $message, array $context = []): void
+            {
+                $this->lines[] = [$level, $message];
+            }
+        };
+        Functions\when('wc_get_logger')->justReturn($this->logSink);
+        $this->deletedPosts = [];
+        $this->recategorized = [];
+        Functions\when('wp_delete_post')->alias(function ($id) {
+            $this->deletedPosts[] = $id;
+            return true;
+        });
+        Functions\when('wp_set_object_terms')->alias(function ($id) {
+            $this->recategorized[] = $id;
+            return [];
+        });
+    }
+
+    /** @return list<string> */
+    private function loggedMessages(): array
+    {
+        return array_column($this->logSink->lines, 1);
+    }
+
+    /** Swap WC_MSS()->queue_manager for a Mockery double; restored in tearDown. */
+    private function mockQueueManager(): \Mockery\MockInterface
+    {
+        $this->originalQueueManager ??= WC_MSS()->queue_manager;
+        $queue = \Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        WC_MSS()->queue_manager = $queue;
+        return $queue;
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -33,6 +84,9 @@ class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
     protected function tearDown(): void
     {
         WC_Multi_Store_Logger::reset_instance();
+        if ($this->originalQueueManager !== null) {
+            WC_MSS()->queue_manager = $this->originalQueueManager;
+        }
         parent::tearDown();
     }
 
@@ -46,13 +100,26 @@ class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->justReturn([
             'category_deletion_action' => 'none',
         ]);
+        $this->captureSideEffects();
+        $queue = $this->mockQueueManager();
+        $queue->shouldNotReceive('add_product_deletion');
+        $queue->shouldNotReceive('add_product');
+        $lookups = 0;
+        Functions\when('get_posts')->alias(function () use (&$lookups) {
+            $lookups++;
+            return [100];
+        });
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
         $term = (object) ['name' => 'Test Category'];
 
         // Should return early without processing
         $sync->on_category_delete(1, 1, $term, [100, 200]);
-        $this->assertTrue(true);
+
+        $this->assertSame(0, $lookups, 'Products must not be looked up when the action is none');
+        $this->assertSame([], $this->deletedPosts);
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_category_delete_no_products_does_nothing(): void
@@ -61,12 +128,22 @@ class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
             'category_deletion_action' => 'delete',
         ]);
         Functions\when('get_posts')->justReturn([]);
+        $this->captureSideEffects();
+        $queue = $this->mockQueueManager();
+        $queue->shouldNotReceive('add_product_deletion');
+        $queue->shouldNotReceive('add_product');
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
         $term = (object) ['name' => 'Empty Category'];
 
         $sync->on_category_delete(1, 1, $term, [100]);
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->deletedPosts);
+        $this->assertSame([
+            'Category deleted: ID 1, Name: Empty Category, Affected products: 1',
+            'No products found in deleted category',
+        ], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_tag_delete_action_none_does_nothing(): void
@@ -74,12 +151,18 @@ class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->justReturn([
             'tag_deletion_action' => 'none',
         ]);
+        $this->captureSideEffects();
+        $queue = $this->mockQueueManager();
+        $queue->shouldNotReceive('add_product_deletion');
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
         $term = (object) ['name' => 'Test Tag'];
 
         $sync->on_tag_delete(1, 1, $term, [100]);
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->deletedPosts);
+        $this->assertSame([], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_tag_delete_no_products_does_nothing(): void
@@ -88,12 +171,21 @@ class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
             'tag_deletion_action' => 'delete',
         ]);
         Functions\when('get_posts')->justReturn([]);
+        $this->captureSideEffects();
+        $queue = $this->mockQueueManager();
+        $queue->shouldNotReceive('add_product_deletion');
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
         $term = (object) ['name' => 'Empty Tag'];
 
         $sync->on_tag_delete(1, 1, $term, [100, 200]);
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->deletedPosts);
+        $this->assertSame([
+            'Tag deleted: ID 1, Name: Empty Tag, Affected products: 2',
+            'No products found with deleted tag',
+        ], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_get_products_by_term_empty_input(): void
@@ -144,15 +236,20 @@ class CategoryDeletionSyncTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
-
         Functions\when('get_posts')->justReturn([100]);
+        $this->captureSideEffects();
+        $queue = $this->mockQueueManager();
+        $queue->shouldNotReceive('add_product_deletion');
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
         $term = (object) ['name' => 'Test Category'];
 
         // auto_sync_deletions is false, so products should NOT be deleted
         $sync->on_category_delete(1, 1, $term, [100]);
-        $this->assertTrue(true);
+
+        $this->assertSame([], $this->deletedPosts, 'Local products must survive when deletion sync is off');
+        $this->assertContains('Auto sync deletions is disabled, skipping product deletion', $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_get_or_create_uncategorized_existing(): void

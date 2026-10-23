@@ -91,6 +91,7 @@ class WC_Multi_Store_Settings {
             'auto_create_missing_products' => false,
             'image_proxy_enabled' => false,
             'cleanup_on_uninstall' => false,
+            'primary_authoritative' => false,
             'circuit_breaker_threshold' => 10,
             'circuit_breaker_duration'  => 1800,
             'category_mapper_enabled' => false,
@@ -130,6 +131,16 @@ class WC_Multi_Store_Settings {
     public static function get(string $key, mixed $default = null): mixed {
         $settings = self::get_settings();
         return $settings[$key] ?? $default;
+    }
+
+    /**
+     * Whether the primary (this) site is the single source of truth.
+     *
+     * When on, remote edits never win: conflicts resolve to the primary's data, stock
+     * discrepancies are corrected from the primary, and weekly verification auto-corrects.
+     */
+    public static function is_primary_authoritative(): bool {
+        return (bool) self::get('primary_authoritative', false);
     }
 
     /**
@@ -211,7 +222,8 @@ class WC_Multi_Store_Settings {
      */
     public static function is_safe_remote_url(string $url): bool {
         $parsed = wp_parse_url($url);
-        $host   = $parsed['host'] ?? '';
+        // Bracketed IPv6 literals ("[fe80::1]") are not recognised by filter_var().
+        $host   = trim($parsed['host'] ?? '', '[]');
         if ($host === '') {
             return false;
         }
@@ -308,7 +320,8 @@ class WC_Multi_Store_Settings {
         // blocked range are still caught at "Test Connection" time via the
         // full is_safe_remote_url() check, which intentionally isn't run here
         // to keep store save/import free of a DNS-availability dependency.
-        if ($host !== '' && filter_var($host, FILTER_VALIDATE_IP) && self::is_blocked_link_local_ip($host)) {
+        $ip_host = trim($host, '[]');
+        if ($ip_host !== '' && filter_var($ip_host, FILTER_VALIDATE_IP) && self::is_blocked_link_local_ip($ip_host)) {
             return new \WP_Error(
                 'unsafe_url',
                 __('Store URL resolves to a blocked address range.', 'multi-store-sync-for-woocommerce')

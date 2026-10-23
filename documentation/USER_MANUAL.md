@@ -1016,6 +1016,16 @@ Navigate to **Multi-Store Sync > Settings > Conflicts**.
 - **Resolve**: Accept main store value as correct
 - **Resolve All**: Accept all main store values
 
+### Primary Site Wins (automatic fixing)
+
+Turn on **Settings > Primary Site Wins** to make the main store the single source of truth. Nobody has to review or decide anything:
+
+- **Conflicts** are resolved automatically: the next sync overwrites the remote edit with the main store's data, and the conflict is closed as `auto_overwrite` once that sync succeeds. Conflicts already waiting are queued for overwrite when you turn the option on. The "block on conflict" action is ignored.
+- **Stock discrepancies** found by stock verification are corrected from the main store automatically, at most 3 times per product and store per day. If the remote keeps disagreeing (for example a plugin rewrites its stock), the discrepancy stays pending for you to look at.
+- **Weekly Verification** always auto-corrects what it finds, within the configured Auto-Correct Limit.
+
+Removing remote products that no longer exist on the main store is deliberately **not** part of this option. Use the Orphan Cleanup auto-trash setting for that.
+
 ### Category Mapper
 
 Map main store categories to different categories on specific child stores.

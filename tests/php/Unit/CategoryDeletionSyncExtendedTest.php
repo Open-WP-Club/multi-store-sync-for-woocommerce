@@ -9,6 +9,65 @@ use Brain\Monkey\Functions;
 
 class CategoryDeletionSyncExtendedTest extends WC_Multi_Store_TestCase
 {
+    /** @var object{lines: list<array{0: string, 1: string}>} */
+    private object $logSink;
+
+    private ?WC_Multi_Store_Queue_Manager $originalQueueManager = null;
+
+    /** @var list<int> IDs passed to wp_delete_post(). */
+    private array $deletedPosts = [];
+
+    /** @var list<int> IDs passed to wp_set_object_terms(). */
+    private array $recategorized = [];
+
+    /** Capture logger output and the destructive WordPress calls. */
+    private function captureSideEffects(): void
+    {
+        $this->logSink = new class {
+            /** @var list<array{0: string, 1: string}> */
+            public array $lines = [];
+
+            public function log(string $level, string $message, array $context = []): void
+            {
+                $this->lines[] = [$level, $message];
+            }
+        };
+        Functions\when('wc_get_logger')->justReturn($this->logSink);
+        $this->deletedPosts = [];
+        $this->recategorized = [];
+        Functions\when('wp_delete_post')->alias(function ($id) {
+            $this->deletedPosts[] = $id;
+            return true;
+        });
+        Functions\when('wp_set_object_terms')->alias(function ($id) {
+            $this->recategorized[] = $id;
+            return [];
+        });
+    }
+
+    /** @return list<string> */
+    private function loggedMessages(): array
+    {
+        return array_column($this->logSink->lines, 1);
+    }
+
+    /** Swap WC_MSS()->queue_manager for a Mockery double; restored in tearDown. */
+    private function mockQueueManager(): \Mockery\MockInterface
+    {
+        $this->originalQueueManager ??= WC_MSS()->queue_manager;
+        $queue = \Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        WC_MSS()->queue_manager = $queue;
+        return $queue;
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalQueueManager !== null) {
+            WC_MSS()->queue_manager = $this->originalQueueManager;
+        }
+        parent::tearDown();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -19,6 +78,13 @@ class CategoryDeletionSyncExtendedTest extends WC_Multi_Store_TestCase
         Functions\when('set_transient')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
         WC_Multi_Store_Settings::clear_static_cache();
+
+        // Queueing must succeed for a product to be deleted locally, and uncategorize
+        // only reassigns products that have no remaining category.
+        $queue = $this->mockQueueManager();
+        $queue->shouldReceive('add_product_deletion')->andReturn(1);
+        $queue->shouldReceive('add_product')->andReturn(1);
+        Functions\when('wp_get_object_terms')->justReturn([]);
     }
 
     private function mockStoresActive(array $stores = []): void
@@ -358,16 +424,18 @@ class CategoryDeletionSyncExtendedTest extends WC_Multi_Store_TestCase
             'category_deletion_action' => 'delete',
             'auto_sync_deletions' => false,
         ]);
-
         Functions\when('get_posts')->justReturn([100]);
+        $this->captureSideEffects();
+        $this->mockQueueManager()->shouldNotReceive('add_product_deletion');
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
 
-        // deleted_term can be a non-object
+        // deleted_term can be a non-object: its name is reported as Unknown
         $sync->on_category_delete(5, 5, 'not_an_object', [100]);
 
-        // Should not throw
-        $this->assertTrue(true);
+        $this->assertSame('Category deleted: ID 5, Name: Unknown, Affected products: 1', $this->loggedMessages()[0]);
+        $this->assertSame([], $this->deletedPosts);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_category_delete_with_empty_object_ids(): void
@@ -375,13 +443,26 @@ class CategoryDeletionSyncExtendedTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->justReturn([
             'category_deletion_action' => 'delete',
         ]);
+        $this->captureSideEffects();
+        $this->mockQueueManager()->shouldNotReceive('add_product_deletion');
+        $lookups = 0;
+        Functions\when('get_posts')->alias(function () use (&$lookups) {
+            $lookups++;
+            return [];
+        });
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
         $term = (object) ['name' => 'Empty'];
 
         $sync->on_category_delete(5, 5, $term, []);
 
-        $this->assertTrue(true);
+        $this->assertSame(0, $lookups, 'No query is issued for an empty term');
+        $this->assertSame([], $this->deletedPosts);
+        $this->assertSame([
+            'Category deleted: ID 5, Name: Empty, Affected products: 0',
+            'No products found in deleted category',
+        ], $this->loggedMessages());
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_on_tag_delete_with_empty_object_ids(): void
@@ -389,13 +470,17 @@ class CategoryDeletionSyncExtendedTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->justReturn([
             'tag_deletion_action' => 'delete',
         ]);
+        $this->captureSideEffects();
+        $this->mockQueueManager()->shouldNotReceive('add_product_deletion');
 
         $sync = new WC_Multi_Store_Category_Deletion_Sync();
         $term = (object) ['name' => 'Empty Tag'];
 
         $sync->on_tag_delete(10, 10, $term, []);
 
-        $this->assertTrue(true);
+        $this->assertSame(['Tag deleted: ID 10, Name: Empty Tag, Affected products: 0', 'No products found with deleted tag'], $this->loggedMessages());
+        $this->assertSame([], $this->deletedPosts);
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_get_products_by_term_with_null_post(): void

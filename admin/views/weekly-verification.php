@@ -235,10 +235,14 @@ foreach ($active_stores as $store_url => $store_config) {
                     <td>
                         <label>
                             <input type="checkbox" name="auto_correct" id="auto_correct" value="1"
-                                   <?php checked($settings['auto_correct'], true); ?>>
+                                   <?php checked($settings['auto_correct'], true); ?>
+                                   <?php disabled(WC_Multi_Store_Settings::is_primary_authoritative()); ?>>
                             <?php esc_html_e('Automatically queue products for re-sync when discrepancies are found', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
                         <p class="description"><?php esc_html_e('When enabled, products with discrepancies will be automatically added to the sync queue for correction.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <?php if (WC_Multi_Store_Settings::is_primary_authoritative()): ?>
+                            <p class="description"><strong><?php esc_html_e('Always on because Primary Site Wins is enabled in Settings.', 'multi-store-sync-for-woocommerce'); ?></strong></p>
+                        <?php endif; ?>
                     </td>
                 </tr>
 

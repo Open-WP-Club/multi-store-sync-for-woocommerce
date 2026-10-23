@@ -150,7 +150,7 @@ class WC_Multi_Store_Circuit_Breaker {
         if (!is_array($state)) {
             return ['consecutive_errors' => 0, 'open_until' => 0, 'opened_at' => 0];
         }
-        return $state;
+        return $state + ['consecutive_errors' => 0, 'open_until' => 0, 'opened_at' => 0];
     }
 
     private static function get_key(string $store_url): string {

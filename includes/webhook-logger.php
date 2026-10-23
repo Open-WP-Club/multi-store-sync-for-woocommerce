@@ -385,28 +385,33 @@ class WC_Multi_Store_Webhook_Logger {
         ];
 
         $args = wp_parse_args($args, $defaults);
+        $args['per_page'] = max(1, (int) $args['per_page']);
+        $args['page'] = max(1, (int) $args['page']);
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         // Build WHERE clause
         $where = ['1=1'];
         $values = [];
 
-        if (!empty($args['log_type'])) {
+        // A literal "0" is a valid filter value, so test for "set" rather than "truthy".
+        $is_set = static fn($value): bool => $value !== null && $value !== '' && $value !== false;
+
+        if ($is_set($args['log_type'])) {
             $where[] = 'log_type = %s';
             $values[] = $args['log_type'];
         }
 
-        if (!empty($args['store_url'])) {
+        if ($is_set($args['store_url'])) {
             $where[] = 'store_url LIKE %s';
             $values[] = '%' . $wpdb->esc_like($args['store_url']) . '%';
         }
 
-        if (!empty($args['product_sku'])) {
+        if ($is_set($args['product_sku'])) {
             $where[] = 'product_sku LIKE %s';
             $values[] = '%' . $wpdb->esc_like($args['product_sku']) . '%';
         }
 
-        if (!empty($args['status'])) {
+        if ($is_set($args['status'])) {
             $where[] = 'status = %s';
             $values[] = $args['status'];
         }
@@ -557,7 +562,13 @@ class WC_Multi_Store_Webhook_Logger {
 
         if ($days === null) {
             $settings = get_option('wc_multi_store_sync_webhook_settings', []);
-            $days = (int) ($settings['webhook_log_retention_days'] ?? self::DEFAULT_RETENTION_DAYS);
+            $configured = $settings['webhook_log_retention_days'] ?? self::DEFAULT_RETENTION_DAYS;
+            $days = is_scalar($configured) ? (int) $configured : self::DEFAULT_RETENTION_DAYS;
+        }
+
+        // 0 or a garbage option would otherwise mean "older than now" and wipe every log.
+        if ($days < 1) {
+            $days = self::DEFAULT_RETENTION_DAYS;
         }
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
@@ -666,7 +677,7 @@ class WC_Multi_Store_Webhook_Logger {
         try {
             fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM for Excel
             foreach ($csv as $row) {
-                fputcsv($output, $row, ',', '"', '\\');
+                fputcsv($output, $row, ',', '"', '');
             }
             rewind($output);
             $content = stream_get_contents($output);

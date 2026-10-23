@@ -491,7 +491,6 @@ class WC_Multi_Store_Admin_Ajax {
             function () {
             check_ajax_referer('wc_mss_admin', 'nonce');
             $args = self::get_webhook_log_filters(wp_unslash($_POST));
-            unset($args['product_sku'], $args['status']);
 
             $csv      = WC_Multi_Store_Webhook_Logger::export_csv($args);
             $filename = 'webhook-logs-' . date('Y-m-d-His') . '.csv';

@@ -312,8 +312,10 @@ class WC_Multi_Store_Remote_Order_Table {
         $table_name = $wpdb->prefix . self::ORDERS_TABLE;
 
         // Calculate new sync hash
-        $sync_hash = self::calculate_hash($order_data);
-        $order_data['sync_hash'] = $sync_hash;
+        // Keep a hash the caller computed from the raw API payload (insert() does the same);
+        // recomputing it here from already-normalised values would never match the next sync's hash,
+        // so every order would be rewritten on every run.
+        $order_data['sync_hash'] = $order_data['sync_hash'] ?? self::calculate_hash($order_data);
         $order_data['last_updated'] = current_time('mysql');
 
         // Encode JSON fields
@@ -436,8 +438,9 @@ class WC_Multi_Store_Remote_Order_Table {
         }
 
         if (!empty($args['date_to'])) {
+            // A date-only upper bound means "through the end of that day".
             $where[] = 'date_created <= %s';
-            $where_values[] = $args['date_to'];
+            $where_values[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $args['date_to']) ? $args['date_to'] . ' 23:59:59' : $args['date_to'];
         }
 
         return [implode(' AND ', $where), $where_values];
@@ -471,7 +474,7 @@ class WC_Multi_Store_Remote_Order_Table {
         [$where_clause, $where_values] = self::build_where_clause($args);
 
         // Build ORDER BY clause
-        $allowed_orderby = ['id', 'date_created', 'date_modified', 'total', 'status', 'customer_email'];
+        $allowed_orderby = ['id', 'order_number', 'date_created', 'date_modified', 'total', 'status', 'customer_email'];
         $orderby = in_array($args['orderby'], $allowed_orderby) ? $args['orderby'] : 'date_created';
         $order = strtoupper($args['order']) === 'ASC' ? 'ASC' : 'DESC';
 

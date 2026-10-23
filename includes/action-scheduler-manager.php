@@ -509,7 +509,7 @@ class WC_Multi_Store_Action_Scheduler_Manager {
                         'Queue processor completed: %d processed, %d successful, %d failed',
                         $result['processed'] ?? 0,
                         $result['success'] ?? 0,
-                        $result['failed'] ?? 0
+                        $result['errors'] ?? $result['failed'] ?? 0
                     ));
                 } elseif ($result['status'] === 'empty') {
                     // Don't log empty queue to avoid spam

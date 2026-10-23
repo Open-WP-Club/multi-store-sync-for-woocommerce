@@ -39,14 +39,24 @@ class WC_Multi_Store_Time_Manager {
      */
     public static function is_off_peak(): bool {
         $settings = get_option('wc_multi_store_sync_scheduled', []);
+        $settings = is_array($settings) ? $settings : [];
 
         $peak_start = (int) ($settings['peak_start_hour'] ?? self::DEFAULT_PEAK_START);
         $peak_end = (int) ($settings['peak_end_hour'] ?? self::DEFAULT_PEAK_END);
 
         $current_hour = (int) current_datetime()->format('G');
 
-        // Off-peak is outside the peak range
-        return $current_hour < $peak_start || $current_hour >= $peak_end;
+        // Equal bounds describe an empty peak window.
+        if ($peak_start === $peak_end) {
+            return true;
+        }
+
+        // A window such as 22 -> 6 wraps around midnight.
+        $is_peak = $peak_start < $peak_end
+            ? ($current_hour >= $peak_start && $current_hour < $peak_end)
+            : ($current_hour >= $peak_start || $current_hour < $peak_end);
+
+        return !$is_peak;
     }
 
     /**
@@ -56,19 +66,23 @@ class WC_Multi_Store_Time_Manager {
      */
     public static function get_batch_size(): int {
         $settings = get_option('wc_multi_store_sync_scheduled', []);
+        $settings = is_array($settings) ? $settings : [];
         $force_full_sync = $settings['force_full_sync'] ?? false;
 
         // If force full sync or off-peak, use larger batch size
         if ($force_full_sync || self::is_off_peak()) {
-            return isset($settings['batch_size_offpeak'])
+            $size = isset($settings['batch_size_offpeak'])
                 ? (int) $settings['batch_size_offpeak']
                 : self::DEFAULT_BATCH_SIZE_OFF_PEAK;
+        } else {
+            // Peak hours: smaller batch size
+            $size = isset($settings['batch_size_peak'])
+                ? (int) $settings['batch_size_peak']
+                : self::DEFAULT_BATCH_SIZE_PEAK;
         }
 
-        // Peak hours: smaller batch size
-        return isset($settings['batch_size_peak'])
-            ? (int) $settings['batch_size_peak']
-            : self::DEFAULT_BATCH_SIZE_PEAK;
+        // A zero or negative batch would make the queue never advance.
+        return max(1, $size);
     }
 
     /**

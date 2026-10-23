@@ -171,7 +171,7 @@ class WC_Multi_Store_Conflict_Detector {
      * @param int $remote_product_id Remote product ID
      * @param int $local_product_id Local product ID
      * @param string $store_url Remote store URL
-     * @return array{has_conflict: bool, changed_fields: array, remote_data: array|null}
+     * @return array{has_conflict: bool, changed_fields: array, remote_data: array|null, conflict_id?: int}
      */
     public static function check_for_conflicts(
         WC_Multi_Store_API_Client $client,
@@ -204,9 +204,12 @@ class WC_Multi_Store_Conflict_Detector {
 
         $changed_fields = self::identify_changed_fields($remote_product, $local_product_id, $store_url);
 
-        self::log_conflict($local_product_id, $remote_product_id, $store_url, $changed_fields);
+        $conflict_id = self::log_conflict($local_product_id, $remote_product_id, $store_url, $changed_fields);
 
-        WC_Multi_Store_Email_Notifications::trigger_conflict_detected($local_product_id, $remote_product_id, $store_url, $changed_fields);
+        // Nobody has to act on a conflict the primary resolves by itself.
+        if ($settings['action_on_conflict'] !== 'primary_wins') {
+            WC_Multi_Store_Email_Notifications::trigger_conflict_detected($local_product_id, $remote_product_id, $store_url, $changed_fields);
+        }
 
         WC_Multi_Store_Logger::write(sprintf(
             'CONFLICT DETECTED: Product #%d on %s was modified remotely. Changed fields: %s',
@@ -219,6 +222,7 @@ class WC_Multi_Store_Conflict_Detector {
             'has_conflict'   => true,
             'changed_fields' => $changed_fields,
             'remote_data'    => $remote_product,
+            'conflict_id'    => $conflict_id,
         ];
     }
 
@@ -344,7 +348,7 @@ class WC_Multi_Store_Conflict_Detector {
     /**
      * Log a conflict for admin review
      */
-    private static function log_conflict(int $local_product_id, int $remote_product_id, string $store_url, array $changed_fields): void {
+    private static function log_conflict(int $local_product_id, int $remote_product_id, string $store_url, array $changed_fields): int {
         global $wpdb;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
@@ -360,6 +364,29 @@ class WC_Multi_Store_Conflict_Detector {
             ],
             ['%d', '%d', '%s', '%s', '%s', '%d']
         );
+
+        return (int) $wpdb->insert_id;
+    }
+
+    /**
+     * Mark a conflict resolved because the sync that followed it overwrote the remote edit
+     * with the primary's data (primary-wins mode). Call only after that sync succeeded.
+     */
+    public static function mark_auto_resolved(int $id): bool {
+        global $wpdb;
+
+        if ($id < 1) {
+            return false;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict state uses custom tables; cached hashes or decisions could resolve the wrong product state.
+        return $wpdb->update(
+            $wpdb->prefix . self::LOG_TABLE,
+            ['resolved' => 1, 'resolution' => 'auto_overwrite', 'resolved_at' => current_time('mysql')],
+            ['id' => $id, 'resolved' => 0],
+            ['%d', '%s', '%s'],
+            ['%d', '%d']
+        ) === 1;
     }
 
     /**
@@ -540,11 +567,19 @@ class WC_Multi_Store_Conflict_Detector {
      * Get conflict detection settings
      */
     public static function get_settings(): array {
-        return wp_parse_args(get_option('wc_mss_conflict_settings', []), [
+        $settings = wp_parse_args(get_option('wc_mss_conflict_settings', []), [
             'enabled' => false,
             'action_on_conflict' => 'warn',
             'notify_email' => true,
         ]);
+
+        // Primary-wins mode: remote edits are overwritten by the next sync, so never block
+        // on them and never ask a human to decide.
+        if (WC_Multi_Store_Settings::is_primary_authoritative()) {
+            $settings['action_on_conflict'] = 'primary_wins';
+        }
+
+        return $settings;
     }
 
     /**

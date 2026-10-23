@@ -18,12 +18,6 @@ if (!defined('ABSPATH')) {
 class WC_Multi_Store_Sync_Engine {
 
     /**
-     * Category/Tag cache TTL in seconds (24 hours)
-     * Cleared during daily maintenance and weekly verification
-     */
-    const TERM_CACHE_TTL = DAY_IN_SECONDS;
-
-    /**
      * Chunk size when retrying batch term creation after a full-batch failure.
      * Some remotes reject 50-item batches but accept ~10-item ones; this also
      * caps blast radius when only some items are problematic.
@@ -528,8 +522,14 @@ class WC_Multi_Store_Sync_Engine {
         // of reusing $remote_product above — only costs anything once a store
         // opts into the toggle, so not worth plumbing the already-fetched data
         // through for a feature that's off by default.
+        $auto_resolve_conflict_id = 0;
         if ($is_update && !$conflict_resolution) {
             $conflict_result = WC_Multi_Store_Conflict_Detector::check_for_conflicts($api, $remote_product['id'], $product->get_id(), $store_url);
+
+            if ($conflict_result['has_conflict'] && WC_Multi_Store_Conflict_Detector::get_settings()['action_on_conflict'] === 'primary_wins') {
+                // This sync overwrites the remote edit; the conflict is closed once it succeeds.
+                $auto_resolve_conflict_id = (int) ($conflict_result['conflict_id'] ?? 0);
+            }
 
             if ($conflict_result['has_conflict'] && WC_Multi_Store_Conflict_Detector::get_settings()['action_on_conflict'] === 'block') {
                 $this->logger->warning(sprintf(
@@ -811,6 +811,10 @@ class WC_Multi_Store_Sync_Engine {
                 if (!WC_Multi_Store_Conflict_Detector::store_hash($product->get_id(), $store_url, $operation_result['result']) && $conflict_resolution) {
                     throw new \RuntimeException('Could not save conflict baseline');
                 }
+            }
+
+            if ($auto_resolve_conflict_id > 0) {
+                WC_Multi_Store_Conflict_Detector::mark_auto_resolved($auto_resolve_conflict_id);
             }
 
             // Save sync hashes for smart comparison on next sync
@@ -1332,14 +1336,13 @@ class WC_Multi_Store_Sync_Engine {
             // Update the transient once with the new terms appended — avoids thrashing
             // where every created term would cause a delete + full API re-fetch on the next product.
             if (!empty($newly_created)) {
-                $cache_key = 'wc_mss_remote_' . $type . '_' . md5($api->get_store_url());
-                $cached    = get_transient($cache_key);
-                if (is_array($cached)) {
-                    set_transient($cache_key, array_merge($cached, $newly_created), self::TERM_CACHE_TTL);
-                } else {
-                    // Cache was already gone (expired or manually cleared); let it rebuild naturally.
-                    delete_transient($cache_key);
+                // Read and write through the Cache Manager: it owns the (generation-aware) key
+                // that get_cached_remote_terms() reads, so a hand-built key here is never seen.
+                $cached = WC_Multi_Store_Cache_Manager::get_remote_terms($api->get_store_url(), $type);
+                if ($cached !== false) {
+                    WC_Multi_Store_Cache_Manager::set_remote_terms($api->get_store_url(), $type, array_merge($cached, $newly_created));
                 }
+                // Otherwise the cache is already gone (expired or cleared); let it rebuild naturally.
             }
         }
 
@@ -1368,16 +1371,15 @@ class WC_Multi_Store_Sync_Engine {
                 // batch-create path above) so the next product synced in this
                 // same 24h window doesn't re-detect the same drift and re-send
                 // an identical rename.
-                $cache_key = 'wc_mss_remote_' . $type . '_' . md5($api->get_store_url());
-                $cached = get_transient($cache_key);
-                if (is_array($cached)) {
+                $cached = WC_Multi_Store_Cache_Manager::get_remote_terms($api->get_store_url(), $type);
+                if ($cached !== false) {
                     foreach ($cached as &$cached_term) {
                         if (isset($terms_to_rename[$cached_term['id']])) {
                             $cached_term = array_merge($cached_term, $terms_to_rename[$cached_term['id']]);
                         }
                     }
                     unset($cached_term);
-                    set_transient($cache_key, $cached, self::TERM_CACHE_TTL);
+                    WC_Multi_Store_Cache_Manager::set_remote_terms($api->get_store_url(), $type, $cached);
                 }
             }
         }

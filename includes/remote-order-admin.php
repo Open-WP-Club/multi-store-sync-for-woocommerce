@@ -539,7 +539,7 @@ class WC_Multi_Store_Remote_Order_Admin {
         $parts = [];
 
         if (!empty($address['first_name']) || !empty($address['last_name'])) {
-            $parts[] = trim($address['first_name'] . ' ' . $address['last_name']);
+            $parts[] = trim(($address['first_name'] ?? '') . ' ' . ($address['last_name'] ?? ''));
         }
 
         if (!empty($address['company'])) {

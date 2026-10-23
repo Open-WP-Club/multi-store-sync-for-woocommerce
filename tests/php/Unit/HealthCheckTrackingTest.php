@@ -151,19 +151,24 @@ class HealthCheckTrackingTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
-
-        Functions\when('update_option')->justReturn(true);
-
-        // wp_mail should NOT be called
-        Functions\when('wp_mail')->alias(function () {
-            throw new \RuntimeException('wp_mail should not be called');
+        Functions\when('update_option')->alias(function ($key, $value) use (&$stored_counts) {
+            if ($key === 'wc_mss_health_failure_counts') {
+                $stored_counts = $value;
+            }
+            return true;
+        });
+        $mails = 0;
+        Functions\when('wp_mail')->alias(function () use (&$mails) {
+            $mails++;
+            return true;
         });
 
         $result = ['healthy' => false, 'message' => 'Error', 'checked_at' => '2024-01-01'];
 
-        // Should not throw
         $this->invoke($hc, 'track_failures', ['https://store.com', $result]);
-        $this->assertTrue(true); // No exception = pass
+
+        $this->assertSame(0, $mails, 'The first failure is below the alert threshold');
+        $this->assertSame(1, $stored_counts['https://store.com'], 'The failure is still counted');
     }
 
     public function test_track_failures_no_alert_after_threshold(): void
@@ -178,18 +183,24 @@ class HealthCheckTrackingTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
-
-        Functions\when('update_option')->justReturn(true);
-
-        // wp_mail should NOT be called (5 !== FAILURE_THRESHOLD)
-        Functions\when('wp_mail')->alias(function () {
-            throw new \RuntimeException('wp_mail should not be called after threshold');
+        Functions\when('update_option')->alias(function ($key, $value) use (&$stored_counts) {
+            if ($key === 'wc_mss_health_failure_counts') {
+                $stored_counts = $value;
+            }
+            return true;
+        });
+        $mails = 0;
+        Functions\when('wp_mail')->alias(function () use (&$mails) {
+            $mails++;
+            return true;
         });
 
         $result = ['healthy' => false, 'message' => 'Still down', 'checked_at' => '2024-01-01'];
 
         $this->invoke($hc, 'track_failures', ['https://store.com', $result]);
-        $this->assertTrue(true);
+
+        $this->assertSame(0, $mails, 'Only the failure that reaches the threshold sends an alert (5 !== 3)');
+        $this->assertSame(5, $stored_counts['https://store.com']);
     }
 
     // ─── send_health_alert ───────────────────────────
@@ -204,10 +215,10 @@ class HealthCheckTrackingTest extends WC_Multi_Store_TestCase
             }
             return $default;
         });
-
-        // wp_mail should NOT be called
-        Functions\when('wp_mail')->alias(function () {
-            throw new \RuntimeException('wp_mail should not be called when disabled');
+        $mails = 0;
+        Functions\when('wp_mail')->alias(function () use (&$mails) {
+            $mails++;
+            return true;
         });
 
         $this->invoke($hc, 'send_health_alert', [
@@ -216,7 +227,7 @@ class HealthCheckTrackingTest extends WC_Multi_Store_TestCase
             3
         ]);
 
-        $this->assertTrue(true); // No exception = pass
+        $this->assertSame(0, $mails);
     }
 
     public function test_send_health_alert_uses_admin_email_as_fallback(): void
@@ -257,28 +268,44 @@ class HealthCheckTrackingTest extends WC_Multi_Store_TestCase
     public function test_update_store_health_status_saves_result(): void
     {
         $hc = $this->createHealthCheck();
-        $updated_store = null;
+        $stores = ['https://store.com' => ['consumer_key' => 'ck_test', 'consumer_secret' => 'cs_test']];
+        $saved = null;
 
-        Functions\when('get_option')->alias(function ($key, $default = false) {
-            return $default;
+        Functions\when('get_option')->alias(fn($key, $default = false) => $key === 'wc_multi_store_sync_stores' ? $stores : $default);
+        Functions\when('update_option')->alias(function ($key, $value) use (&$saved) {
+            if ($key === 'wc_multi_store_sync_stores') {
+                $saved = $value;
+            }
+            return true;
+        });
+        Functions\when('esc_url_raw')->alias(fn($url) => $url);
+        Functions\when('wp_parse_url')->alias(fn($url, $component = -1) => parse_url($url, $component));
+        $health = ['healthy' => true, 'message' => 'OK'];
+
+        $this->invoke($hc, 'update_store_health_status', ['https://store.com', $health]);
+
+        $this->assertNotNull($saved, 'The store configuration must be persisted');
+        $this->assertSame($health, $saved['https://store.com']['health_status']);
+        $this->assertSame('ck_test', $saved['https://store.com']['consumer_key'], 'Existing store fields are preserved');
+    }
+
+    public function test_update_store_health_status_ignores_unknown_store(): void
+    {
+        $hc = $this->createHealthCheck();
+        $writes = 0;
+
+        Functions\when('get_option')->alias(fn($key, $default = false) => $default);
+        Functions\when('update_option')->alias(function () use (&$writes) {
+            $writes++;
+            return true;
         });
 
-        // Mock the Settings class static methods
-        $mock_store = ['consumer_key' => 'ck_test', 'consumer_secret' => 'cs_test'];
-
-        // Use class method mocking through aliasing
-        if (!method_exists('WC_Multi_Store_Settings', 'get_store')) {
-            $this->markTestSkipped('WC_Multi_Store_Settings::get_store not available');
-        }
-
-        // We can't easily mock static methods, but we can verify the method runs without errors
-        // when the store doesn't exist (returns null)
         $this->invoke($hc, 'update_store_health_status', [
             'https://nonexistent.com',
             ['healthy' => true, 'message' => 'OK']
         ]);
 
-        $this->assertTrue(true); // Method completed without errors
+        $this->assertSame(0, $writes, 'A health result for a removed store must not recreate it');
     }
 
     // ─── unschedule_health_check ─────────────────────

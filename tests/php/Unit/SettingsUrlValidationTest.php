@@ -308,6 +308,30 @@ class SettingsUrlValidationTest extends WC_Multi_Store_TestCase
         $this->assertEquals('unsafe_url', $result->get_error_code());
     }
 
+    public function test_validate_url_rejects_bracketed_link_local_ipv6_host(): void
+    {
+        // wp_parse_url() returns IPv6 literals WITH brackets; the guard must still catch them.
+        $url = 'https://[fe80::1]/';
+
+        Functions\expect('esc_url_raw')->once()->andReturn($url);
+        Functions\expect('wp_parse_url')->once()->andReturn(['scheme' => 'https', 'host' => '[fe80::1]']);
+
+        $result = WC_Multi_Store_Settings::validate_store_url($url);
+
+        $this->assertTrue(is_wp_error($result));
+        $this->assertEquals('unsafe_url', $result->get_error_code());
+    }
+
+    public function test_is_safe_remote_url_rejects_bracketed_link_local_ipv6(): void
+    {
+        Functions\when('wp_parse_url')->alias(fn($u, $c = -1) => parse_url($u, $c));
+
+        $this->assertFalse(WC_Multi_Store_Settings::is_safe_remote_url('http://[fe80::1]/purge'));
+        $this->assertFalse(WC_Multi_Store_Settings::is_safe_remote_url('http://169.254.169.254/'));
+        $this->assertTrue(WC_Multi_Store_Settings::is_safe_remote_url('http://93.184.216.34/'));
+        $this->assertTrue(WC_Multi_Store_Settings::is_safe_remote_url('http://[2606:2800:220:1:248:1893:25c8:1946]/'));
+    }
+
     public function test_validate_url_allows_private_range_ip(): void
     {
         // Private ranges (192.168/16, 10/8) are intentionally allowed — the

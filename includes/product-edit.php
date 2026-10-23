@@ -214,13 +214,20 @@ class WC_Multi_Store_Product_Edit {
         // Save settings
         $deletion_settings = [];
 
+        // The nonce above proves the metabox was rendered and submitted. Browsers send no key at
+        // all when every checkbox is unticked, so a missing array means "no store selected".
+        $posted_stores = [];
         if (isset($_POST['_wc_mss_delete_from_stores']) && is_array($_POST['_wc_mss_delete_from_stores'])) {
-            $stores = WC_Multi_Store_Settings::get_active_stores();
-
-            foreach ($stores as $store_url => $store_config) {
-                $store_key = md5($store_url);
-                $deletion_settings[$store_key] = isset($_POST['_wc_mss_delete_from_stores'][$store_key]);
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only the array KEYS are read (md5 store ids), each passed through sanitize_key(); the values are never used.
+            foreach (array_keys($_POST['_wc_mss_delete_from_stores']) as $posted_key) {
+                $posted_stores[] = sanitize_key((string) $posted_key);
             }
+        }
+        $stores = WC_Multi_Store_Settings::get_active_stores();
+
+        foreach ($stores as $store_url => $store_config) {
+            $store_key = md5($store_url);
+            $deletion_settings[$store_key] = in_array($store_key, $posted_stores, true);
         }
 
         update_post_meta($post_id, '_wc_mss_selective_deletion', $deletion_settings);

@@ -55,6 +55,7 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
     protected function tearDown(): void
     {
         $_GET = [];
+        $_POST = [];
         parent::tearDown();
     }
 
@@ -179,12 +180,22 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
     // ─── save ──────────────────────────────────────
 
-    public function test_save_does_not_throw(): void
+    public function test_save_is_a_noop_override(): void
     {
-        // save() is a no-op override
+        // WC_Settings_Page::save() would persist get_settings() fields; this
+        // tab saves through per-section handlers, so the override must write nothing.
+        $writes = 0;
+        Functions\when('update_option')->alias(function () use (&$writes) {
+            $writes++;
+            return true;
+        });
+        $_POST = ['store_url' => 'https://store.com'];
+
         $this->integration->save();
 
-        $this->assertTrue(true);
+        $this->assertSame(0, $writes);
+        $this->assertSame([], WC_Admin_Settings::get_messages());
+        $this->assertSame([], WC_Admin_Settings::get_errors());
     }
 
     // ─── get_settings ──────────────────────────────
@@ -201,27 +212,38 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
     public function test_enqueue_admin_scripts_skips_non_wc_settings(): void
     {
-        $this->expectNotToPerformAssertions();
+        $_GET = ['tab' => 'multi_store_sync'];
+        Functions\expect('wp_enqueue_script')->never();
+        Functions\expect('wp_enqueue_style')->never();
+        Functions\expect('wp_localize_script')->never();
 
         $this->integration->enqueue_admin_scripts('edit.php');
+
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_enqueue_admin_scripts_skips_wrong_tab(): void
     {
         $_GET = ['tab' => 'general'];
-
-        $this->expectNotToPerformAssertions();
+        Functions\expect('wp_enqueue_script')->never();
+        Functions\expect('wp_enqueue_style')->never();
+        Functions\expect('wp_localize_script')->never();
 
         $this->integration->enqueue_admin_scripts('woocommerce_page_wc-settings');
+
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_enqueue_admin_scripts_skips_no_tab(): void
     {
         $_GET = [];
-
-        $this->expectNotToPerformAssertions();
+        Functions\expect('wp_enqueue_script')->never();
+        Functions\expect('wp_enqueue_style')->never();
+        Functions\expect('wp_localize_script')->never();
 
         $this->integration->enqueue_admin_scripts('woocommerce_page_wc-settings');
+
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_enqueue_admin_scripts_loads_on_correct_tab(): void
@@ -263,7 +285,8 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
         $this->integration->enqueue_admin_scripts('woocommerce_page_wc-settings');
 
-        $this->assertTrue(true);
+        // The exact-argument Mockery expectations above are the proof.
+        $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
     public function test_settings_load_native_dialog_without_verification_or_chart(): void
@@ -307,16 +330,50 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
 
     public function test_handle_delete_store_calls_settings(): void
     {
+        $stores = [
+            'https://store.com' => ['status' => 'active'],
+            'https://other.com' => ['status' => 'active'],
+        ];
+        Functions\when('get_option')->alias(fn($option, $default = false) => $option === 'wc_multi_store_sync_stores' ? $stores : $default);
+        $saved = [];
+        Functions\when('update_option')->alias(function ($option, $value) use (&$saved) {
+            $saved[$option] = $value;
+            return true;
+        });
+
         $ref = new ReflectionClass($this->integration);
         $method = $ref->getMethod('handle_delete_store');
-
         $_POST = ['store_url' => 'https://store.com'];
 
-        // WC_Multi_Store_Settings::delete_store is a static call
-        // It uses get_option/update_option which are already mocked
         $method->invoke($this->integration);
 
-        $this->assertTrue(true); // No exception thrown
+        $this->assertSame(
+            ['https://other.com' => ['status' => 'active']],
+            $saved['wc_multi_store_sync_stores'],
+            'Only the requested store is removed'
+        );
+        $this->assertSame(['Store deleted successfully.'], WC_Admin_Settings::get_messages());
+    }
+
+    public function test_handle_delete_store_unknown_store_changes_nothing(): void
+    {
+        Functions\when('get_option')->alias(fn($option, $default = false) => $option === 'wc_multi_store_sync_stores'
+            ? ['https://other.com' => ['status' => 'active']]
+            : $default);
+        $writes = 0;
+        Functions\when('update_option')->alias(function () use (&$writes) {
+            $writes++;
+            return true;
+        });
+
+        $ref = new ReflectionClass($this->integration);
+        $method = $ref->getMethod('handle_delete_store');
+        $_POST = ['store_url' => 'https://missing.com'];
+
+        $method->invoke($this->integration);
+
+        $this->assertSame(0, $writes);
+        $this->assertSame([], WC_Admin_Settings::get_messages());
     }
 
     // ─── handle_clear_queue (private) ──────────────

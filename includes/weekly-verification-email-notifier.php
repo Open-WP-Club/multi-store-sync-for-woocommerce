@@ -26,7 +26,10 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
             return false;
         }
 
-        $to = array_map('trim', explode(',', $settings['email_recipients']));
+        $to = array_values(array_filter(array_map('trim', explode(',', $settings['email_recipients']))));
+        if ($to === []) {
+            return false;
+        }
         $subject = sprintf(
             '[%s] Weekly Sync Verification: %d discrepancies found',
             get_bloginfo('name'),
@@ -171,9 +174,9 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
             $disc['type'] === 'price' => sprintf(
                 /* translators: 1: field name, 2: expected value, 3: actual value */
                 __('%1$s mismatch - Expected: %2$s, Actual: %3$s', 'multi-store-sync-for-woocommerce'),
-                ucfirst($disc['field']),
-                $disc['expected'],
-                $disc['actual']
+                esc_html(ucfirst((string) $disc['field'])),
+                esc_html((string) $disc['expected']),
+                esc_html((string) $disc['actual'])
             ),
             in_array($disc['type'], ['tag', 'image', 'category'], true) => self::format_list_discrepancy_message($disc),
             $disc['type'] === 'attribute' => __('Attribute mismatch', 'multi-store-sync-for-woocommerce'),
