@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
 }
 ?>
 
-<div class="wrap">
+<div class="wrap wc-mss-page">
     <h2><?php esc_html_e('Export / Import Configuration', 'multi-store-sync-for-woocommerce'); ?></h2>
     <p class="description"><?php esc_html_e('Export your plugin configuration for backup or transfer to another installation.', 'multi-store-sync-for-woocommerce'); ?></p>
 

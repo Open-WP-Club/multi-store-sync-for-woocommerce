@@ -112,7 +112,7 @@ foreach ($active_stores as $store_url => $store_config) {
 }
 ?>
 
-<div class="wrap wc-mss-weekly-verification">
+<div class="wrap wc-mss-weekly-verification wc-mss-page">
     <h1><?php esc_html_e('Weekly Sync Verification', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <?php settings_errors('wc_mss_weekly_verification'); ?>

@@ -164,12 +164,34 @@ class WC_Multi_Store_Remote_Product_Manager {
      * @return array Result with 'success', 'action', 'result', 'message'
      */
     public function create_or_update(WC_Multi_Store_API_Client $api, WC_Product $product, ?array $remote_product, array $product_data, string $sync_type, string $sync_source = 'manual'): array {
+        $original_product_data = $product_data;
+
         if ($remote_product) {
             // Update existing product — remove 'type' as it's not needed for updates
             // and causes errors if the remote store doesn't have the same product types
             unset($product_data['type']);
             $result = $api->update_product($remote_product['id'], $product_data);
             $action = 'updated';
+
+            // The remote product we were about to update no longer exists (deleted on the remote
+            // store while a cached or stored ID still pointed at it). Forget the stale identity,
+            // look the product up again, and either update what is really there or create it.
+            if (is_wp_error($result) && self::remote_http_status($result) === 404) {
+                $healed = $this->recover_from_missing_remote_product($api, $product, $remote_product, $product_data, $original_product_data, $sync_type);
+                if ($healed !== null) {
+                    [$result, $action, $remote_product] = $healed;
+                }
+            }
+
+            // A duplicate SKU is a data problem on the remote store; explain it and stop retrying.
+            if (is_wp_error($result) && self::is_duplicate_sku_error($result)) {
+                return [
+                    'success' => false,
+                    'action' => $action,
+                    'result' => $result,
+                    'message' => $this->handle_duplicate_sku($api, $product, (int) $remote_product['id']),
+                ];
+            }
         } else {
             // Create new product (only for full sync)
             if ($sync_type !== 'full_product') {
@@ -195,6 +217,15 @@ class WC_Multi_Store_Remote_Product_Manager {
 
             $result = $api->create_product($product_data);
             $action = 'created';
+
+            if (is_wp_error($result) && self::is_duplicate_sku_error($result)) {
+                return [
+                    'success' => false,
+                    'action' => $action,
+                    'result' => $result,
+                    'message' => $this->handle_duplicate_sku($api, $product, 0),
+                ];
+            }
         }
 
         // Check result
@@ -206,6 +237,8 @@ class WC_Multi_Store_Remote_Product_Manager {
                 'message' => $result->get_error_message(),
             ];
         }
+
+        WC_Multi_Store_Sku_Conflicts::clear($product->get_id(), $api->get_store_url());
 
         // A successful HTTP response alone does not confirm a product write.
         // Reject empty/error-shaped payloads and responses for a different ID
@@ -237,6 +270,96 @@ class WC_Multi_Store_Remote_Product_Manager {
             'result' => $result,
             'message' => 'Product ' . $action . ' successfully',
         ];
+    }
+
+    /** HTTP status carried by an API error, or 0 when it has none. */
+    private static function remote_http_status(\WP_Error $error): int {
+        $data = $error->get_error_data();
+
+        return is_array($data) ? (int) ($data['status'] ?? 0) : 0;
+    }
+
+    /**
+     * WooCommerce rejects a SKU that another product already uses. Its message is localised to the
+     * remote site's language, so detect it by the machine-readable error code, not by the text.
+     */
+    private static function is_duplicate_sku_error(\WP_Error $error): bool {
+        $data = $error->get_error_data();
+        $remote_code = is_array($data) && is_array($data['data'] ?? null) ? (string) ($data['data']['code'] ?? '') : '';
+
+        return in_array($remote_code, ['product_invalid_sku', 'woocommerce_rest_product_sku_unique'], true);
+    }
+
+    /**
+     * Warn about a duplicate SKU and build an actionable message for it. The wording ("is already
+     * used by another product") is also what the queue uses to stop retrying: the same request
+     * cannot succeed until somebody fixes the products on the remote store.
+     */
+    private function handle_duplicate_sku(WC_Multi_Store_API_Client $api, WC_Product $product, int $target_remote_id): string {
+        $sku = $product->get_sku();
+        $owner_id = 0;
+        $owner_name = '';
+
+        if ($sku !== '') {
+            $found = $api->get_products($sku, 'sku');
+            if (is_array($found) && isset($found[0]['id']) && (int) $found[0]['id'] !== $target_remote_id) {
+                $owner_id = (int) $found[0]['id'];
+                $owner_name = (string) ($found[0]['name'] ?? '');
+            }
+        }
+
+        WC_Multi_Store_Sku_Conflicts::record($product->get_id(), $api->get_store_url(), $sku, $target_remote_id, $owner_id, $owner_name);
+
+        return sprintf(
+            'SKU "%s" is already used by another product on the remote store%s, so %s could not be saved. Fix or remove the duplicate on the remote store.',
+            $sku,
+            $owner_id > 0 ? sprintf(' (remote product #%d)', $owner_id) : '',
+            $target_remote_id > 0 ? sprintf('remote product #%d', $target_remote_id) : 'the product'
+        );
+    }
+
+    /**
+     * Recover from a 404 while updating a remote product.
+     *
+     * @return array{0: array|\WP_Error, 1: string, 2: array|null}|null [result, action, remote product], or null to keep the original error
+     */
+    private function recover_from_missing_remote_product(
+        WC_Multi_Store_API_Client $api,
+        WC_Product $product,
+        array $stale_remote_product,
+        array $update_data,
+        array $create_data,
+        string $sync_type
+    ): ?array {
+        $store_url = $api->get_store_url();
+        $match_by = (string) WC_Multi_Store_Settings::get('match_products_by', 'sku');
+        $search_value = $match_by === 'sku' ? $product->get_sku() : $product->get_slug();
+
+        self::clear_stored_remote_id($product->get_id(), $store_url);
+        if ($search_value !== '') {
+            WC_Multi_Store_Cache_Manager::delete_remote_product($store_url, $search_value, $match_by);
+        }
+
+        $fresh = $this->find_remote_product($api, $product, $match_by, $store_url);
+        if (is_wp_error($fresh)) {
+            return null;
+        }
+
+        if (is_array($fresh) && (int) ($fresh['id'] ?? 0) > 0 && (int) $fresh['id'] !== (int) $stale_remote_product['id']) {
+            return [$api->update_product((int) $fresh['id'], $update_data), 'updated', $fresh];
+        }
+
+        // Truly gone from the remote store: only a full sync may create it again.
+        if ($fresh === null && $sync_type === 'full_product') {
+            $standard_types = ['simple', 'grouped', 'external', 'variable'];
+            if (isset($create_data['type']) && !in_array($create_data['type'], $standard_types, true)) {
+                unset($create_data['type']);
+            }
+
+            return [$api->create_product($create_data), 'created', null];
+        }
+
+        return null;
     }
 
     /**

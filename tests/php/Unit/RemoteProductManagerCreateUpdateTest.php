@@ -17,6 +17,9 @@ class RemoteProductManagerCreateUpdateTest extends WC_Multi_Store_TestCase
     /** @var array<string, mixed> */
     private array $meta = [];
 
+    /** @var array<string, mixed> */
+    private array $options = [];
+
     /** @var list<array{string, mixed}> */
     private array $transientWrites = [];
 
@@ -30,7 +33,12 @@ class RemoteProductManagerCreateUpdateTest extends WC_Multi_Store_TestCase
         $this->transientWrites = [];
         $this->transientDeletes = [];
 
-        Functions\when('get_option')->justReturn([]);
+        $this->options = [];
+        Functions\when('get_option')->alias(fn($key, $default = false) => $this->options[$key] ?? ($default === false ? [] : $default));
+        Functions\when('update_option')->alias(function ($key, $value) {
+            $this->options[$key] = $value;
+            return true;
+        });
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->alias(function ($k, $v) {
             $this->transientWrites[] = [$k, $v];
@@ -463,5 +471,141 @@ class RemoteProductManagerCreateUpdateTest extends WC_Multi_Store_TestCase
 
         $this->assertSame(['name' => 'A'], $sent[0]);
         $this->assertSame(['type' => 'grouped', 'name' => 'B'], $sent[1]);
+    }
+
+    // ---- remote product vanished / duplicate SKU --------------------------
+
+    private function notFoundError(): \WP_Error
+    {
+        return new \WP_Error('not_found', 'Невалиден ID.', ['status' => 404, 'data' => ['code' => 'woocommerce_rest_product_invalid_id']]);
+    }
+
+    private function duplicateSkuError(): \WP_Error
+    {
+        // The message is in the remote site's language; the machine-readable code is what counts.
+        return new \WP_Error('client_error', 'Невалиден или дублиран код.', ['status' => 400, 'data' => ['code' => 'product_invalid_sku']]);
+    }
+
+    public function test_update_of_a_vanished_remote_product_updates_the_product_found_by_a_fresh_lookup(): void
+    {
+        $this->meta[100][$this->metaKey()] = 555;
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->with(555, \Mockery::type('array'))->andReturn($this->notFoundError());
+        $api->shouldReceive('get_product')->with(555)->andReturn($this->notFoundError());
+        $api->shouldReceive('get_products')->with('SKU-1', 'sku')->andReturn([['id' => 777, 'sku' => 'SKU-1']]);
+        $api->shouldReceive('update_product')->once()->with(777, \Mockery::type('array'))
+            ->andReturn(['id' => 777, 'status' => 'publish']);
+
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 555], ['status' => 'publish', 'type' => 'simple'], 'full_product');
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame('updated', $result['action']);
+        $this->assertSame(777, $result['result']['id']);
+        $this->assertArrayNotHasKey($this->metaKey(), $this->meta[100] ?? [], 'The stale stored ID must be forgotten');
+    }
+
+    public function test_update_of_a_vanished_remote_product_creates_it_again_on_a_full_sync(): void
+    {
+        $this->meta[100][$this->metaKey()] = 555;
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->andReturn($this->notFoundError());
+        $api->shouldReceive('get_product')->with(555)->andReturn($this->notFoundError());
+        $api->shouldReceive('get_products')->andReturn([]);
+        $api->shouldReceive('create_product')->once()
+            ->with(\Mockery::on(fn($d) => ($d['type'] ?? null) === 'simple' && $d['status'] === 'publish'))
+            ->andReturn(['id' => 888, 'status' => 'publish']);
+
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 555], ['status' => 'publish', 'type' => 'simple'], 'full_product');
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame('created', $result['action']);
+        $this->assertSame(888, $result['result']['id']);
+    }
+
+    public function test_a_light_sync_never_creates_a_product_that_vanished_remotely(): void
+    {
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->andReturn($this->notFoundError());
+        $api->shouldReceive('get_products')->andReturn([]);
+        $api->shouldNotReceive('create_product');
+
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 555], ['regular_price' => '9.99'], 'price_quantity');
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('Невалиден ID.', $result['message'], 'The original error is kept when nothing can be recovered');
+    }
+
+    public function test_a_server_error_is_not_mistaken_for_a_vanished_product(): void
+    {
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->andReturn(new \WP_Error('server_error', 'boom', ['status' => 500]));
+        $api->shouldNotReceive('get_products');
+        $api->shouldNotReceive('create_product');
+
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 555], ['status' => 'publish'], 'full_product');
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('boom', $result['message']);
+    }
+
+    public function test_duplicate_sku_names_the_conflicting_remote_product_and_stops_retries(): void
+    {
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->with(124906, \Mockery::type('array'))->andReturn($this->duplicateSkuError());
+        $api->shouldReceive('get_products')->with('SKU-1', 'sku')->andReturn([['id' => 4242, 'sku' => 'SKU-1', 'name' => 'Blue shirt']]);
+
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 124906], ['sku' => 'SKU-1', 'status' => 'publish'], 'full_product');
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('SKU "SKU-1" is already used by another product', $result['message']);
+        $this->assertStringContainsString('remote product #4242', $result['message']);
+        $this->assertStringContainsString('remote product #124906 could not be saved', $result['message']);
+
+        $warning = array_values(WC_Multi_Store_Sku_Conflicts::get_all());
+        $this->assertCount(1, $warning);
+        $this->assertSame(['sku' => 'SKU-1', 'remote_id' => 124906, 'owner_remote_id' => 4242, 'owner_name' => 'Blue shirt'], [
+            'sku' => $warning[0]['sku'],
+            'remote_id' => $warning[0]['remote_id'],
+            'owner_remote_id' => $warning[0]['owner_remote_id'],
+            'owner_name' => $warning[0]['owner_name'],
+        ]);
+    }
+
+    public function test_successful_sync_clears_a_recorded_duplicate_sku_warning(): void
+    {
+        WC_Multi_Store_Sku_Conflicts::record(100, self::STORE, 'SKU-1', 555, 4242);
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->andReturn(['id' => 555, 'status' => 'publish']);
+
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 555], ['status' => 'publish'], 'full_product');
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, WC_Multi_Store_Sku_Conflicts::count());
+    }
+
+    public function test_duplicate_sku_is_recognised_by_code_for_both_update_and_create(): void
+    {
+        $api = $this->api();
+        $api->shouldReceive('create_product')->once()->andReturn(
+            new \WP_Error('client_error', 'Invalid or duplicated SKU.', ['status' => 400, 'data' => ['code' => 'woocommerce_rest_product_sku_unique']])
+        );
+        $api->shouldReceive('get_products')->andReturn([]);
+
+        $result = $this->manager->create_or_update($api, $this->product(), null, ['sku' => 'SKU-1'], 'full_product');
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('is already used by another product', $result['message']);
+        $this->assertStringContainsString('the product could not be saved', $result['message']);
+    }
+
+    public function test_other_client_errors_keep_their_own_message(): void
+    {
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->andReturn(new \WP_Error('client_error', 'Невалидна цена.', ['status' => 400, 'data' => ['code' => 'product_invalid_price']]));
+        $api->shouldNotReceive('get_products');
+
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 555], ['regular_price' => 'x'], 'full_product');
+
+        $this->assertSame('Невалидна цена.', $result['message']);
     }
 }

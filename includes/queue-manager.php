@@ -1078,7 +1078,9 @@ class WC_Multi_Store_Queue_Manager {
 
                     // Don't retry if product not found on remote store or has no SKU - retrying is pointless
                     $no_retry = str_contains($error_message, 'Product not found on remote store')
-                        || str_contains($error_message, 'Product has no SKU');
+                        || str_contains($error_message, 'Product has no SKU')
+                        // Duplicate SKU on the remote store: identical retries cannot succeed.
+                        || str_contains($error_message, 'is already used by another product');
 
                     WC_Multi_Store_Queue_Table::mark_failed($item_id, $error_message, $no_retry);
                     $error_count++;

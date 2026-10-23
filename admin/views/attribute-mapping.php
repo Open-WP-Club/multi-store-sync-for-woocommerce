@@ -20,7 +20,7 @@ $mapping_enabled = WC_Multi_Store_Attribute_Remapper::is_enabled();
 $settings_url = admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=settings');
 ?>
 
-<div class="wrap wc-mss-attribute-mapping-page">
+<div class="wrap wc-mss-attribute-mapping-page wc-mss-page">
     <h1><?php esc_html_e('Attribute Mapping', 'multi-store-sync-for-woocommerce'); ?></h1>
     <p class="description">
         <?php esc_html_e('Map local attribute names and values to different names on a specific remote store — e.g. "Цвят" on your main store becomes "Color" on a store that sells in English. Leave a row unmapped to send the attribute as-is, or map it to "Skip" to leave it off that store entirely.', 'multi-store-sync-for-woocommerce'); ?>

@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 }
 ?>
 
-<div class="wrap wc-mss-queue">
+<div class="wrap wc-mss-queue wc-mss-page">
     <h1><?php esc_html_e('Sync Queue', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <div class="wc-mss-dashboard-grid">

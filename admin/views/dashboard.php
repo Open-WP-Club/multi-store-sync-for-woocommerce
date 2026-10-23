@@ -19,7 +19,7 @@ foreach ($stores as $store) {
 }
 ?>
 
-<div class="wrap wc-mss-dashboard">
+<div class="wrap wc-mss-dashboard wc-mss-page">
     <h1><?php esc_html_e('WooCommerce Multi-Store Sync - Dashboard', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <div class="wc-mss-dashboard-grid">
@@ -170,6 +170,38 @@ foreach ($stores as $store) {
             <div id="wc-mss-chart-container">
                 <canvas id="wc-mss-sync-chart"></canvas>
             </div>
+
+            <!-- Duplicate SKU warning -->
+            <?php $sku_conflicts = WC_Multi_Store_Sku_Conflicts::get_all(); ?>
+            <?php if ($sku_conflicts): ?>
+            <div class="notice notice-warning inline">
+                <p><strong><?php /* translators: %d: number of products blocked by a duplicate SKU. */ echo sprintf(esc_html__('%d product(s) cannot sync because their SKU is already used on the remote store', 'multi-store-sync-for-woocommerce'), absint(count($sku_conflicts))); ?></strong>
+                — <?php esc_html_e('Fix or remove the duplicate product on the remote store; retrying will not help.', 'multi-store-sync-for-woocommerce'); ?></p>
+                <ul style="list-style: disc; margin-left: 20px;">
+                    <?php foreach (array_slice(array_reverse($sku_conflicts), 0, 10) as $sku_conflict): ?>
+                    <li>
+                        <?php
+                        $conflict_product = wc_get_product((int) $sku_conflict['product_id']);
+                        $conflict_title = $conflict_product ? $conflict_product->get_name() : '#' . (int) $sku_conflict['product_id'];
+                        $conflict_edit = get_edit_post_link((int) $sku_conflict['product_id']);
+                        ?>
+                        <strong><?php echo esc_html($conflict_title); ?></strong>
+                        <?php if ($conflict_edit): ?>(<a href="<?php echo esc_url($conflict_edit); ?>"><?php esc_html_e('edit', 'multi-store-sync-for-woocommerce'); ?></a>)<?php endif; ?>
+                        — SKU <code><?php echo esc_html($sku_conflict['sku']); ?></code>
+                        — <?php echo esc_html($sku_conflict['store_url']); ?>
+                        <br>
+                        <?php if ($sku_conflict['remote_id'] > 0): ?>
+                            <a href="<?php echo esc_url(WC_Multi_Store_Sku_Conflicts::remote_edit_url($sku_conflict['store_url'], (int) $sku_conflict['remote_id'])); ?>" target="_blank" rel="noopener noreferrer"><?php /* translators: %d: remote product ID that could not be updated. */ echo sprintf(esc_html__('Remote product #%d (cannot be saved)', 'multi-store-sync-for-woocommerce'), absint($sku_conflict['remote_id'])); ?></a>
+                        <?php endif; ?>
+                        <?php if ($sku_conflict['owner_remote_id'] > 0): ?>
+                            &middot; <a href="<?php echo esc_url(WC_Multi_Store_Sku_Conflicts::remote_edit_url($sku_conflict['store_url'], (int) $sku_conflict['owner_remote_id'])); ?>" target="_blank" rel="noopener noreferrer"><?php /* translators: %d: remote product ID that already holds the SKU. */ echo sprintf(esc_html__('Remote product #%d already has this SKU', 'multi-store-sync-for-woocommerce'), absint($sku_conflict['owner_remote_id'])); ?></a>
+                            <?php if (!empty($sku_conflict['owner_name'])): ?>(<?php echo esc_html($sku_conflict['owner_name']); ?>)<?php endif; ?>
+                        <?php endif; ?>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
 
             <!-- Dead Letter Queue Alert -->
             <?php

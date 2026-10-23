@@ -38,7 +38,7 @@ $logs = WC_Multi_Store_Deletion_Audit::get_logs($args);
 $total_logs = WC_Multi_Store_Deletion_Audit::get_total_count($args);
 
 ?>
-<div class="wrap wc-mss-deletion-audit">
+<div class="wrap wc-mss-deletion-audit wc-mss-page">
     <h1><?php esc_html_e('Deletion Audit Log', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <p class="description">

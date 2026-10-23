@@ -117,6 +117,14 @@ class WC_Multi_Store_Dashboard_Widget {
             </div>
             <?php endif; ?>
 
+            <?php $sku_conflict_count = WC_Multi_Store_Sku_Conflicts::count(); ?>
+            <?php if ($sku_conflict_count > 0): ?>
+            <div class="wc-mss-w-status" style="margin-top: 8px;">
+                <span class="wc-mss-w-dot warning"></span>
+                <span><?php /* translators: %d: number of products blocked by a duplicate SKU. */ echo sprintf(esc_html__('%d product(s) blocked by a duplicate SKU on a remote store', 'multi-store-sync-for-woocommerce'), absint($sku_conflict_count)); ?></span>
+            </div>
+            <?php endif; ?>
+
             <!-- Quick Links -->
             <div class="wc-mss-w-links">
                 <a href="<?php echo esc_url($admin_url); ?>" class="button button-small button-primary"><?php esc_html_e('Dashboard', 'multi-store-sync-for-woocommerce'); ?></a>

@@ -32,7 +32,7 @@ $editing_store_url = isset($_GET['edit_store']) ? sanitize_text_field(wp_unslash
 $editing_store = $editing_store_url && isset($stores[$editing_store_url]) ? $stores[$editing_store_url] : null;
 ?>
 
-<div class="wrap wc-mss-stores">
+<div class="wrap wc-mss-stores wc-mss-page">
     <h1 class="wp-heading-inline"><?php esc_html_e('Manage Stores', 'multi-store-sync-for-woocommerce'); ?></h1>
     <?php // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only add-form selector. ?>
     <?php if (!$editing_store && !isset($_GET['add_new'])): ?>

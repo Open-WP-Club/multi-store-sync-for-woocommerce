@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 }
 ?>
 
-<div class="wrap wc-mss-sync-profiles">
+<div class="wrap wc-mss-sync-profiles wc-mss-page">
     <h2><?php esc_html_e('Sync Profiles', 'multi-store-sync-for-woocommerce'); ?></h2>
     <p class="description">
         <?php esc_html_e('Save your current settings as a named profile to quickly switch between configurations. Built-in presets are always available.', 'multi-store-sync-for-woocommerce'); ?>

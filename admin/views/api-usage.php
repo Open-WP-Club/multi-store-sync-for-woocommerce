@@ -36,7 +36,7 @@ $recent_errors = WC_Multi_Store_API_Usage_Tracker::get_recent_errors(10);
 
 ?>
 
-<div class="wrap wc-mss-api-usage">
+<div class="wrap wc-mss-api-usage wc-mss-page">
     <h1><?php esc_html_e('API Usage Dashboard', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <!-- Filters -->

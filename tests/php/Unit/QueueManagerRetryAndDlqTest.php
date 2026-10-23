@@ -349,6 +349,7 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
         return [
             'missing on remote' => ['Product not found on remote store'],
             'no sku'            => ['Product has no SKU'],
+            'duplicate sku'     => ['SKU "A-1" is already used by another product on the remote store (remote product #4242), so remote product #9 could not be saved. Fix or remove the duplicate on the remote store.'],
             'embedded phrase'   => ['Error: Product has no SKU (id 4)'],
         ];
     }

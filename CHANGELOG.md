@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.3.1 — 2026-10-23
+
+- Fixed: updating a remote product that was deleted on the remote store (stale cached or stored ID, "Invalid ID") now forgets the stale ID, looks the product up again and updates what is there, or re-creates it on a full sync, instead of failing on every retry.
+- Improved: a duplicate SKU on the remote store (detected by WooCommerce's error code, so it works whatever language the remote site uses) now produces a clear message that names the remote product holding the SKU, and the queue stops retrying it.
+- Added: products blocked by a duplicate SKU are listed as a warning on the plugin dashboard and in the WordPress dashboard widget until they sync successfully.
+- Changed: plugin pages no longer draw white boxes, borders and shadows around their sections; they use the plain WordPress look with side padding, like other plugins.
+
 ## 5.3.0 — 2026-10-23
 
 - New: **Primary Site Wins** (Settings). When on, the main store is the source of truth: sync conflicts resolve themselves by overwriting the remote edit (closed as `auto_overwrite` after the sync succeeds), stock discrepancies are corrected from the main store (max 3 attempts per product and store per day), and Weekly Verification always auto-corrects. Existing unresolved conflicts are queued when the option is turned on. Removing remote products that no longer exist locally stays a separate Orphan Cleanup setting.

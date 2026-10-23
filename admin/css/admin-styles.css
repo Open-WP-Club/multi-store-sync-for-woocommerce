@@ -22,6 +22,27 @@
     margin: 0 0 1.25rem;
 }
 
+/*
+ * Plugin pages follow the plain WordPress look: no white boxes, borders or shadows around
+ * sections, just breathing room at the sides.
+ */
+.wc-mss-page .card,
+.wc-mss-page .wc-mss-store-form {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+}
+
+.wc-mss-page .wc-mss-store-form-header {
+    background: transparent;
+    border-bottom: 0.0625rem solid #c3c4c7;
+    padding-left: 0;
+    padding-right: 0;
+}
+
 .wc-mss-full-width {
     grid-column: 1 / -1;
 }

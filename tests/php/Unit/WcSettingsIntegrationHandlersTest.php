@@ -483,7 +483,7 @@ class WcSettingsIntegrationHandlersTest extends WC_Multi_Store_TestCase
 
         $html = $this->capture(fn() => $this->integration->output());
 
-        $this->assertStringContainsString('class="wrap wc-mss-sync-profiles"', $html);
+        $this->assertStringContainsString('class="wrap wc-mss-sync-profiles wc-mss-page"', $html);
         $this->assertStringContainsString('id="wc-mss-save-profile-btn"', $html);
         $this->assertStringContainsString('No saved profiles yet', $html);
     }

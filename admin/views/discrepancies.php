@@ -51,7 +51,7 @@ $pending_count = WC_Multi_Store_Stock_Verifier::get_discrepancy_count('pending')
 $stores = get_option('wc_multi_store_sync_stores', []);
 ?>
 
-<div class="wrap wc-mss-discrepancies-page">
+<div class="wrap wc-mss-discrepancies-page wc-mss-page">
     <h1>
         <?php esc_html_e('Stock Discrepancies', 'multi-store-sync-for-woocommerce'); ?>
         <?php if ($pending_count > 0): ?>

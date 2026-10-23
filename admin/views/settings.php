@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 }
 ?>
 
-<div class="wrap wc-mss-settings">
+<div class="wrap wc-mss-settings wc-mss-page">
     <h1><?php esc_html_e('Multi-Store Sync Settings', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <?php settings_errors('wc_mss_settings'); ?>

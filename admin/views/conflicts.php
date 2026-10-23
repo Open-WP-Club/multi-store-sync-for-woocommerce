@@ -13,7 +13,7 @@ $conflict_settings = WC_Multi_Store_Conflict_Detector::get_settings();
 $stats = WC_Multi_Store_Conflict_Detector::get_stats();
 ?>
 
-<div class="wrap wc-mss-conflicts-page">
+<div class="wrap wc-mss-conflicts-page wc-mss-page">
     <h1>
         <?php esc_html_e('Sync Conflicts', 'multi-store-sync-for-woocommerce'); ?>
         <?php if ($stats['unresolved'] > 0): ?>

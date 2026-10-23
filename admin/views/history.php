@@ -56,7 +56,7 @@ $table_size = WC_Multi_Store_Sync_History::get_table_size();
 $table_size_formatted = size_format($table_size, 2);
 ?>
 
-<div class="wrap">
+<div class="wrap wc-mss-page">
     <h1><?php esc_html_e('Sync History & Statistics', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <!-- Statistics Overview with integrated History Management -->

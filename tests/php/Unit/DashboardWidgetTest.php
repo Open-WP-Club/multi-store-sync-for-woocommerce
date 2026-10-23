@@ -90,4 +90,64 @@ class DashboardWidgetTest extends WC_Multi_Store_TestCase
 
         $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
+
+    // ─── render_widget: duplicate SKU warning ──────
+
+    private function renderWidget(): string
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($q) => $q);
+        $wpdb->shouldReceive('get_row')->andReturn(null);
+        $wpdb->shouldReceive('get_var')->andReturn(0);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('esc_like')->andReturnUsing(fn($v) => $v);
+
+        Functions\when('add_action')->justReturn(true);
+        Functions\when('admin_url')->alias(fn($path = '') => 'https://example.com/wp-admin/' . $path);
+
+        Functions\stubs([
+            'esc_html' => null,
+            'esc_attr' => null,
+            'esc_url' => null,
+            'esc_html__' => null,
+            'esc_html_e' => function ($text) {
+                echo $text;
+            },
+            'number_format_i18n' => fn($n) => (string) $n,
+            'absint' => fn($n) => abs((int) $n),
+        ]);
+
+        $level = ob_get_level();
+        ob_start();
+        try {
+            (new WC_Multi_Store_Dashboard_Widget())->render_widget();
+
+            return (string) ob_get_contents();
+        } finally {
+            while (ob_get_level() > $level) {
+                ob_end_clean();
+            }
+        }
+    }
+
+    public function test_render_widget_shows_duplicate_sku_warning_when_products_are_blocked(): void
+    {
+        $options = [
+            WC_Multi_Store_Sku_Conflicts::OPTION => [
+                '7:abc' => ['product_id' => 7, 'store_url' => 'https://a.com', 'sku' => 'S1', 'remote_id' => 1, 'owner_remote_id' => 2, 'time' => 1],
+            ],
+        ];
+        Functions\when('get_option')->alias(fn($key, $default = false) => $options[$key] ?? $default);
+
+        $this->assertStringContainsString('1 product(s) blocked by a duplicate SKU', $this->renderWidget());
+    }
+
+    public function test_render_widget_hides_duplicate_sku_warning_when_nothing_is_blocked(): void
+    {
+        Functions\when('get_option')->alias(fn($key, $default = false) => $default);
+
+        $this->assertStringNotContainsString('duplicate SKU', $this->renderWidget());
+    }
 }

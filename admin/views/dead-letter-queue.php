@@ -16,7 +16,7 @@ if (empty($items['results']) && $items['total'] > 0) {
 }
 ?>
 
-<div class="wrap">
+<div class="wrap wc-mss-page">
     <h2><?php esc_html_e('Dead Letter Queue', 'multi-store-sync-for-woocommerce'); ?></h2>
     <p class="description"><?php esc_html_e('Items that have permanently failed after exhausting all retry attempts. Review errors, retry, or dismiss.', 'multi-store-sync-for-woocommerce'); ?></p>
 

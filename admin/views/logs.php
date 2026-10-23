@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 }
 ?>
 
-<div class="wrap wc-mss-logs">
+<div class="wrap wc-mss-logs wc-mss-page">
     <h1><?php esc_html_e('Sync Logs', 'multi-store-sync-for-woocommerce'); ?></h1>
 
     <div class="card wc-mss-card">
