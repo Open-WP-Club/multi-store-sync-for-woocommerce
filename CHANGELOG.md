@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.4.0 — 2026-10-25
+
+- Security: strengthened product-action authorization, webhook stock handling, image fetching, archive storage and CSV exports.
+- Changed: downloadable files retain their original URLs, including legacy API-transfer configurations; remote stores must be able to access the source URLs.
+- Fixed: coupon deletion captures its code before removal, and WP-CLI runners register background callbacks.
+- Tests: added local integration checks for real concurrent webhook deliveries, cross-process rate limiting, HTTP redirects and upgrade migration across PHP 8.3/8.4/8.5, with and without Redis.
+- Build: clarified PHP 8.3+ runtime and PHP 8.5+ development requirements.
+
 ## 5.3.1 — 2026-10-23
 
 - Fixed: updating a remote product that was deleted on the remote store (stale cached or stored ID, "Invalid ID") now forgets the stale ID, looks the product up again and updates what is there, or re-creates it on a full sync, instead of failing on every retry.

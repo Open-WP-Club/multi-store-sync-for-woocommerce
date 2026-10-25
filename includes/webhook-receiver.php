@@ -49,8 +49,11 @@ class WC_Multi_Store_Webhook_Receiver {
         // Use wp_cache_add + wp_cache_incr for atomic increment when a persistent
         // object cache (Redis/Memcached) is active. Falls back to transients otherwise.
         $cache_group = 'wc_mss_rate_limits';
-        wp_cache_add($rate_key, 0, $cache_group, self::RATE_LIMIT_WINDOW);
-        $current_count = wp_cache_incr($rate_key, 1, $cache_group);
+        $current_count = false;
+        if (wp_using_ext_object_cache()) {
+            wp_cache_add($rate_key, 0, $cache_group, self::RATE_LIMIT_WINDOW);
+            $current_count = wp_cache_incr($rate_key, 1, $cache_group);
+        }
 
         if ($current_count === false) {
             // Non-persistent object cache: fall back to transients (best-effort).
@@ -319,24 +322,49 @@ class WC_Multi_Store_Webhook_Receiver {
             ], 200);
         }
 
-        // Replay protection: a captured (signature, body) can be re-sent
-        // indefinitely and would otherwise deduct stock again. Key on the
-        // status as well because the same order legitimately fires once per
-        // configured trigger status (processing → completed → …).
+        // One stock deduction per canonical store/order, independent of status.
+        // A unique insert-only option_name atomically claims the order before any
+        // stock writes. No TTL: pending claims after crashes need manual stock
+        // reconciliation before an operator removes them to allow a safe retry.
+        $store_url = untrailingslashit($store_url);
+        $claim_key = 'wc_mss_wh_order_' . md5($store_url . '|' . $order_id);
         $dedup_key = 'wc_mss_wh_seen_' . md5($store_url . '|' . $order_id . '|' . $order_status);
-        if (get_transient($dedup_key) !== false) {
-            WC_Multi_Store_Logger::write(sprintf(
-                'Webhook duplicate suppressed: Order #%d from %s (status: %s)',
-                $order_id,
-                $store_url,
-                $order_status
-            ));
-            return new WP_REST_Response([
-                'success'   => true,
-                'message'   => 'Duplicate webhook ignored (already processed).',
-                'order_id'  => $order_id,
-                'duplicate' => true,
-            ], 200);
+        global $wpdb;
+        // INSERT IGNORE never updates an existing receipt; add_option() uses an
+        // upsert and cannot safely provide this claim under concurrent requests.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic durable claim; clear the corresponding option caches immediately below.
+        $claimed = $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
+            $claim_key,
+            serialize(['state' => 'pending'])
+        ));
+        wp_cache_delete($claim_key, 'options');
+        wp_cache_delete('notoptions', 'options');
+        if ($claimed !== 1) {
+            $claim = get_option($claim_key, []);
+            if (is_array($claim) && ($claim['state'] ?? '') === 'completed') {
+                return $this->duplicate_order_response($order_id);
+            }
+            return new WP_Error(
+                'order_processing_pending',
+                __('Order stock processing is pending reconciliation. Please retry later.', 'multi-store-sync-for-woocommerce'),
+                ['status' => 503]
+            );
+        }
+
+        // Honor pre-upgrade markers for both standard trigger statuses and
+        // both accepted URL spellings, then promote them to durable receipts.
+        foreach (array_unique(array_merge(['processing', 'completed', $order_status], $trigger_statuses)) as $legacy_status) {
+            if (!is_string($legacy_status)) {
+                continue;
+            }
+            foreach ([$store_url, $store_url . '/'] as $legacy_url) {
+                $legacy_key = 'wc_mss_wh_seen_' . md5($legacy_url . '|' . $order_id . '|' . $legacy_status);
+                if (get_transient($legacy_key) !== false) {
+                    update_option($claim_key, ['state' => 'completed'], false);
+                    return $this->duplicate_order_response($order_id);
+                }
+            }
         }
 
         WC_Multi_Store_Logger::write(sprintf(
@@ -353,6 +381,11 @@ class WC_Multi_Store_Webhook_Receiver {
         // Process stock deduction
         try {
             $result = $this->process_stock_deduction($order_id, $line_items, $store_url);
+        } catch (\Throwable $e) {
+            // The durable pending claim stays in place: stock may already have
+            // changed before a downstream failure. Never replay it blindly.
+            WC_Multi_Store_Logger::write('Order webhook processing interrupted: ' . $e->getMessage(), 'error');
+            return new WP_Error('order_processing_interrupted', __('Order processing requires reconciliation.', 'multi-store-sync-for-woocommerce'), ['status' => 503]);
         } finally {
             // Always reset the webhook processing flag so subsequent
             // stock changes in this request are handled normally
@@ -383,11 +416,24 @@ class WC_Multi_Store_Webhook_Receiver {
 
         // Mark the order as handled unless every line failed. A retry is only safe when nothing
         // was deducted; after a partial success it would deduct the successful lines again.
-        if ($result['products_processed'] > 0 || $result['products_failed'] === 0) {
+        if ($result['products_processed'] > 0 || $result['products_failed'] === 0 || !empty($result['deductions_uncertain'])) {
+            update_option($claim_key, ['state' => 'completed', 'deductions_uncertain' => !empty($result['deductions_uncertain'])], false);
             set_transient($dedup_key, 1, HOUR_IN_SECONDS);
+        } else {
+            // All failures occurred before a confirmed or possible stock write.
+            delete_option($claim_key);
         }
 
         return new WP_REST_Response($result, 200);
+    }
+
+    private function duplicate_order_response(int $order_id): WP_REST_Response {
+        return new WP_REST_Response([
+            'success' => true,
+            'message' => 'Duplicate webhook ignored (already processed).',
+            'order_id' => $order_id,
+            'duplicate' => true,
+        ], 200);
     }
 
     /**
@@ -403,6 +449,7 @@ class WC_Multi_Store_Webhook_Receiver {
         $products_failed = 0;
         $errors = [];
         $deducted_products = [];
+        $deductions_uncertain = false;
 
         foreach ($line_items as $item) {
             // A negative quantity must never deduct (absint() would turn -4 into 4).
@@ -441,6 +488,7 @@ class WC_Multi_Store_Webhook_Receiver {
             try {
                 $deduction_result = $this->deduct_stock($main_product, $quantity, $order_id, $store_url);
             } catch (\Throwable $e) {
+                $deductions_uncertain = true;
                 WC_Multi_Store_Logger::write(sprintf('Stock deduction crashed for SKU %s: %s', $sku, $e->getMessage()), 'error');
                 $deduction_result = new WP_Error('deduction_failed', 'Stock deduction failed unexpectedly');
             }
@@ -474,6 +522,7 @@ class WC_Multi_Store_Webhook_Receiver {
             'store_url' => $store_url,
             'products_processed' => $products_processed,
             'products_failed' => $products_failed,
+            'deductions_uncertain' => $deductions_uncertain,
         ];
 
         if (!empty($errors)) {

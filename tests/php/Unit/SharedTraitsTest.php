@@ -26,7 +26,7 @@ class SharedTraitsTest extends WC_Multi_Store_TestCase
 
     private function removeArchives(): void
     {
-        foreach (glob($this->archiveDir . 'unit-*-archive-*.json') ?: [] as $file) {
+        foreach (glob($this->archiveDir . 'unit-*-archive-*.{json,php}', GLOB_BRACE) ?: [] as $file) {
             unlink($file);
         }
     }
@@ -108,9 +108,9 @@ class SharedTraitsTest extends WC_Multi_Store_TestCase
         $path = $this->archiver()->archive('unit-write', $records, 'created_at');
 
         $this->assertIsString($path);
-        $this->assertStringEndsWith('unit-write-archive-2024-01-05-to-2024-01-20.json', $path);
+        $this->assertStringEndsWith('unit-write-archive-2024-01-05-to-2024-01-20.php', $path);
 
-        $data = json_decode((string) file_get_contents($path), true);
+        $data = json_decode(substr((string) file_get_contents($path), strlen(WC_Multi_Store_Logger::ARCHIVE_GUARD)), true);
         $this->assertSame(2, $data['total_records']);
         $this->assertSame(['from' => '2024-01-05', 'to' => '2024-01-20'], $data['date_range']);
         $this->assertSame($records, $data['records']);
@@ -128,19 +128,19 @@ class SharedTraitsTest extends WC_Multi_Store_TestCase
             $archiver->archive('unit-prune', [['created_at' => $date]], 'created_at');
         }
 
-        $files = glob($this->archiveDir . 'unit-prune-archive-*.json') ?: [];
+        $files = glob($this->archiveDir . 'unit-prune-archive-*.php') ?: [];
         $this->assertCount(10, $files);
-        $this->assertFileDoesNotExist($this->archiveDir . 'unit-prune-archive-2024-01-01-to-2024-01-01.json');
-        $this->assertFileExists($this->archiveDir . 'unit-prune-archive-2024-01-12-to-2024-01-12.json');
+        $this->assertFileDoesNotExist($this->archiveDir . 'unit-prune-archive-2024-01-01-to-2024-01-01.php');
+        $this->assertFileExists($this->archiveDir . 'unit-prune-archive-2024-01-12-to-2024-01-12.php');
     }
 
     public function test_prune_does_nothing_when_under_limit(): void
     {
-        file_put_contents($this->archiveDir . 'unit-keep-archive-2024-01-01-to-2024-01-01.json', '{}');
+        file_put_contents($this->archiveDir . 'unit-keep-archive-2024-01-01-to-2024-01-01.php', WC_Multi_Store_Logger::ARCHIVE_GUARD . '{}');
 
         $this->archiver()->prune($this->archiveDir, 'unit-keep', 5);
 
-        $this->assertFileExists($this->archiveDir . 'unit-keep-archive-2024-01-01-to-2024-01-01.json');
+        $this->assertFileExists($this->archiveDir . 'unit-keep-archive-2024-01-01-to-2024-01-01.php');
     }
 
     // ---- Ajax_Auth_Guard --------------------------------------------------

@@ -43,6 +43,9 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      */
     const int MAX_ARCHIVE_FILES = 10;
 
+    /** Executing an archive must stop before any archived data or embedded PHP. */
+    public const string ARCHIVE_GUARD = "<?php\nexit;\n__halt_compiler();\n";
+
     /**
      * Singleton instance
      *
@@ -181,19 +184,15 @@ class WC_Multi_Store_Logger extends AbstractLogger {
     }
 
     /**
-     * Archive database history to JSON file
+     * Archive database history to a guarded PHP file
      * Called via the recurring wc_mss_archive_history scheduled action (see schedule_archival())
      *
      * @return array Result with success status and message
      */
     public static function archive_database_history(): array {
-        $upload_dir = wp_upload_dir();
-        $logs_dir = $upload_dir['basedir'] . '/wc-mss-logs/';
-
-        // Ensure directory exists
-        if (!file_exists($logs_dir)) {
-            wp_mkdir_p($logs_dir);
-            file_put_contents($logs_dir . '.htaccess', "deny from all\n");
+        $logs_dir = self::prepare_archive_directory();
+        if ($logs_dir === false) {
+            return ['success' => false, 'message' => 'Failed to protect archive directory', 'archived' => 0];
         }
 
         // Get history records older than rotation_days
@@ -223,9 +222,9 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         // Create archive file with date range
         $oldest_date = date('Y-m-d', strtotime($records[0]['created_at']));
         $newest_date = date('Y-m-d', strtotime($records[count($records) - 1]['created_at']));
-        $archive_file = $logs_dir . 'history-archive-' . $oldest_date . '-to-' . $newest_date . '.json';
+        $archive_file = $logs_dir . 'history-archive-' . $oldest_date . '-to-' . $newest_date . '.php';
 
-        // Write records to JSON file
+        // PHP guard protects data even when the server ignores .htaccess.
         $json_data = [
             'archived_at' => current_time('mysql'),
             'date_range' => [
@@ -236,9 +235,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
             'records' => $records,
         ];
 
-        $write_result = file_put_contents($archive_file, json_encode($json_data, JSON_PRETTY_PRINT));
-
-        if ($write_result === false) {
+        if (!self::write_protected_archive($archive_file, $json_data)) {
             return [
                 'success' => false,
                 'message' => 'Failed to write archive file',
@@ -273,6 +270,78 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         ];
     }
 
+    /** Protect archives from previous plugin versions on the first admin request. */
+    public static function migrate_archive_storage(): void {
+        if ((int) get_option('wc_mss_archive_storage_version', 0) >= 1) {
+            return;
+        }
+        if (self::prepare_archive_directory() !== false) {
+            update_option('wc_mss_archive_storage_version', 1, false);
+        }
+    }
+
+    /**
+     * Prepare storage and protect legacy archives, including on no-record runs.
+     * PHP files must be executed or denied by the web server, never served as source.
+     *
+     * @return string|false Archive directory, or false if protection failed.
+     */
+    public static function prepare_archive_directory(): string|false {
+        $upload_dir = wp_upload_dir();
+        $logs_dir = $upload_dir['basedir'] . '/wc-mss-logs/';
+        if (!is_dir($logs_dir) && !wp_mkdir_p($logs_dir)) {
+            return false;
+        }
+        // Additional Apache protection; confidentiality does not depend on this file.
+        if (!file_exists($logs_dir . '.htaccess')) {
+            file_put_contents($logs_dir . '.htaccess', "deny from all\n");
+        }
+        foreach (glob($logs_dir . '*-archive-*.json') ?: [] as $legacy_file) {
+            $json = file_get_contents($legacy_file);
+            if ($json === false) {
+                return false;
+            }
+            // Keep migrated data separate from new batches with the same date range.
+            $protected_file = substr($legacy_file, 0, -5) . '-legacy-' . hash('sha256', $json) . '.php';
+            $protected_content = self::ARCHIVE_GUARD . $json;
+            if (!self::write_archive_contents($protected_file, $protected_content) || !unlink($legacy_file)) {
+                return false;
+            }
+        }
+        return $logs_dir;
+    }
+
+    /**
+     * Write an archive without ever exposing an unguarded partial file.
+     *
+     * @param string $archive_file Destination PHP file.
+     * @param array $data Archive data.
+     * @return bool Whether the complete archive was installed.
+     */
+    public static function write_protected_archive(string $archive_file, array $data): bool {
+        $json = json_encode($data, JSON_PRETTY_PRINT);
+        return $json !== false && self::write_archive_contents($archive_file, self::ARCHIVE_GUARD . $json);
+    }
+
+    /**
+     * Atomically install the complete guarded contents before any source is deleted.
+     *
+     * @param string $archive_file Destination file.
+     * @param string $contents Guard and payload.
+     * @return bool Whether the entire file was committed.
+     */
+    private static function write_archive_contents(string $archive_file, string $contents): bool {
+        $temporary_file = dirname($archive_file) . '/.wc-mss-archive-' . bin2hex(random_bytes(8)) . '.php';
+        $written = file_put_contents($temporary_file, $contents, LOCK_EX);
+        if ($written !== strlen($contents) || !rename($temporary_file, $archive_file)) {
+            if (file_exists($temporary_file)) {
+                unlink($temporary_file);
+            }
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Clean up old archive files
      *
@@ -281,7 +350,7 @@ class WC_Multi_Store_Logger extends AbstractLogger {
      * @return void
      */
     private static function cleanup_old_archives(string $logs_dir, int $max_files): void {
-        $files = glob($logs_dir . 'history-archive-*.json', GLOB_NOSORT);
+        $files = glob($logs_dir . 'history-archive-*.php', GLOB_NOSORT) ?: [];
 
         if (count($files) > $max_files) {
             natsort($files);

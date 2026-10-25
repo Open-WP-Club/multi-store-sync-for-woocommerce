@@ -885,7 +885,7 @@ class WC_Multi_Store_API_Client {
             }
         } else {
             // Image stored externally — fetch via HTTP
-            $remote = wp_remote_get($image_info['url'], [
+            $remote = wp_safe_remote_get($image_info['url'], [
                 'timeout' => 30,
                 'sslverify' => $this->verify_ssl,
                 'limit_response_size' => self::MAX_IMAGE_BYTES + 1,

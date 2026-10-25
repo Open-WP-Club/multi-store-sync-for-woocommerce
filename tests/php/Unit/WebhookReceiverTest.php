@@ -53,6 +53,8 @@ class WebhookReceiverTest extends WC_Multi_Store_TestCase
 
         // Mock set_transient
         Functions\when('set_transient')->justReturn(true);
+        Functions\when('update_option')->justReturn(true);
+        Functions\when('delete_option')->justReturn(true);
 
         // Mock current_time
         Functions\when('current_time')->justReturn('2024-01-01 12:00:00');

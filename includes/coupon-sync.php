@@ -47,7 +47,7 @@ class WC_Multi_Store_Coupon_Sync {
 
         add_action('woocommerce_new_coupon', $this->on_coupon_saved(...), 10, 2);
         add_action('woocommerce_update_coupon', $this->on_coupon_saved(...), 10, 2);
-        add_action('woocommerce_delete_coupon', $this->on_coupon_deleted(...), 10, 1);
+        add_action('before_delete_post', $this->on_coupon_before_delete(...), 10, 2);
         add_action('woocommerce_trash_coupon', $this->on_coupon_deleted(...), 10, 1);
     }
 
@@ -73,6 +73,13 @@ class WC_Multi_Store_Coupon_Sync {
         $this->schedule_async(self::ASYNC_SYNC_HOOK, [$coupon_id]);
     }
 
+    /** Capture hard-deleted coupons while their post and code still exist. */
+    public function on_coupon_before_delete(int $post_id, \WP_Post $post): void {
+        if ($post->post_type === 'shop_coupon') {
+            $this->on_coupon_deleted($post_id);
+        }
+    }
+
     /**
      * When a coupon is deleted or trashed
      */
@@ -86,9 +93,8 @@ class WC_Multi_Store_Coupon_Sync {
             return;
         }
 
-        // Capture the code now, synchronously — by the time an async job
-        // runs, woocommerce_delete_coupon may have already removed the post,
-        // so new WC_Coupon($coupon_id) would come back empty.
+        // Capture the code before WordPress removes the coupon post. The async
+        // worker cannot reconstruct a deleted coupon from its former ID.
         $code = $coupon->get_code();
 
         self::sync_log(sprintf(

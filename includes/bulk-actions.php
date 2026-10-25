@@ -36,6 +36,10 @@ class WC_Multi_Store_Bulk_Actions {
      * @return array Modified actions
      */
     public function add_bulk_actions(array $actions): array {
+        if (!current_user_can('manage_woocommerce')) {
+            return $actions;
+        }
+
         $actions['mss_sync_full'] = __('Multi-Store: Full Sync', 'multi-store-sync-for-woocommerce');
         $actions['mss_sync_prices'] = __('Multi-Store: Sync Prices & Stock', 'multi-store-sync-for-woocommerce');
         $actions['mss_sync_stock'] = __('Multi-Store: Sync Stock Only', 'multi-store-sync-for-woocommerce');
@@ -55,12 +59,31 @@ class WC_Multi_Store_Bulk_Actions {
      */
     public function handle_bulk_actions(string $redirect_to, string $action, array $product_ids): string {
         // Check if it's our action
-        if (!str_starts_with($action, 'mss_')) {
+        if (!in_array($action, ['mss_sync_full', 'mss_sync_prices', 'mss_sync_stock', 'mss_queue_high', 'mss_bulk_delete'], true)) {
             return $redirect_to;
         }
 
         // Verify nonce — WP Products list table uses 'bulk-posts' action
         if (!isset($_REQUEST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'])), 'bulk-posts')) {
+            return $redirect_to;
+        }
+
+        if (!current_user_can('manage_woocommerce')) {
+            return $redirect_to;
+        }
+
+        // Custom WordPress bulk actions receive the submitted IDs without
+        // checking permissions for each post. Authorize every item here.
+        $capability = $action === 'mss_bulk_delete' ? 'delete_post' : 'edit_post';
+        $product_ids = array_values(array_unique(array_filter(array_map(
+            'absint',
+            array_filter($product_ids, 'is_scalar')
+        ))));
+        $product_ids = array_values(array_filter($product_ids, static function (int $product_id) use ($capability): bool {
+            return get_post_type($product_id) === 'product' && current_user_can($capability, $product_id);
+        }));
+
+        if (empty($product_ids)) {
             return $redirect_to;
         }
 
@@ -70,14 +93,9 @@ class WC_Multi_Store_Bulk_Actions {
             'mss_sync_stock' => ['mss_synced', $this->bulk_sync_products($product_ids, 'quantity')],
             'mss_queue_high' => ['mss_queued', WC_MSS()->queue_manager->add_products($product_ids, 'bulk_action', 1)],
             'mss_bulk_delete' => ['mss_bulk_deleted', $this->bulk_delete_products($product_ids)],
-            default => [null, null],
         };
 
-        if ($query_key !== null) {
-            $redirect_to = add_query_arg($query_key, $count, $redirect_to);
-        }
-
-        return $redirect_to;
+        return add_query_arg($query_key, $count, $redirect_to);
     }
 
     /**

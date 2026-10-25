@@ -580,8 +580,8 @@ class WC_Multi_Store_Webhook_Logger {
             $cutoff_date
         ), ARRAY_A);
 
-        if (!empty($records)) {
-            self::archive_records_to_json('webhook-logs', $records, 'created_at');
+        if (!empty($records) && self::archive_records_to_json('webhook-logs', $records, 'created_at') === false) {
+            return 0;
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Webhook logs use a custom table; live reports must include the latest received events.

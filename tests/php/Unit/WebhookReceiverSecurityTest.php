@@ -24,6 +24,8 @@ class WebhookReceiverSecurityTest extends WC_Multi_Store_TestCase
         Functions\when('get_option')->justReturn([]);
         Functions\when('get_transient')->justReturn(0);
         Functions\when('set_transient')->justReturn(true);
+        Functions\when('update_option')->justReturn(true);
+        Functions\when('delete_option')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-01 12:00:00');
         Functions\when('absint')->alias(fn($val) => abs((int) $val));
         Functions\when('untrailingslashit')->alias(fn($str) => rtrim($str, '/'));

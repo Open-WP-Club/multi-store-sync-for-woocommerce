@@ -246,6 +246,10 @@ Navigate to **Multi-Store Sync > Settings** to configure sync behavior.
 
 ---
 
+#### Downloadable Files
+
+Downloadable products keep their original file URLs, including configurations previously set to API transfer. The remote store must be able to access those URLs. Local files are not automatically copied to the remote Media Library.
+
 ## Scheduled Sync Configuration
 
 Configure automatic, scheduled product synchronization.

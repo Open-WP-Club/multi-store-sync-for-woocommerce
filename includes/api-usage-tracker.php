@@ -481,7 +481,7 @@ class WC_Multi_Store_API_Usage_Tracker {
         $output = fopen('php://temp', 'r+');
         try {
             foreach ($csv as $row) {
-                fputcsv($output, $row, ',', '"', '\\');
+                fputcsv($output, $row, ',', '"', '');
             }
             rewind($output);
             $content = stream_get_contents($output);
@@ -511,8 +511,8 @@ class WC_Multi_Store_API_Usage_Tracker {
             $days
         ), ARRAY_A);
 
-        if (!empty($records)) {
-            self::archive_records_to_json('api-usage', $records, 'created_at');
+        if (!empty($records) && self::archive_records_to_json('api-usage', $records, 'created_at') === false) {
+            return 0;
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.

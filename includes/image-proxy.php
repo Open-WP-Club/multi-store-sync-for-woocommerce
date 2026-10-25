@@ -84,7 +84,7 @@ class WC_Multi_Store_Image_Proxy {
         return str_starts_with($real, rtrim($base, '/\\') . DIRECTORY_SEPARATOR);
     }
 
-    /** Only http(s) URLs are fetched, and never literal link-local (cloud metadata) addresses. */
+    /** The HTTP sink uses wp_safe_remote_get() to validate DNS and every redirect. */
     private static function is_fetchable_url(string $url): bool {
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
         if (!in_array($scheme, ['http', 'https'], true)) {

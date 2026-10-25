@@ -344,6 +344,33 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('Yes', $csv);
     }
 
+    public function test_export_preserves_cell_boundaries_with_backslashes_and_quotes(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql) => $sql);
+        $message = 'x\\",=1+1,"' . "\nsecond line";
+        $wpdb->shouldReceive('get_results')->once()->andReturn([[
+            'id' => 1, 'store_url' => 'https://store.example', 'endpoint' => '/products',
+            'method' => 'GET', 'status_code' => 400, 'response_time' => 1,
+            'success' => 0, 'error_message' => $message, 'created_at' => '2026-10-25 00:00:00',
+        ]]);
+        $stream = fopen('php://temp', 'r+');
+        try {
+            fwrite($stream, WC_Multi_Store_API_Usage_Tracker::export_to_csv());
+            rewind($stream);
+            $header = fgetcsv($stream, 0, ',', '"', '');
+            $row = fgetcsv($stream, 0, ',', '"', '');
+            $this->assertCount(9, $header);
+            $this->assertCount(9, $row);
+            $this->assertSame($message, $row[7]);
+            $this->assertFalse(fgetcsv($stream, 0, ',', '"', ''));
+        } finally {
+            fclose($stream);
+        }
+    }
+
     public function test_export_to_csv_escapes_quotes_in_fields(): void
     {
         global $wpdb;
@@ -490,14 +517,15 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
 
             $this->assertEquals(2, $deleted);
 
-            $archive_files = glob($temp_dir . '/wc-mss-logs/api-usage-archive-*.json');
+            $archive_files = glob($temp_dir . '/wc-mss-logs/api-usage-archive-*.php');
             $this->assertCount(1, $archive_files);
 
-            $archived = json_decode(file_get_contents($archive_files[0]), true);
+            $archived = json_decode(substr(file_get_contents($archive_files[0]), strlen(WC_Multi_Store_Logger::ARCHIVE_GUARD)), true);
             $this->assertEquals(2, $archived['total_records']);
             $this->assertEquals($records, $archived['records']);
         } finally {
             array_map('unlink', glob($temp_dir . '/wc-mss-logs/*') ?: []);
+            @unlink($temp_dir . '/wc-mss-logs/.htaccess');
             @rmdir($temp_dir . '/wc-mss-logs');
             @rmdir($temp_dir);
         }

@@ -98,7 +98,7 @@ class DeletionAuditRetentionTest extends WC_Multi_Store_TestCase
 
     private function archives(): array
     {
-        return glob($this->tmp . '/wc-mss-logs/deletion-audit-archive-*.json') ?: [];
+        return glob($this->tmp . '/wc-mss-logs/deletion-audit-archive-*.php') ?: [];
     }
 
     // ── cleanup_old_logs ──────────────────────────────────────────
@@ -114,7 +114,7 @@ class DeletionAuditRetentionTest extends WC_Multi_Store_TestCase
         $this->assertSame(2, WC_Multi_Store_Deletion_Audit::cleanup_old_logs(90));
 
         $this->assertCount(1, $this->archives());
-        $archive = json_decode(file_get_contents($this->archives()[0]), true);
+        $archive = json_decode(substr(file_get_contents($this->archives()[0]), strlen(WC_Multi_Store_Logger::ARCHIVE_GUARD)), true);
         $this->assertSame($this->db->rows, $archive['records']);
         $this->assertSame(2, $archive['total_records']);
         $this->assertSame('2025-01-01', $archive['date_range']['from']);

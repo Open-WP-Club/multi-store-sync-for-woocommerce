@@ -141,6 +141,33 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         return $coupon;
     }
 
+    public function test_hard_delete_capture_is_registered_before_post_removal_only(): void
+    {
+        $hooks = [];
+        Functions\when('add_action')->alias(function ($hook, $callback, $priority, $accepted_args) use (&$hooks) {
+            $hooks[$hook] = $accepted_args;
+            return true;
+        });
+        $this->makeSync();
+        $this->assertSame(2, $hooks['before_delete_post']);
+        $this->assertSame(1, $hooks['woocommerce_trash_coupon']);
+        $this->assertArrayNotHasKey('woocommerce_delete_coupon', $hooks);
+    }
+
+    public function test_pre_delete_capture_filters_unrelated_posts(): void
+    {
+        $sync = new class extends WC_Multi_Store_Coupon_Sync {
+            public array $captured = [];
+            public function on_coupon_deleted(int $coupon_id): void {
+                $this->captured[] = $coupon_id;
+            }
+        };
+        $sync->on_coupon_before_delete(12, new WP_Post(['post_type' => 'product']));
+        $this->assertSame([], $sync->captured);
+        $sync->on_coupon_before_delete(13, new WP_Post(['post_type' => 'shop_coupon']));
+        $this->assertSame([13], $sync->captured);
+    }
+
     // ─── extract_coupon_data() ─────────────────────────────────────────────────
 
     public function test_extract_coupon_data_returns_basic_fields(): void

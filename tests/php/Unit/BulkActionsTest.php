@@ -58,6 +58,8 @@ class BulkActionsTest extends WC_Multi_Store_TestCase
         Functions\when('update_post_meta')->justReturn(true);
         Functions\when('wp_verify_nonce')->justReturn(true);
         Functions\when('current_user_can')->justReturn(true);
+        Functions\when('get_post_type')->justReturn('product');
+        Functions\when('absint')->alias(static fn($id) => abs((int) $id));
         Functions\when('add_query_arg')->alias(function () {
             $args = func_get_args();
             if (count($args) === 3) {

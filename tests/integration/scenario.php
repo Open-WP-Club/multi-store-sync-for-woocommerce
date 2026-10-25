@@ -1,5 +1,9 @@
 <?php
 // Run only through tests/integration/run.sh, inside disposable WordPress containers.
+if (!defined('WP_CLI') || !WP_CLI || !defined('ABSPATH') || wp_get_environment_type() !== 'local') {
+    exit;
+}
+
 function mss_check(bool $condition, string $message): void {
     if (!$condition) {
         throw new RuntimeException($message);
@@ -59,7 +63,7 @@ if ($stage === 'setup-target' || $stage === 'setup-source') {
 
     $review_id = wp_new_comment([
         'comment_post_ID' => (int) get_option('mss_test_product_id'), 'comment_type' => 'review',
-        'comment_author' => 'Integration buyer', 'comment_author_email' => 'buyer@example.test',
+        'comment_author' => 'Integration buyer', 'comment_author_email' => 'buyer@example.test', 'comment_author_url' => '',
         'comment_content' => 'Original review', 'comment_approved' => 1, 'user_id' => 1,
     ], true);
     mss_check(!is_wp_error($review_id), 'Could not create review');
@@ -86,7 +90,7 @@ if ($stage === 'setup-target' || $stage === 'setup-source') {
     $attribute_id = wc_attribute_taxonomy_id_by_name('mss-color');
     $reviews = get_comments(['post_id' => (int) get_option('mss_test_product_id'), 'type' => 'review', 'author_email' => 'buyer@example.test', 'status' => 'all']);
     if ($stage === 'verify-delete') {
-        mss_check(!$coupon_id && !$shipping && !$attribute_id && !$reviews, 'Remote deletion incomplete');
+        mss_check(!$coupon_id && !$shipping && !$attribute_id && !$reviews, 'Remote deletion incomplete: ' . wp_json_encode(['coupon_id' => $coupon_id, 'shipping_id' => $shipping ? $shipping->term_id : null, 'attribute_id' => $attribute_id, 'review_ids' => wp_list_pluck($reviews, 'comment_ID')]));
     } else {
         mss_check((bool) $coupon_id && (bool) $shipping && (bool) $attribute_id && count($reviews) === 1, 'Remote records missing or duplicated');
         $coupon = new WC_Coupon($coupon_id);

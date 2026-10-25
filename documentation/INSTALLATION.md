@@ -21,7 +21,7 @@
 
 ### Recommended Requirements
 - **WordPress**: Latest stable version
-- **PHP**: 8.1 or higher
+- **PHP**: 8.5 (the plugin supports 8.3 and higher)
 - **WooCommerce**: Latest stable version
 - **Memory Limit**: 256MB or higher
 - **Max Execution Time**: 300 seconds or higher

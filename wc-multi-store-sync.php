@@ -4,7 +4,7 @@
  * Plugin Name: WooCommerce Multi-Store Sync
  * Plugin URI: https://openwpclub.com/plugins/multi-store-sync-for-woocommerce/
  * Description: Professional multi-store product synchronization for WooCommerce - standalone implementation with advanced features
- * Version: 5.3.1
+ * Version: 5.4.0
  * Author: Gabriel Kanev - OpenWPClub
  * Author URI: https://gkanev.com
  * License: GPLv3 or later
@@ -27,7 +27,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_MSS_VERSION', '5.3.1');
+define('WC_MSS_VERSION', '5.4.0');
 define('WC_MSS_PLUGIN_FILE', __FILE__);
 define('WC_MSS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_MSS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -233,9 +233,8 @@ class WC_Multi_Store_Sync {
 
         new WC_Multi_Store_API_Usage_Tracker();
 
-        // Orphan cleanup and remote-order sync only ever fire from admin,
-        // AJAX, or scheduled-cron contexts — skip on plain front-end loads.
-        if (is_admin() || wp_doing_ajax() || wp_doing_cron()) {
+        // Register background callbacks for admin, cron and WP-CLI runners.
+        if (is_admin() || wp_doing_ajax() || wp_doing_cron() || (defined('WP_CLI') && WP_CLI)) {
             new WC_Multi_Store_Orphan_Cleanup();
             new WC_Multi_Store_Remote_Order_Sync();
         }
@@ -358,6 +357,7 @@ class WC_Multi_Store_Sync {
 
         // History archival: independent recurring job, decoupled from logging
         add_action('init', WC_Multi_Store_Logger::schedule_archival(...));
+        add_action('admin_init', WC_Multi_Store_Logger::migrate_archive_storage(...));
         add_action('wc_mss_archive_history', WC_Multi_Store_Logger::archive_database_history(...));
     }
 

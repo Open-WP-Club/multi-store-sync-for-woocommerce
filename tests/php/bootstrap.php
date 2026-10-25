@@ -5,7 +5,7 @@
  * Sets up the testing environment for unit tests.
  * Uses Brain Monkey to mock WordPress functions.
  *
- * @requires PHP 8.3
+ * @requires PHP 8.5
  */
 
 // Composer autoloader
@@ -725,8 +725,9 @@ if (!class_exists('WP_REST_Request')) {
 //
 // wp_cache_add/wp_cache_incr behaviour is steered via globals because Patchwork
 // can't redefine a function once it's been included. By default incr returns
-// false to mirror a non-persistent object cache (forcing fallback paths in
-// production code). Tests that exercise the persistent path do:
+// false to exercise cache-operation failure. WordPress's request-local cache
+// can increment successfully too; persistence must be detected separately.
+// Tests that exercise the persistent path enable wc_mss_test_use_object_cache and set:
 //   $GLOBALS['wc_mss_test_wp_cache_incr_return'] = 7;
 // and reset to null on teardown.
 if (!function_exists('wp_cache_add')) {

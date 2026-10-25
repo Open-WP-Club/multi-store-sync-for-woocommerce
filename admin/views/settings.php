@@ -807,14 +807,13 @@ if (!defined('ABSPATH')) {
                                    <?php checked(!empty($download_settings['enabled'])); ?>>
                             <?php esc_html_e('Sync downloadable product files', 'multi-store-sync-for-woocommerce'); ?>
                         </label>
-                        <p class="description"><?php esc_html_e('Include downloadable files when syncing digital products. Supports URL-based sync or direct file transfer via Media API.', 'multi-store-sync-for-woocommerce'); ?></p>
+                        <p class="description"><?php esc_html_e('Include downloadable files using their original URLs. The remote store must be able to access them; protected downloads are never copied to the public Media Library.', 'multi-store-sync-for-woocommerce'); ?></p>
                         <?php if (!empty($download_settings['enabled'])): ?>
                         <div class="wc-mss-field-group">
                             <label>
                                 <strong><?php esc_html_e('Transfer Mode:', 'multi-store-sync-for-woocommerce'); ?></strong>
                                 <select class="wc-mss-inline-result wc-mss-feature-setting" data-option="wc_mss_downloadable_files_sync_settings" data-key="transfer_mode">
-                                    <option value="url" <?php selected($download_settings['transfer_mode'] ?? 'url', 'url'); ?>><?php esc_html_e('URL (remote downloads from source)', 'multi-store-sync-for-woocommerce'); ?></option>
-                                    <option value="api" <?php selected($download_settings['transfer_mode'] ?? 'url', 'api'); ?>><?php esc_html_e('API Transfer (upload files directly)', 'multi-store-sync-for-woocommerce'); ?></option>
+                                    <option value="url" <?php selected(true); ?>><?php esc_html_e('URL (remote downloads from source)', 'multi-store-sync-for-woocommerce'); ?></option>
                                 </select>
                             </label>
                         </div>

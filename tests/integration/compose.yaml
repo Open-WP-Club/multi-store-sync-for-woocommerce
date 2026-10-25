@@ -1,14 +1,16 @@
 x-wordpress: &wordpress
-  image: wordpress:php8.5-apache
+  image: wordpress:php${WC_MSS_PHP_VERSION:-8.5}-apache
   depends_on:
     db:
       condition: service_healthy
   volumes:
     - ${WC_MSS_REPO_ROOT:?}:/var/www/html/wp-content/plugins/multi-store-sync-for-woocommerce:ro
+    - ${WC_MSS_RUNTIME_VENDOR:?}:/var/www/html/wp-content/plugins/multi-store-sync-for-woocommerce/vendor:ro
   environment: &wp-environment
     WORDPRESS_DB_HOST: db
     WORDPRESS_DB_USER: root
     WORDPRESS_DB_PASSWORD: integration-only
+    WC_MSS_CACHE_MODE: ${WC_MSS_CACHE_MODE:-none}
     WORDPRESS_CONFIG_EXTRA: |
       define('DISABLE_WP_CRON', true);
       define('WP_ENVIRONMENT_TYPE', 'local');
@@ -16,6 +18,20 @@ x-wordpress: &wordpress
       $$_SERVER['HTTPS'] = 'on';
 
 services:
+  redis:
+    image: redis:7.4-alpine
+    profiles: [redis]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  http-fixture:
+    image: wordpress:php${WC_MSS_PHP_VERSION:-8.5}-apache
+    entrypoint: ['php']
+    command: ['-S', '0.0.0.0:80', '-t', '/fixtures', '/fixtures/router.php']
+    volumes:
+      - ${WC_MSS_REPO_ROOT:?}/tests/integration/http-fixture:/fixtures:ro
   db:
     image: mariadb:11.4
     environment:

@@ -8,7 +8,7 @@ One-way product/stock sync from a main WooCommerce store to any number of remote
 
 ## Requirements
 
-WordPress 5.8+, WooCommerce 6.0+, PHP 8.4+, HTTPS.
+WordPress 5.8+, WooCommerce 6.0+, PHP 8.3+, HTTPS. Local production integration tests cover PHP 8.3, 8.4 and 8.5, with and without Redis. The development test toolchain requires PHP 8.5+.
 
 ## Install
 

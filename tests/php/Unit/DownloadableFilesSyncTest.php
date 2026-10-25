@@ -189,7 +189,7 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         $this->assertArrayNotHasKey('_wc_mss_file_content', $result[0]);
     }
 
-    public function test_extract_skips_files_over_10mb_in_api_mode(): void
+    public function test_extract_preserves_large_file_url_without_reading_it_in_legacy_api_mode(): void
     {
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
@@ -219,8 +219,7 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
 
         @unlink($localPath);
 
-        // File is too large — the entry must be skipped entirely
-        $this->assertSame([], $result);
+        $this->assertSame([['name' => 'Big Archive', 'file' => $localPath]], $result);
     }
 
     // ─── sync_downloads() ─────────────────────────────────────────────────────
@@ -334,7 +333,7 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         $this->assertSame($originalUrl, $result['downloads'][0]['file']);
     }
 
-    public function test_sync_downloads_uploads_file_via_media_api_when_transfer_enabled(): void
+    public function test_sync_downloads_preserves_original_reference_in_legacy_api_mode(): void
     {
         WC_Multi_Store_Settings::clear_static_cache();
         Functions\when('get_option')->alias(function ($opt, $default = null) {
@@ -377,7 +376,7 @@ class DownloadableFilesSyncTest extends WC_Multi_Store_TestCase
         @unlink($source_file);
         @unlink($upload_tmp_file);
 
-        $this->assertSame('https://store1.com/wp-content/uploads/manual.pdf', $result['downloads'][0]['file']);
+        $this->assertSame($source_file, $result['downloads'][0]['file']);
     }
 
     // ─── resolve_download_path() tested indirectly via extract_downloads() ─────

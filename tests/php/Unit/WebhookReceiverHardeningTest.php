@@ -26,6 +26,8 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
     /** @var array<string, mixed> */
     private array $transients = [];
 
+    private array $receipts = [];
+
     /** @var array<int, int> product id => stock */
     private array $stock = [];
 
@@ -62,6 +64,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         ];
         $this->stores          = [self::STORE => ['status' => 'active']];
         $this->transients      = [];
+        $this->receipts        = [];
         $this->stock           = [];
         $this->skus            = [];
         $this->managed         = [];
@@ -71,7 +74,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         $this->wcStockCalls    = [];
         $this->flagDuringWrite = [];
         $_SERVER['REMOTE_ADDR'] = '203.0.113.9';
-        unset($GLOBALS['wc_mss_test_wp_cache_incr_return']);
+        unset($GLOBALS['wc_mss_test_wp_cache_incr_return'], $GLOBALS['wc_mss_test_use_object_cache']);
 
         Functions\when('add_action')->justReturn(true);
         Functions\when('register_rest_route')->justReturn(true);
@@ -79,8 +82,17 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             return match ($opt) {
                 'wc_multi_store_sync_webhook_settings' => $this->webhookSettings,
                 'wc_multi_store_sync_stores'           => $this->stores,
-                default                                => $default,
+                default                                => $this->receipts[$opt] ?? $default,
             };
+        });
+        Functions\when('update_option')->alias(function ($key, $value, $autoload = null): bool {
+            $this->assertFalse($autoload);
+            $this->receipts[$key] = $value;
+            return true;
+        });
+        Functions\when('delete_option')->alias(function ($key): bool {
+            unset($this->receipts[$key]);
+            return true;
         });
         Functions\when('get_transient')->alias(fn(string $k) => $this->transients[$k] ?? false);
         Functions\when('set_transient')->alias(function (string $k, mixed $v, int $ttl = 0): bool {
@@ -151,7 +163,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
 
     protected function tearDown(): void
     {
-        unset($_SERVER['REMOTE_ADDR'], $GLOBALS['wc_mss_test_wp_cache_incr_return']);
+        unset($_SERVER['REMOTE_ADDR'], $GLOBALS['wc_mss_test_wp_cache_incr_return'], $GLOBALS['wc_mss_test_use_object_cache']);
         WC_Multi_Store_Sync::reset_instance();
         parent::tearDown();
     }
@@ -159,6 +171,16 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
     /** Called by the anonymous wpdb: emulates the guarded atomic UPDATE. */
     public function handleQuery(string $query): int
     {
+        if (str_starts_with($query, 'INSERT IGNORE INTO wp_options')) {
+            $this->assertStringContainsString("'no')", $query, 'durable receipts must never autoload');
+            preg_match("/VALUES \(\x27([^\x27]+)\x27, /", $query, $matches);
+            $key = $matches[1];
+            if (isset($this->receipts[$key])) {
+                return 0;
+            }
+            $this->receipts[$key] = ['state' => 'pending'];
+            return 1;
+        }
         $this->sql[] = $query;
         if (preg_match('/- (\d+)\s+WHERE post_id = (\d+).*>= (\d+)/s', $query, $m)) {
             [, $qty, $id, $min] = $m;
@@ -429,9 +451,11 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
 
     public function test_rate_limit_boundary_100_allowed_101_blocked_via_object_cache(): void
     {
+        $GLOBALS['wc_mss_test_use_object_cache'] = true;
         $GLOBALS['wc_mss_test_wp_cache_incr_return'] = 100;
         $this->assertTrue($this->receiver->verify_webhook_signature($this->signed('{}')));
 
+        $GLOBALS['wc_mss_test_use_object_cache'] = true;
         $GLOBALS['wc_mss_test_wp_cache_incr_return'] = 101;
         $res = $this->receiver->verify_webhook_signature($this->signed('{}'));
 
@@ -442,6 +466,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
 
     public function test_rate_limit_applies_before_auth_so_valid_creds_cannot_bypass_it(): void
     {
+        $GLOBALS['wc_mss_test_use_object_cache'] = true;
         $GLOBALS['wc_mss_test_wp_cache_incr_return'] = 5000;
 
         $res = $this->receiver->verify_webhook_signature($this->signed('{}'));
@@ -452,6 +477,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
     public function test_rate_limit_key_is_per_ip_and_ignores_spoofed_forwarding_headers(): void
     {
         $keys = [];
+        $GLOBALS['wc_mss_test_use_object_cache'] = true;
         $GLOBALS['wc_mss_test_wp_cache_incr_return'] = function (string $key) use (&$keys) {
             $keys[] = $key;
             return 1;
@@ -489,6 +515,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
 
     public function test_rate_limited_requests_are_logged_without_auth_failure_noise(): void
     {
+        $GLOBALS['wc_mss_test_use_object_cache'] = true;
         $GLOBALS['wc_mss_test_wp_cache_incr_return'] = 101;
         $types = [];
         global $wpdb;
@@ -953,7 +980,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             }
             public function query(string $query): int|false
             {
-                return 0;
+                return str_starts_with($query, 'INSERT IGNORE') ? 1 : 0;
             }
         };
 
@@ -1036,14 +1063,14 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         $this->assertSame(29, $this->stock[10]);
     }
 
-    public function test_same_order_id_with_a_new_trigger_status_is_a_distinct_event(): void
+    public function test_same_order_id_with_a_new_trigger_status_is_not_deducted_again(): void
     {
         $this->addProduct(10, 'SKU-10', 30);
         $this->receiver->handle_order_webhook($this->request($this->order([['sku' => 'SKU-10', 'quantity' => 1]], 321, 'processing')));
         $this->receiver->handle_order_webhook($this->request($this->order([['sku' => 'SKU-10', 'quantity' => 1]], 321, 'completed')));
 
-        $this->assertSame(28, $this->stock[10]);
-        $this->assertCount(2, $this->transients);
+        $this->assertSame(29, $this->stock[10]);
+        $this->assertCount(1, $this->receipts);
     }
 
     public function test_same_order_id_from_different_stores_does_not_collide(): void
@@ -1120,15 +1147,10 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             throw new RuntimeException('db gone');
         });
 
-        try {
-            $this->receiver->handle_order_webhook($this->request($this->order([['sku' => 'SKU-10', 'quantity' => 1]])));
-            self::fail('exception should propagate');
-        } catch (RuntimeException) {
-            // expected
-        }
+        $this->receiver->handle_order_webhook($this->request($this->order([['sku' => 'SKU-10', 'quantity' => 1]])));
 
         $this->assertFalse(WC_Multi_Store_Webhook_Receiver::$is_processing_webhook);
-        $this->assertSame([], $this->transients, 'a crashed attempt must stay retryable');
+        $this->assertCount(1, $this->receipts, 'uncertain writes must remain claimed');
     }
 
     public function test_loop_flag_stays_down_when_the_precheck_refuses_the_deduction(): void
@@ -1320,7 +1342,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         $this->assertArrayHasKey($this->dedupKey(610), $this->transients, 'partial success must be marked as handled');
     }
 
-    public function test_exception_on_the_only_line_leaves_order_retryable(): void
+    public function test_exception_on_the_only_line_retains_receipt_until_reconciled(): void
     {
         $this->webhookSettings['allow_negative_stock'] = true;
         WC_Multi_Store_Settings::clear_static_cache();
@@ -1332,7 +1354,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         $res = $this->receiver->handle_order_webhook($this->request($this->order([['sku' => 'SKU-10', 'quantity' => 1]], 611)));
 
         $this->assertSame(1, $res->get_data()['products_failed']);
-        $this->assertSame([], $this->transients);
+        $this->assertTrue(array_values($this->receipts)[0]['deductions_uncertain']);
         $this->assertFalse(WC_Multi_Store_Webhook_Receiver::$is_processing_webhook);
     }
 
@@ -1351,6 +1373,9 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             }
             public function query(string $q): int|false
             {
+                if (str_starts_with($q, 'INSERT IGNORE')) {
+                    return 1;
+                }
                 $this->t->deleteProduct(10);
                 return 0;
             }
@@ -1386,6 +1411,110 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             $this->assertSame(9, $this->stock[10]);
             $this->assertStringContainsString('not configured', $off->get_data()['message']);
             $this->transients = [];
+            $this->receipts = [];
         }
     }
+    public function test_request_local_cache_never_bypasses_the_persistent_rate_bucket(): void
+    {
+        $GLOBALS['wc_mss_test_use_object_cache'] = false;
+        $GLOBALS['wc_mss_test_wp_cache_incr_return'] = 1; // Request-local cache would always allow.
+        for ($i = 0; $i < 100; $i++) {
+            $this->assertTrue($this->receiver->verify_webhook_signature($this->signed('{}')));
+        }
+        $result = $this->receiver->verify_webhook_signature($this->signed('{}'));
+        $this->assertSame('rate_limit_exceeded', $result->get_error_code());
+    }
+
+    public function test_trailing_slash_and_status_changes_share_a_durable_receipt(): void
+    {
+        $this->addProduct(10, 'SKU-10', 30);
+        $order = $this->order([['sku' => 'SKU-10', 'quantity' => 2]], 801);
+        $this->receiver->handle_order_webhook($this->request($order, self::STORE . '/'));
+        $this->transients = []; // Simulate expiry/cache eviction long after the old one-hour TTL.
+        $order['status'] = 'completed';
+        $result = (new WC_Multi_Store_Webhook_Receiver())->handle_order_webhook($this->request($order, self::STORE));
+        $this->assertTrue($result->get_data()['duplicate']);
+        $this->assertSame(28, $this->stock[10]);
+        $this->assertCount(1, $this->receipts);
+    }
+
+    public function test_pending_receipt_blocks_concurrent_delivery_before_any_second_stock_write(): void
+    {
+        $this->webhookSettings['allow_negative_stock'] = true;
+        WC_Multi_Store_Settings::clear_static_cache();
+        $this->addProduct(10, 'SKU-10', 30);
+        $order = $this->order([['sku' => 'SKU-10', 'quantity' => 2]], 802);
+        $concurrent = null;
+        Functions\when('wc_update_product_stock')->alias(function ($id, $quantity) use ($order, &$concurrent) {
+            $concurrent = (new WC_Multi_Store_Webhook_Receiver())->handle_order_webhook($this->request($order));
+            $this->stock[$id] -= $quantity;
+            return $this->stock[$id];
+        });
+        $first = $this->receiver->handle_order_webhook($this->request($order));
+        $this->assertSame(200, $first->get_status());
+        $this->assertInstanceOf(WP_Error::class, $concurrent);
+        $this->assertSame(503, $concurrent->get_error_data()['status']);
+        $this->assertSame(28, $this->stock[10]);
+    }
+
+    public function test_pending_receipt_is_not_automatically_released_with_age(): void
+    {
+        $this->addProduct(10, 'SKU-10', 30);
+        $this->receipts['wc_mss_wh_order_' . md5(self::STORE . '|803')] = ['state' => 'pending', 'created_at' => 1];
+        $result = $this->receiver->handle_order_webhook($this->request($this->order([['sku' => 'SKU-10', 'quantity' => 2]], 803)));
+        $this->assertSame(503, $result->get_error_data()['status']);
+        $this->assertSame(30, $this->stock[10]);
+    }
+
+    public function test_legacy_receipts_cover_both_trigger_statuses_and_url_spellings(): void
+    {
+        $this->addProduct(10, 'SKU-10', 30);
+        foreach (['processing', 'completed'] as $status) {
+            foreach ([self::STORE, self::STORE . '/'] as $url) {
+                $this->transients = ['wc_mss_wh_seen_' . md5($url . '|804|' . $status) => 1];
+                $this->receipts = [];
+                $order = $this->order([['sku' => 'SKU-10', 'quantity' => 2]], 804, 'completed');
+                $response = $this->receiver->handle_order_webhook($this->request($order));
+                $this->assertTrue($response->get_data()['duplicate']);
+                $this->transients = [];
+                $replay = $this->receiver->handle_order_webhook($this->request($order));
+                $this->assertTrue($replay->get_data()['duplicate'], 'legacy receipt must be promoted to a durable receipt');
+            }
+        }
+        $this->assertSame(30, $this->stock[10]);
+    }
+
+    public function test_exception_after_stock_write_never_releases_the_order_for_replay(): void
+    {
+        $this->webhookSettings['allow_negative_stock'] = true;
+        WC_Multi_Store_Settings::clear_static_cache();
+        $this->addProduct(10, 'SKU-10', 30);
+        Functions\when('wc_update_product_stock')->alias(function ($id, $quantity): never {
+            $this->stock[$id] -= $quantity;
+            throw new RuntimeException('post-write hook failed');
+        });
+        $order = $this->order([['sku' => 'SKU-10', 'quantity' => 2]], 805);
+        $first = $this->receiver->handle_order_webhook($this->request($order));
+        $this->assertTrue($first->get_data()['deductions_uncertain']);
+        $this->transients = [];
+        $retry = $this->receiver->handle_order_webhook($this->request($order));
+        $this->assertTrue($retry->get_data()['duplicate']);
+        $this->assertSame(28, $this->stock[10]);
+    }
+
+    public function test_escaping_exception_after_deduction_leaves_pending_receipt_for_reconciliation(): void
+    {
+        $this->addProduct(10, 'SKU-10', 30);
+        $queue = Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        $queue->shouldReceive('add_product')->once()->andThrow(new RuntimeException('queue unavailable'));
+        WC_MSS()->queue_manager = $queue;
+        $order = $this->order([['sku' => 'SKU-10', 'quantity' => 2]], 806);
+        $first = $this->receiver->handle_order_webhook($this->request($order));
+        $this->assertSame(503, $first->get_error_data()['status']);
+        $retry = $this->receiver->handle_order_webhook($this->request($order));
+        $this->assertSame(503, $retry->get_error_data()['status']);
+        $this->assertSame(28, $this->stock[10]);
+        $this->assertFalse(WC_Multi_Store_Webhook_Receiver::$is_processing_webhook);
+    }
+
 }

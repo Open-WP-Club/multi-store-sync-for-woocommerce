@@ -643,7 +643,7 @@ function alert_on_permanent_failure($queue_item) {
 ## Development Setup
 
 ### Requirements
-- PHP 8.4+
+- PHP 8.5+ for Composer development dependencies and PHPUnit; production installations require PHP 8.3+ with `composer install --no-dev`.
 - WordPress 5.8+
 - WooCommerce 6.0+
 - Composer (required — used for both the runtime `psr/log` dependency and the dev/test toolchain)
@@ -696,13 +696,25 @@ vendor/bin/phpunit --filter ApiClientTest
 
 See `tests/php/bootstrap.php` for the WordPress/WooCommerce function stubs available to tests, and `phpunit.xml.dist` for suite configuration.
 
+Production integration tests use disposable Docker containers for two WooCommerce stores, MariaDB, an HTTP fixture and optional Redis. The runner builds an isolated `--no-dev` vendor directory, leaving local development dependencies intact. Docker and Composer are required on the host.
+
+```bash
+# Runtime minimum, native WordPress request-local cache
+WC_MSS_PHP_VERSION=8.3 WC_MSS_CACHE_MODE=none bash tests/integration/run.sh
+
+# Persistent Redis object cache (Redis Object Cache drop-in with Predis)
+WC_MSS_PHP_VERSION=8.5 WC_MSS_CACHE_MODE=redis bash tests/integration/run.sh
+```
+
+Run these integration scenarios locally, selecting PHP 8.3/8.4/8.5 and cache mode `none`/`redis` with the environment variables above. Scenarios exercise remote create/update/delete, scheduled callbacks, durable stock receipts, concurrent deliveries from separate PHP processes, rate limits across processes, HTTP redirects, and upgrade migration of archives and legacy download settings.
+
 ---
 
 ## Code Standards
 
 ### General Standards
 
-This codebase uses **4-space indentation** (not tabs) and modern PHP 8.4 syntax (typed properties, constructor property promotion, `match`, readonly properties) rather than classic WordPress-core style throughout. It otherwise follows WordPress/WooCommerce conventions:
+This codebase uses **4-space indentation** (not tabs) and PHP 8.3-compatible syntax (including typed class constants, typed properties, constructor property promotion, `match`, and readonly properties). It otherwise follows WordPress/WooCommerce conventions:
 - Use WooCommerce functions/APIs when available instead of reinventing them
 - Sanitize all input, escape all output
 - Doc blocks for public methods, explaining the non-obvious "why" rather than restating the signature

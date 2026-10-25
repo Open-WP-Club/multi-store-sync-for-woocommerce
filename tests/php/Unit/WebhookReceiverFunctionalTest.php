@@ -45,6 +45,8 @@ class WebhookReceiverFunctionalTest extends WC_Multi_Store_TestCase
         });
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
+        Functions\when('update_option')->justReturn(true);
+        Functions\when('delete_option')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('absint')->alias(fn($val) => abs((int) $val));

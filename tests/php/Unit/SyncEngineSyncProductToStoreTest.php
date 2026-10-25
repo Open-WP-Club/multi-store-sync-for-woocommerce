@@ -929,7 +929,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $this->assertSame(777, $result['remote_id']);
     }
 
-    public function test_downloadable_product_files_are_uploaded_via_media_api_on_full_sync(): void
+    public function test_downloadable_product_files_keep_original_references_on_full_sync(): void
     {
         $this->mockWpdbForSyncHistory();
 
@@ -1050,7 +1050,7 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         $this->assertTrue($result['success'], $result['message'] ?? '');
         $this->assertSame(
-            'https://store1.com/wp-content/uploads/manual.pdf',
+            $source_file,
             $sent_product_body['downloads'][0]['file']
         );
     }

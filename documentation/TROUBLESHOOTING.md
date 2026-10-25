@@ -804,6 +804,12 @@ The scan makes paginated API calls to fetch all remote products. For very large 
 
 ---
 
+## Order Webhooks Awaiting Reconciliation
+
+If an order webhook returns `order_processing_pending` or `order_processing_interrupted`, review the WooCommerce logs and reconcile the affected order against the main store's stock before retrying it. An interrupted operation can have changed stock even when its response failed.
+
+Order receipts are kept permanently, separately from the object cache. Completed orders reduce stock once even when another configured status is received. A pending receipt requires an administrator to verify the actual stock changes before resetting it; clearing caches will not reset it. Keep completed receipts when performing routine cleanup.
+
 ## Additional Resources
 
 - [Installation Guide](INSTALLATION.md)

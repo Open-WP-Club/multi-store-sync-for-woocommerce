@@ -508,14 +508,15 @@ class WebhookLoggerTest extends WC_Multi_Store_TestCase
 
             $this->assertEquals(2, $deleted);
 
-            $archive_files = glob($temp_dir . '/wc-mss-logs/webhook-logs-archive-*.json');
+            $archive_files = glob($temp_dir . '/wc-mss-logs/webhook-logs-archive-*.php');
             $this->assertCount(1, $archive_files);
 
-            $archived = json_decode(file_get_contents($archive_files[0]), true);
+            $archived = json_decode(substr(file_get_contents($archive_files[0]), strlen(WC_Multi_Store_Logger::ARCHIVE_GUARD)), true);
             $this->assertEquals(2, $archived['total_records']);
             $this->assertEquals($records, $archived['records']);
         } finally {
             array_map('unlink', glob($temp_dir . '/wc-mss-logs/*') ?: []);
+            @unlink($temp_dir . '/wc-mss-logs/.htaccess');
             @rmdir($temp_dir . '/wc-mss-logs');
             @rmdir($temp_dir);
         }
