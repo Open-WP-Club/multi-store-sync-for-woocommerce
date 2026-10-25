@@ -284,4 +284,29 @@ class AttributeSyncTest extends WC_Multi_Store_TestCase
         $this->assertFalse($this->makeSync()->sync_term_to_store($client, 'color', ['slug' => 'red']));
     }
 
+    public function test_delete_attribute_logs_lookup_failure(): void
+    {
+        $logged = new \ArrayObject();
+        Functions\when('wc_get_logger')->justReturn(new class ($logged) {
+            public function __construct(private \ArrayObject $messages) {}
+            public function log($level, $message, $context = []): void { $this->messages[] = $level . ': ' . $message; }
+        });
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->justReturn(true);
+        Functions\when('add_query_arg')->alias(fn($args, $url) => $url . '?' . http_build_query($args));
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code']);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body']);
+        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        Functions\expect('wp_remote_get')->once()->andReturn(['response' => ['code' => 403], 'body' => '{"code":"forbidden","message":"Rejected credentials"}']);
+        Functions\expect('wp_remote_request')->never();
+
+        try {
+            $this->makeSync()->delete_attribute_by_slug('color', 99);
+            $this->fail('Exhausted retries must surface as an exception');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('no further retry', $e->getMessage());
+        }
+
+        $this->assertCount(1, array_filter((array) $logged, fn($m) => str_starts_with($m, 'error') && str_contains($m, 'delete skipped') && str_contains($m, 'color')));
+    }
 }

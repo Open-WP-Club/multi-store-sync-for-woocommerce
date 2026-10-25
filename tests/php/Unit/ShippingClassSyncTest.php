@@ -385,6 +385,26 @@ class ShippingClassSyncTest extends WC_Multi_Store_TestCase
         $this->assertSame($viaTerm, $viaData);
     }
 
+    public function test_delete_by_data_logs_lookup_failure_and_reports_false(): void
+    {
+        $logged = new \ArrayObject();
+        Functions\when('wc_get_logger')->justReturn(new class ($logged) {
+            public function __construct(private \ArrayObject $messages) {}
+            public function log($level, $message, $context = []): void { $this->messages[] = $level . ': ' . $message; }
+        });
+        Functions\when('add_query_arg')->alias(fn($args, $url) => $url . '?' . http_build_query($args));
+        Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code']);
+        Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body']);
+        $this->enableAutoSync();
+        Functions\expect('wp_remote_get')->once()->andReturn(['response' => ['code' => 403], 'body' => '{"code":"forbidden","message":"Rejected credentials"}']);
+        Functions\expect('wp_remote_request')->never();
+
+        $result = (new WC_Multi_Store_Shipping_Class_Sync())->delete_shipping_class_from_all_stores_by_data('Heavy', 'heavy');
+
+        $this->assertSame(['https://store1.com' => false], $result);
+        $this->assertCount(1, array_filter((array) $logged, fn($m) => str_starts_with($m, 'error') && str_contains($m, 'delete skipped') && str_contains($m, 'Heavy')));
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // get_product_shipping_class_slug
     // ═══════════════════════════════════════════════════════════════

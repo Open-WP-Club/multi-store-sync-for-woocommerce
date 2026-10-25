@@ -342,6 +342,12 @@ class WC_Multi_Store_Remote_Product_Manager {
 
         $fresh = $this->find_remote_product($api, $product, $match_by, $store_url);
         if (is_wp_error($fresh)) {
+            WC_Multi_Store_Logger::write(sprintf(
+                'Stale remote product %d on %s could not be re-resolved: %s',
+                (int) ($stale_remote_product['id'] ?? 0),
+                $store_url,
+                $fresh->get_error_message()
+            ), 'error');
             return null;
         }
 

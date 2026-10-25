@@ -130,9 +130,16 @@ class WC_Multi_Store_Attribute_Sync {
             $client = self::get_api_client($store);
             $remote = $this->find_remote_attribute($client, $slug);
             if (is_wp_error($remote)) {
+                self::sync_log(sprintf('Attribute "%s" delete skipped on %s: lookup failed: %s', $slug, $store['store_url'], $remote->get_error_message()), 'error');
                 $results[$store['store_url']] = false;
             } elseif ($remote) {
-                $results[$store['store_url']] = !is_wp_error($client->delete('products/attributes/' . $remote['id'], ['force' => true]));
+                $response = $client->delete('products/attributes/' . $remote['id'], ['force' => true]);
+                $results[$store['store_url']] = !is_wp_error($response);
+                if (is_wp_error($response)) {
+                    self::sync_log(sprintf('Failed to delete attribute "%s" from %s: %s', $slug, $store['store_url'], $response->get_error_message()), 'error');
+                } else {
+                    self::sync_log(sprintf('Attribute "%s" deleted from %s', $slug, $store['store_url']));
+                }
             }
         }
         $this->finish_async($results, self::ASYNC_DELETE_ATTRIBUTE_HOOK, [$slug], $attempt);
@@ -168,6 +175,7 @@ class WC_Multi_Store_Attribute_Sync {
             $client = self::get_api_client($store);
             $remote_attribute = $this->find_remote_attribute($client, $attribute_slug);
             if (is_wp_error($remote_attribute)) {
+                self::sync_log(sprintf('Term "%s" delete skipped on %s: attribute lookup failed: %s', $slug, $store['store_url'], $remote_attribute->get_error_message()), 'error');
                 $results[$store['store_url']] = false;
                 continue;
             }
@@ -177,9 +185,16 @@ class WC_Multi_Store_Attribute_Sync {
 
             $remote_term = $this->find_remote_term($client, (int) $remote_attribute['id'], $slug);
             if (is_wp_error($remote_term)) {
+                self::sync_log(sprintf('Term "%s" delete skipped on %s: term lookup failed: %s', $slug, $store['store_url'], $remote_term->get_error_message()), 'error');
                 $results[$store['store_url']] = false;
             } elseif ($remote_term) {
-                $results[$store['store_url']] = !is_wp_error($client->delete('products/attributes/' . $remote_attribute['id'] . '/terms/' . $remote_term['id'], ['force' => true]));
+                $response = $client->delete('products/attributes/' . $remote_attribute['id'] . '/terms/' . $remote_term['id'], ['force' => true]);
+                $results[$store['store_url']] = !is_wp_error($response);
+                if (is_wp_error($response)) {
+                    self::sync_log(sprintf('Failed to delete term "%s" from %s: %s', $slug, $store['store_url'], $response->get_error_message()), 'error');
+                } else {
+                    self::sync_log(sprintf('Term "%s" deleted from %s', $slug, $store['store_url']));
+                }
             }
         }
         $this->finish_async($results, self::ASYNC_DELETE_TERM_HOOK, [$slug, $taxonomy], $attempt);

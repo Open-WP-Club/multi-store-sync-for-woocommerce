@@ -245,6 +245,12 @@ class WC_Multi_Store_Shipping_Class_Sync {
             $client = self::get_api_client($store);
             $remote_class = $this->find_remote_shipping_class($client, $slug, $store['store_url']);
             if (is_wp_error($remote_class)) {
+                self::sync_log(sprintf(
+                    'Shipping class "%s" delete skipped on %s: lookup failed: %s',
+                    $name,
+                    $store['store_url'],
+                    $remote_class->get_error_message()
+                ), 'error');
                 $results[$store['store_url']] = false;
                 continue;
             }

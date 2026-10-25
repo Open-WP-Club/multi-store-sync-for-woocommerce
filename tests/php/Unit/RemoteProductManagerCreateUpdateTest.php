@@ -535,6 +535,27 @@ class RemoteProductManagerCreateUpdateTest extends WC_Multi_Store_TestCase
         $this->assertSame('Невалиден ID.', $result['message'], 'The original error is kept when nothing can be recovered');
     }
 
+    public function test_failed_fresh_lookup_after_404_is_logged_and_keeps_original_error(): void
+    {
+        $logged = new \ArrayObject();
+        Functions\when('wc_get_logger')->justReturn(new class ($logged) {
+            public function __construct(private \ArrayObject $messages) {}
+            public function log($level, $message, $context = []): void { $this->messages[] = $level . ': ' . $message; }
+        });
+
+        $api = $this->api();
+        $api->shouldReceive('update_product')->once()->andReturn($this->notFoundError());
+        $api->shouldReceive('get_product')->with(555)->andReturn($this->notFoundError());
+        $api->shouldReceive('get_products')->andReturn(new \WP_Error('offline', 'Offline'));
+        $api->shouldNotReceive('create_product');
+
+        $this->meta[100][$this->metaKey()] = 555;
+        $result = $this->manager->create_or_update($api, $this->product(), ['id' => 555], ['status' => 'publish'], 'full_product');
+
+        $this->assertFalse($result['success']);
+        $this->assertCount(1, array_filter((array) $logged, fn($m) => str_starts_with($m, 'error') && str_contains($m, 'could not be re-resolved') && str_contains($m, 'Offline')));
+    }
+
     public function test_a_server_error_is_not_mistaken_for_a_vanished_product(): void
     {
         $api = $this->api();

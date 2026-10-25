@@ -265,6 +265,12 @@ class WC_Multi_Store_Coupon_Sync {
             $remote_coupon = $this->find_remote_coupon($client, $code);
 
             if (is_wp_error($remote_coupon)) {
+                self::sync_log(sprintf(
+                    'Coupon "%s" delete skipped on %s: lookup failed: %s',
+                    $code,
+                    $store['store_url'],
+                    $remote_coupon->get_error_message()
+                ), 'error');
                 $results[$store['store_url']] = false;
                 continue;
             }
@@ -280,6 +286,13 @@ class WC_Multi_Store_Coupon_Sync {
                         $code,
                         $store['store_url']
                     ));
+                } else {
+                    self::sync_log(sprintf(
+                        'Failed to delete coupon "%s" from %s: %s',
+                        $code,
+                        $store['store_url'],
+                        $response->get_error_message()
+                    ), 'error');
                 }
             }
         }

@@ -363,4 +363,39 @@ class ReviewSyncTest extends WC_Multi_Store_TestCase
         $this->assertFalse($sync->sync_review_to_store($client, 'SKU-100', $sync->extract_review_data(new WP_Comment()), 'https://store1.com'));
     }
 
+    /** @return string[] captured WooCommerce log messages (by reference sink) */
+    private function captureLogs(): \ArrayObject
+    {
+        $logged = new \ArrayObject();
+        $sink = new class ($logged) {
+            public function __construct(private \ArrayObject $messages) {}
+            public function log($level, $message, $context = []): void { $this->messages[] = $level . ': ' . $message; }
+        };
+        Functions\when('wc_get_logger')->justReturn($sink);
+        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        return $logged;
+    }
+
+    public function test_delete_logs_product_lookup_failure(): void
+    {
+        $logged = $this->captureLogs();
+        Functions\expect('wp_remote_get')->once()->andReturn(new WP_Error('offline', 'Offline'));
+        Functions\expect('wp_remote_request')->never();
+
+        $this->assertSame(['https://store1.com' => false], $this->makeSync()->delete_review_from_all_stores('SKU-100', 'jane@example.com'));
+        $this->assertCount(1, array_filter((array) $logged, fn($m) => str_contains($m, 'Review delete skipped') && str_contains($m, 'SKU-100') && str_starts_with($m, 'error')));
+    }
+
+    public function test_delete_logs_remote_delete_failure(): void
+    {
+        $logged = $this->captureLogs();
+        Functions\expect('wp_remote_get')->twice()->andReturnUsing(function ($url) {
+            $data = str_contains($url, '/products/reviews?') ? [['id' => 77]] : [['id' => 55]];
+            return ['response' => ['code' => 200], 'body' => json_encode($data)];
+        });
+        Functions\expect('wp_remote_request')->once()->andReturn(['response' => ['code' => 400], 'body' => '{"code":"bad","message":"Timed out"}']);
+
+        $this->assertSame(['https://store1.com' => false], $this->makeSync()->delete_review_from_all_stores('SKU-100', 'jane@example.com'));
+        $this->assertCount(1, array_filter((array) $logged, fn($m) => str_contains($m, 'Failed to delete review') && str_contains($m, 'Timed out')));
+    }
 }

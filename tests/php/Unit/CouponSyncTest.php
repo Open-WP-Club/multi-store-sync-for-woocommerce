@@ -536,4 +536,36 @@ class CouponSyncTest extends WC_Multi_Store_TestCase
         $this->assertTrue($this->makeSync()->sync_coupon_to_store($client, new WC_Coupon(1), $data, 'https://store1.com'));
     }
 
+    /** @return string[] captured WooCommerce log messages (by reference sink) */
+    private function captureLogs(): \ArrayObject
+    {
+        $logged = new \ArrayObject();
+        $sink = new class ($logged) {
+            public function __construct(private \ArrayObject $messages) {}
+            public function log($level, $message, $context = []): void { $this->messages[] = $level . ': ' . $message; }
+        };
+        Functions\when('wc_get_logger')->justReturn($sink);
+        Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        return $logged;
+    }
+
+    public function test_delete_logs_lookup_failure(): void
+    {
+        $logged = $this->captureLogs();
+        Functions\expect('wp_remote_get')->once()->andReturn(new WP_Error('offline', 'Offline'));
+        Functions\expect('wp_remote_request')->never();
+
+        $this->assertSame(['https://store1.com' => false], $this->makeSync()->delete_coupon_from_all_stores_by_code('TEST10'));
+        $this->assertCount(1, array_filter((array) $logged, fn($m) => str_contains($m, 'delete skipped') && str_contains($m, 'TEST10')));
+    }
+
+    public function test_delete_logs_remote_delete_failure(): void
+    {
+        $logged = $this->captureLogs();
+        Functions\expect('wp_remote_get')->once()->andReturn(['response' => ['code' => 200], 'body' => '[{"id":99}]']);
+        Functions\expect('wp_remote_request')->once()->andReturn(['response' => ['code' => 400], 'body' => '{"code":"bad","message":"Timed out"}']);
+
+        $this->assertSame(['https://store1.com' => false], $this->makeSync()->delete_coupon_from_all_stores_by_code('TEST10'));
+        $this->assertCount(1, array_filter((array) $logged, fn($m) => str_contains($m, 'Failed to delete coupon') && str_contains($m, 'Timed out')));
+    }
 }

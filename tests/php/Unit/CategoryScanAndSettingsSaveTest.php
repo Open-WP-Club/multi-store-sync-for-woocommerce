@@ -507,4 +507,80 @@ class CategoryScanAndSettingsSaveTest extends WC_Multi_Store_TestCase
         WC_Admin_Settings::reset();
         parent::tearDown();
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Part 3 — ajax_scan_categories request gating
+    // ══════════════════════════════════════════════════════════════════
+
+    /** @return \Closure(): array{success: bool, data: mixed}|null */
+    private function capturedJson(): \Closure
+    {
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data = null) use (&$sent) {
+            $sent = ['success' => true, 'data' => $data];
+        });
+        Functions\when('wp_send_json_error')->alias(function ($data = null) use (&$sent) {
+            $sent = ['success' => false, 'data' => $data];
+        });
+
+        return function () use (&$sent) {
+            return $sent;
+        };
+    }
+
+    public function test_ajax_scan_categories_rejects_users_without_capability(): void
+    {
+        $sent = $this->capturedJson();
+        $ajax = $this->makeAjax();
+        $nonceActions = [];
+        Functions\when('check_ajax_referer')->alias(function (string $action) use (&$nonceActions) {
+            $nonceActions[] = $action;
+            return 1;
+        });
+        Functions\when('current_user_can')->justReturn(false);
+        Functions\expect('wp_remote_get')->never();
+        $_POST = ['store_url' => 'https://child.example.com'];
+
+        $ajax->ajax_scan_categories();
+
+        $this->assertSame(['wc_mss_scan_categories'], array_unique($nonceActions));
+        $this->assertFalse($sent()['success']);
+        $this->assertSame(['message' => 'Unauthorized'], $sent()['data']);
+    }
+
+    public function test_ajax_scan_categories_requires_a_store_url(): void
+    {
+        $sent = $this->capturedJson();
+        $ajax = $this->makeAjax();
+        Functions\when('check_ajax_referer')->justReturn(1);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('sanitize_text_field')->alias(fn($v) => trim(strip_tags((string) $v)));
+        $_POST = ['store_url' => ''];
+
+        $ajax->ajax_scan_categories();
+
+        $this->assertFalse($sent()['success']);
+        $this->assertSame(['message' => 'store_url is required for per-store scanning.'], $sent()['data']);
+    }
+
+    public function test_ajax_scan_categories_only_scans_configured_stores(): void
+    {
+        $sent = $this->capturedJson();
+        $ajax = $this->makeAjax();
+        Functions\when('check_ajax_referer')->justReturn(1);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('sanitize_text_field')->alias(fn($v) => trim(strip_tags((string) $v)));
+        Functions\when('get_option')->alias(fn($key, $default = false) => $default);
+        Functions\expect('wp_remote_get')->never();
+        WC_Multi_Store_Settings::clear_static_cache();
+        $_POST = ['store_url' => 'https://not-configured.example.com'];
+
+        $ajax->ajax_scan_categories();
+
+        $this->assertFalse($sent()['success']);
+        $this->assertSame(
+            ['message' => 'Store not found: https://not-configured.example.com'],
+            $sent()['data']
+        );
+    }
 }

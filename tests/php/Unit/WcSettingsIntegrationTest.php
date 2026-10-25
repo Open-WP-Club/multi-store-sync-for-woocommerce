@@ -533,4 +533,162 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
         }
     }
 
+    // ─── ajax_test_connection ──────────────────────────
+
+    /**
+     * Stubs wp_send_json_* so that, like the real functions, they end the request.
+     *
+     * @return \Closure(): array{success: bool, data: mixed}|null Returns what was sent.
+     */
+    private function haltingJsonResponses(): \Closure
+    {
+        $sent = null;
+        Functions\when('wp_send_json_success')->alias(function ($data = null) use (&$sent): void {
+            $sent = ['success' => true, 'data' => $data];
+            throw new \RuntimeException('json_response');
+        });
+        Functions\when('wp_send_json_error')->alias(function ($data = null) use (&$sent): void {
+            $sent = ['success' => false, 'data' => $data];
+            throw new \RuntimeException('json_response');
+        });
+
+        return function () use (&$sent) {
+            return $sent;
+        };
+    }
+
+    private function callAjax(string $method): void
+    {
+        try {
+            $this->integration->$method();
+        } catch (\RuntimeException $e) {
+            $this->assertSame('json_response', $e->getMessage());
+        }
+    }
+
+    public function test_test_connection_rejects_users_without_capability_before_touching_input(): void
+    {
+        $sent = $this->haltingJsonResponses();
+        Functions\when('check_ajax_referer')->justReturn(1);
+        Functions\when('current_user_can')->justReturn(false);
+        Functions\expect('wp_remote_get')->never();
+        $_POST = ['store_url' => 'https://store.example.com', 'consumer_key' => 'ck', 'consumer_secret' => 'cs'];
+
+        $this->callAjax('ajax_test_connection');
+
+        $this->assertSame(['success' => false, 'data' => 'Unauthorized'], $sent());
+    }
+
+    public static function unsafeStoreUrlProvider(): array
+    {
+        return [
+            'missing'              => [null],
+            'empty'                => [''],
+            'cloud metadata'       => ['http://169.254.169.254/latest/meta-data/'],
+            'ipv6 link-local'      => ['http://[fe80::1]/'],
+            'array instead of url' => [['http://store.example.com']],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('unsafeStoreUrlProvider')]
+    public function test_test_connection_refuses_unsafe_urls_without_sending_credentials(mixed $url): void
+    {
+        $sent = $this->haltingJsonResponses();
+        Functions\when('check_ajax_referer')->justReturn(1);
+        Functions\when('wp_parse_url')->alias('parse_url');
+        Functions\when('sanitize_text_field')->alias(fn($v) => $v);
+        Functions\expect('wp_remote_get')->never();
+        Functions\expect('wp_remote_request')->never();
+        $_POST = ['consumer_key' => 'ck_secret', 'consumer_secret' => 'cs_secret'];
+        if ($url !== null) {
+            $_POST['store_url'] = $url;
+        }
+
+        $this->callAjax('ajax_test_connection');
+
+        $this->assertSame(['success' => false, 'data' => 'Store URL is not allowed.'], $sent());
+    }
+
+    // ─── ajax_force_sync_all ───────────────────────────
+
+    private function configureStores(bool $active): void
+    {
+        Functions\when('get_option')->alias(static function ($name, $default = false) use ($active) {
+            if ($name === 'wc_multi_store_sync_stores') {
+                return ['https://store.example.com' => [
+                    'status' => $active ? 'active' : 'inactive',
+                    'consumer_key' => 'ck',
+                    'consumer_secret' => 'cs',
+                ]];
+            }
+            return $name === 'wc_multi_store_sync_settings' ? [] : $default;
+        });
+        WC_Multi_Store_Settings::clear_static_cache();
+    }
+
+    public function test_force_sync_all_checks_nonce_and_rejects_users_without_capability(): void
+    {
+        $sent = $this->haltingJsonResponses();
+        Functions\expect('check_ajax_referer')->once()->with('wc_mss_force_sync_all', 'nonce')->andReturn(1);
+        Functions\when('current_user_can')->justReturn(false);
+        Functions\expect('as_schedule_single_action')->never();
+
+        $this->callAjax('ajax_force_sync_all');
+
+        $this->assertFalse($sent()['success']);
+        $this->assertSame(['message' => 'Unauthorized'], $sent()['data']);
+    }
+
+    public function test_force_sync_all_without_active_stores_schedules_nothing(): void
+    {
+        $sent = $this->haltingJsonResponses();
+        Functions\when('check_ajax_referer')->justReturn(1);
+        $this->configureStores(false);
+        Functions\expect('as_schedule_single_action')->never();
+        Functions\expect('as_unschedule_all_actions')->never();
+
+        $this->callAjax('ajax_force_sync_all');
+
+        $this->assertFalse($sent()['success']);
+        $this->assertStringContainsString('No active stores configured', $sent()['data']['message']);
+    }
+
+    public function test_force_sync_all_without_published_products_schedules_nothing(): void
+    {
+        $sent = $this->haltingJsonResponses();
+        Functions\when('check_ajax_referer')->justReturn(1);
+        $this->configureStores(true);
+        Functions\when('wp_count_posts')->justReturn((object) ['publish' => 0, 'draft' => 12]);
+        Functions\expect('as_schedule_single_action')->never();
+
+        $this->callAjax('ajax_force_sync_all');
+
+        $this->assertSame(['message' => 'No products found to sync.'], $sent()['data']);
+    }
+
+    public function test_force_sync_all_cancels_stale_batches_then_schedules_the_first_page(): void
+    {
+        $sent = $this->haltingJsonResponses();
+        Functions\when('check_ajax_referer')->justReturn(1);
+        $this->configureStores(true);
+        Functions\when('wp_count_posts')->justReturn((object) ['publish' => 250]);
+
+        $calls = [];
+        Functions\when('as_unschedule_all_actions')->alias(function (...$args) use (&$calls) {
+            $calls[] = ['unschedule', $args];
+        });
+        Functions\when('as_schedule_single_action')->alias(function (...$args) use (&$calls) {
+            $calls[] = ['schedule', $args];
+        });
+
+        $this->callAjax('ajax_force_sync_all');
+
+        $this->assertSame(['unschedule', 'schedule'], array_column($calls, 0), 'stale batches must be cleared before the new run starts');
+        $this->assertSame(['wc_multi_store_sync_force_sync_batch', [], 'wc_multi_store_sync'], $calls[0][1]);
+        $this->assertSame('wc_multi_store_sync_force_sync_batch', $calls[1][1][1]);
+        $this->assertSame(['page' => 1], $calls[1][1][2]);
+        $this->assertSame('wc_multi_store_sync', $calls[1][1][3]);
+        $this->assertTrue($sent()['success']);
+        $this->assertStringContainsString('250 products', $sent()['data']['message']);
+    }
 }

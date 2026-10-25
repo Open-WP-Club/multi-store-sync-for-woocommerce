@@ -119,48 +119,6 @@ class BulkActionsTest extends WC_Multi_Store_TestCase
         $this->assertCount(7, $result);
     }
 
-    // ── handle_bulk_actions – mss_sync_prices ────────────────────
-
-    public function test_handle_sync_prices_action(): void
-    {
-        $_REQUEST['_wpnonce'] = 'test_nonce';
-        $this->setUpWpdbMock();
-
-        $bulk = new WC_Multi_Store_Bulk_Actions();
-        $result = $bulk->handle_bulk_actions('https://example.com/admin', 'mss_sync_prices', [100, 200]);
-
-        $this->assertStringContainsString('mss_synced', $result);
-    }
-
-    // ── handle_bulk_actions – mss_sync_stock ─────────────────────
-
-    public function test_handle_sync_stock_action(): void
-    {
-        $_REQUEST['_wpnonce'] = 'test_nonce';
-        $this->setUpWpdbMock();
-
-        $bulk = new WC_Multi_Store_Bulk_Actions();
-        $result = $bulk->handle_bulk_actions('https://example.com/admin', 'mss_sync_stock', [100]);
-
-        $this->assertStringContainsString('mss_synced', $result);
-    }
-
-    // ── handle_bulk_actions – mss_bulk_delete ────────────────────
-
-    // bulk_delete_products() define()s DOING_BULK_EDIT, which would otherwise leak into every later test.
-    #[RunInSeparateProcess]
-    #[PreserveGlobalState(false)]
-    public function test_handle_bulk_delete_action(): void
-    {
-        $_REQUEST['_wpnonce'] = 'test_nonce';
-        $this->setUpWpdbMock();
-
-        $bulk = new WC_Multi_Store_Bulk_Actions();
-        $result = $bulk->handle_bulk_actions('https://example.com/admin', 'mss_bulk_delete', [100, 200, 300]);
-
-        $this->assertStringContainsString('mss_bulk_deleted', $result);
-    }
-
     // ── handle_bulk_actions – no nonce set ────────────────────────
 
     public function test_handle_bulk_actions_without_nonce_returns_redirect(): void
@@ -213,22 +171,6 @@ class BulkActionsTest extends WC_Multi_Store_TestCase
         $result = $method->invoke($bulk, []);
 
         $this->assertEquals(0, $result);
-    }
-
-    // bulk_delete_products() define()s DOING_BULK_EDIT, which would otherwise leak into every later test.
-    #[RunInSeparateProcess]
-    #[PreserveGlobalState(false)]
-    public function test_bulk_delete_queues_each_product(): void
-    {
-        $this->setUpWpdbMock();
-
-        $bulk = new WC_Multi_Store_Bulk_Actions();
-        $method = new ReflectionMethod($bulk, 'bulk_delete_products');
-
-        $result = $method->invoke($bulk, [100, 200, 300]);
-
-        // Each product should be queued (add_product_deletion returns count)
-        $this->assertIsInt($result);
     }
 
     // ── bulk_action_notices ──────────────────────────────────────
@@ -326,5 +268,153 @@ class BulkActionsTest extends WC_Multi_Store_TestCase
 
         // Unknown mss_ action passes nonce check but falls through switch
         $this->assertEquals('https://example.com/admin', $result);
+    }
+
+    // ── precise queue interaction ────────────────────────────────
+
+    private function mockQueueManager(): \Mockery\MockInterface
+    {
+        $queue = \Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        WC_Multi_Store_Sync::instance()->queue_manager = $queue;
+
+        return $queue;
+    }
+
+    public static function syncActionProvider(): array
+    {
+        return [
+            'full sync'   => ['mss_sync_full', 'full_product'],
+            'prices'      => ['mss_sync_prices', 'price_quantity'],
+            'stock only'  => ['mss_sync_stock', 'quantity'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('syncActionProvider')]
+    public function test_sync_actions_queue_with_matching_sync_type_and_normal_priority(string $action, string $syncType): void
+    {
+        $_REQUEST['_wpnonce'] = 'test_nonce';
+        $this->mockQueueManager()
+            ->shouldReceive('add_products')
+            ->once()
+            ->with([100, 200], 'bulk_sync', WC_Multi_Store_Queue_Manager::PRIORITY_NORMAL, $syncType)
+            ->andReturn(2);
+
+        $result = (new WC_Multi_Store_Bulk_Actions())->handle_bulk_actions('https://example.com/admin', $action, [100, 200]);
+
+        $this->assertSame('https://example.com/admin&mss_synced=2', $result);
+    }
+
+    public function test_queue_high_action_queues_with_highest_priority_and_reports_queued_count(): void
+    {
+        $_REQUEST['_wpnonce'] = 'test_nonce';
+        $this->mockQueueManager()
+            ->shouldReceive('add_products')
+            ->once()
+            ->with([7, 8, 9], 'bulk_action', 1)
+            ->andReturn(3);
+
+        $result = (new WC_Multi_Store_Bulk_Actions())->handle_bulk_actions('https://example.com/admin', 'mss_queue_high', [7, 8, 9]);
+
+        $this->assertSame('https://example.com/admin&mss_queued=3', $result);
+    }
+
+    public function test_sync_action_reports_the_actual_count_returned_by_the_queue(): void
+    {
+        $_REQUEST['_wpnonce'] = 'test_nonce';
+        // Two stores x two products: the queue decides how many items it created.
+        $this->mockQueueManager()->shouldReceive('add_products')->andReturn(4);
+
+        $result = (new WC_Multi_Store_Bulk_Actions())->handle_bulk_actions('https://example.com/admin', 'mss_sync_full', [1, 2]);
+
+        $this->assertStringEndsWith('mss_synced=4', $result);
+    }
+
+    public function test_sync_action_with_no_active_stores_never_touches_the_queue(): void
+    {
+        $_REQUEST['_wpnonce'] = 'test_nonce';
+        Functions\when('get_option')->alias(fn($option, $default = false) => $default);
+        WC_Multi_Store_Settings::clear_static_cache();
+        $this->mockQueueManager()->shouldReceive('add_products')->never();
+
+        $result = (new WC_Multi_Store_Bulk_Actions())->handle_bulk_actions('https://example.com/admin', 'mss_sync_full', [1]);
+
+        $this->assertSame('https://example.com/admin&mss_synced=0', $result);
+    }
+
+    public function test_unauthenticated_request_never_touches_the_queue(): void
+    {
+        Functions\when('wp_verify_nonce')->justReturn(false);
+        $_REQUEST['_wpnonce'] = 'forged';
+        $this->mockQueueManager()->shouldReceive('add_products')->never();
+        $this->mockQueueManager()->shouldReceive('add_product_deletion')->never();
+
+        $bulk = new WC_Multi_Store_Bulk_Actions();
+        foreach (['mss_sync_full', 'mss_queue_high', 'mss_bulk_delete'] as $action) {
+            $this->assertSame('https://example.com/admin', $bulk->handle_bulk_actions('https://example.com/admin', $action, [1]));
+        }
+    }
+
+    // bulk_delete_products() define()s DOING_BULK_EDIT, which would otherwise leak into every later test.
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_bulk_delete_queues_each_product_at_low_priority_and_sums_results(): void
+    {
+        $_REQUEST['_wpnonce'] = 'test_nonce';
+        $queue = $this->mockQueueManager();
+        $queue->shouldReceive('add_product_deletion')->once()->with(10, 'bulk_delete', 5)->andReturn(1);
+        $queue->shouldReceive('add_product_deletion')->once()->with(11, 'bulk_delete', 5)->andReturn(0); // already queued
+        $queue->shouldReceive('add_product_deletion')->once()->with(12, 'bulk_delete', 5)->andReturn(1);
+
+        $result = (new WC_Multi_Store_Bulk_Actions())->handle_bulk_actions('https://example.com/admin', 'mss_bulk_delete', [10, 11, 12]);
+
+        $this->assertSame('https://example.com/admin&mss_bulk_deleted=2', $result);
+        $this->assertTrue(defined('DOING_BULK_EDIT') && DOING_BULK_EDIT);
+    }
+
+    // ── constructor / notices ────────────────────────────────────
+
+    public function test_constructor_hooks_into_product_list_and_admin_notices(): void
+    {
+        $hooks = [];
+        Functions\when('add_filter')->alias(function ($hook, $callback, $priority = 10, $args = 1) use (&$hooks) {
+            $hooks[$hook] = [$priority, $args];
+            return true;
+        });
+        Functions\when('add_action')->alias(function ($hook) use (&$hooks) {
+            $hooks[$hook] = true;
+            return true;
+        });
+
+        new WC_Multi_Store_Bulk_Actions();
+
+        $this->assertSame([10, 1], $hooks['bulk_actions-edit-product']);
+        $this->assertSame([10, 3], $hooks['handle_bulk_actions-edit-product']);
+        $this->assertArrayHasKey('admin_notices', $hooks);
+    }
+
+    public function test_bulk_action_notices_shows_synced_count(): void
+    {
+        $_REQUEST['mss_synced'] = '12';
+
+        ob_start();
+        (new WC_Multi_Store_Bulk_Actions())->bulk_action_notices();
+        $output = ob_get_clean();
+
+        $this->assertStringContainsString('Successfully synced 12 product(s) to remote stores.', $output);
+        $this->assertStringContainsString('notice-success', $output);
+    }
+
+    public function test_bulk_action_notices_never_show_negative_or_non_numeric_counts(): void
+    {
+        $_REQUEST['mss_queued'] = '-5';
+        $_REQUEST['mss_bulk_deleted'] = '<script>alert(1)</script>';
+
+        ob_start();
+        (new WC_Multi_Store_Bulk_Actions())->bulk_action_notices();
+        $output = ob_get_clean();
+
+        $this->assertStringContainsString('Added 5 product(s)', $output);
+        $this->assertStringContainsString('Queued 0 product(s)', $output);
+        $this->assertStringNotContainsString('<script>', $output);
     }
 }

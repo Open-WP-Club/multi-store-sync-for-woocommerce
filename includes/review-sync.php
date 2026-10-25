@@ -304,6 +304,7 @@ class WC_Multi_Store_Review_Sync {
             $client = self::get_api_client($store);
             $remote_product_id = $this->resolve_remote_product_id($client, $sku, $store['store_url']);
             if (is_wp_error($remote_product_id)) {
+                self::sync_log(sprintf('Review delete skipped on %s: product lookup for SKU "%s" failed: %s', $store['store_url'], $sku, $remote_product_id->get_error_message()), 'error');
                 $results[$store['store_url']] = false;
                 continue;
             }
@@ -313,6 +314,7 @@ class WC_Multi_Store_Review_Sync {
 
             $existing = $this->find_remote_review($client, $remote_product_id, $reviewer_email);
             if (is_wp_error($existing)) {
+                self::sync_log(sprintf('Review delete skipped on %s: review lookup failed: %s', $store['store_url'], $existing->get_error_message()), 'error');
                 $results[$store['store_url']] = false;
                 continue;
             }
@@ -322,6 +324,11 @@ class WC_Multi_Store_Review_Sync {
 
             $response = $client->delete('products/reviews/' . $existing['id'], ['force' => true]);
             $results[$store['store_url']] = !is_wp_error($response);
+            if (is_wp_error($response)) {
+                self::sync_log(sprintf('Failed to delete review for SKU "%s" from %s: %s', $sku, $store['store_url'], $response->get_error_message()), 'error');
+            } else {
+                self::sync_log(sprintf('Review for SKU "%s" deleted from %s', $sku, $store['store_url']));
+            }
         }
 
         return $results;
