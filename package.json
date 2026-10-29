@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/MrGKanev/WooCommerce-API-Product-Sync-with-Multiple-WooCommerce-Stores#readme",
   "dependencies": {
-    "chart.js": "^4.5.1"
+    "chart.js": "^4.6.1"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
