@@ -221,4 +221,77 @@ class UninstallTest extends WC_Multi_Store_TestCase
         $this->assertSame('unschedule', $order[0]);
         $this->assertNotContains('unschedule', array_slice($order, array_search('query', $order, true)));
     }
+
+    // ── scheduled actions ──────────────────────────────────────────────────
+
+    /**
+     * Hooks the plugin really schedules: class constants where they exist,
+     * plus the literals used at the scheduling call sites.
+     *
+     * @return list<string>
+     */
+    private function scheduledHooks(): array
+    {
+        return [
+            ...$this->constantValues(WC_Multi_Store_Action_Scheduler_Manager::class, [
+                'ACTION_HOOK_QUEUE',
+                'ACTION_HOOK_SCHEDULED_SYNC',
+                'ACTION_HOOK_MAINTENANCE',
+                'ACTION_HOOK_DEBOUNCED_ORDER',
+                'ACTION_HOOK_FORCE_SYNC_BATCH',
+            ]),
+            ...$this->constantValues(WC_Multi_Store_Orphan_Cleanup::class, ['BACKGROUND_HOOK', 'CLEANUP_HOOK', 'AUTO_TRASH_HOOK']),
+            ...$this->constantValues(WC_Multi_Store_Weekly_Verification_Scheduler::class, ['ASYNC_BATCH_HOOK']),
+            ...$this->constantValues(WC_Multi_Store_Attribute_Sync::class, [
+                'ASYNC_SYNC_ATTRIBUTE_HOOK',
+                'ASYNC_DELETE_ATTRIBUTE_HOOK',
+                'ASYNC_SYNC_TERM_HOOK',
+                'ASYNC_DELETE_TERM_HOOK',
+            ]),
+            ...$this->constantValues(WC_Multi_Store_Review_Sync::class, ['ASYNC_SYNC_HOOK', 'ASYNC_DELETE_HOOK']),
+            ...$this->constantValues(WC_Multi_Store_Coupon_Sync::class, ['ASYNC_SYNC_HOOK', 'ASYNC_DELETE_HOOK']),
+            ...$this->constantValues(WC_Multi_Store_Shipping_Class_Sync::class, ['ASYNC_SYNC_HOOK', 'ASYNC_DELETE_HOOK']),
+            // Scheduling call sites that use string literals.
+            'wc_multi_store_weekly_verification',
+            'wc_multi_store_sync_remote_orders',
+            'wc_multi_store_health_check',
+            'wc_multi_store_health_check_single',
+            'wc_mss_send_daily_summary',
+            'wc_mss_archive_history',
+            'wc_multi_store_verify_stock',
+        ];
+    }
+
+    public function test_every_hook_the_plugin_schedules_is_cancelled_on_uninstall(): void
+    {
+        $this->options['wc_multi_store_sync_settings'] = ['cleanup_on_uninstall' => true];
+
+        $this->runUninstall();
+
+        $this->assertEqualsCanonicalizing($this->scheduledHooks(), $this->unscheduled);
+    }
+
+    public function test_no_stale_hook_names_are_cancelled_on_uninstall(): void
+    {
+        $this->options['wc_multi_store_sync_settings'] = ['cleanup_on_uninstall' => true];
+
+        $this->runUninstall();
+
+        $root   = dirname(__DIR__, 3);
+        $source = '';
+        foreach (array_merge(glob($root . '/includes/*.php') ?: [], glob($root . '/*.php') ?: []) as $file) {
+            if (basename($file) === 'uninstall.php') {
+                continue;
+            }
+            $source .= (string) file_get_contents($file);
+        }
+
+        foreach ($this->unscheduled as $hook) {
+            $this->assertStringContainsString(
+                $hook,
+                $source,
+                "hook '{$hook}' is cancelled on uninstall but scheduled nowhere in the plugin — a stale name"
+            );
+        }
+    }
 }

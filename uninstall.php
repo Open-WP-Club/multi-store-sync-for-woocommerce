@@ -26,15 +26,39 @@ if (empty($settings['cleanup_on_uninstall'])) {
 // 1. Cancel all scheduled actions (Action Scheduler).
 // -------------------------------------------------------------------------
 if (function_exists('as_unschedule_all_actions')) {
+    // Every hook the plugin can leave in the Action Scheduler queue. Recurring
+    // jobs would keep firing after the plugin is gone, and pending single
+    // actions would run callbacks against deleted code.
     $hooks = [
-        'wc_mss_process_queue',
-        'wc_mss_scheduled_sync',
-        'wc_mss_sync_check',
-        'wc_mss_weekly_verification',
+        // Recurring jobs.
+        'wc_multi_store_sync_process_queue',
+        'wc_multi_store_sync_scheduled_check',
+        'wc_multi_store_sync_daily_maintenance',
+        'wc_multi_store_weekly_verification',
+        'wc_multi_store_sync_remote_orders',
+        'wc_multi_store_health_check',
+        'wc_mss_send_daily_summary',
         'wc_mss_archive_history',
-        'wc_mss_dead_letter_retry',
-        'wc_mss_cleanup_webhook_logs',
-        'wc_mss_run_health_check',
+        'wc_mss_orphan_auto_trash',
+        // Single-run jobs: queued work and background batches.
+        'wc_multi_store_sync_process_debounced_order',
+        'wc_multi_store_sync_force_sync_batch',
+        'wc_mss_async_verification_batch',
+        'wc_multi_store_health_check_single',
+        'wc_multi_store_verify_stock',
+        'wc_mss_orphan_scan_background',
+        'wc_mss_orphan_cleanup_background',
+        // Deferred feature syncs.
+        'wc_mss_sync_attribute_async',
+        'wc_mss_delete_attribute_async',
+        'wc_mss_sync_attribute_term_async',
+        'wc_mss_delete_attribute_term_async',
+        'wc_mss_sync_review_async',
+        'wc_mss_delete_review_async',
+        'wc_mss_sync_coupon_async',
+        'wc_mss_delete_coupon_async',
+        'wc_mss_sync_shipping_class_async',
+        'wc_mss_delete_shipping_class_async',
     ];
     foreach ($hooks as $hook) {
         as_unschedule_all_actions($hook);
