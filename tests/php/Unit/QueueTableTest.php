@@ -143,6 +143,56 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $this->assertEquals(99, $result);
     }
 
+    public function test_add_upgrades_sync_type_when_pending_row_is_narrower(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $this->expectEnqueueLock($wpdb);
+
+        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
+        $wpdb->shouldReceive('get_row')
+            ->once()
+            ->andReturn(['id' => 99, 'status' => 'pending', 'sync_type' => 'quantity']);
+
+        // The merged run must send the broader payload, not the narrow one.
+        $wpdb->shouldReceive('update')
+            ->once()
+            ->with(
+                'wp_wc_mss_queue',
+                \Mockery::on(fn($data) => ($data['sync_type'] ?? '') === 'full_product'),
+                ['id' => 99],
+                \Mockery::type('array'),
+                ['%d']
+            )
+            ->andReturn(1);
+
+        $result = WC_Multi_Store_Queue_Table::add(42, 'https://store.com', 'full_product');
+
+        $this->assertEquals(99, $result);
+    }
+
+    public function test_add_keeps_wider_sync_type_when_new_request_is_narrower(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $this->expectEnqueueLock($wpdb);
+
+        $wpdb->shouldReceive('prepare')->andReturn('SELECT ...');
+        $wpdb->shouldReceive('get_row')
+            ->once()
+            ->andReturn(['id' => 99, 'status' => 'pending', 'sync_type' => 'full_product']);
+
+        // A narrow request riding along a broad pending sync must not narrow it.
+        $wpdb->shouldNotReceive('update');
+        $wpdb->shouldNotReceive('insert');
+
+        $result = WC_Multi_Store_Queue_Table::add(42, 'https://store.com', 'quantity');
+
+        $this->assertEquals(99, $result);
+    }
+
     public function test_add_creates_new_item_when_existing_is_processing(): void
     {
         global $wpdb;
@@ -422,6 +472,52 @@ class QueueTableTest extends WC_Multi_Store_TestCase
             ->andReturn(1);
 
         $result = WC_Multi_Store_Queue_Table::mark_failed(1, 'No retry', true);
+
+        $this->assertEquals(1, $result);
+    }
+
+    public function test_mark_failed_redacts_credentials_before_persisting(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $wpdb->shouldReceive('prepare')->andReturn('UPDATE ...');
+        $wpdb->shouldReceive('query')->once()->andReturn(1);
+        // get_var called twice: once for current attempts, once by DLQ notification threshold check
+        $wpdb->shouldReceive('get_var')->andReturn('1', '0');
+
+        // DLQ integration: get_row fetches item, insert adds to DLQ
+        $wpdb->shouldReceive('get_row')->once()->andReturn([
+            'id' => 1, 'product_id' => 100, 'store_url' => 'https://shop2.example.com',
+            'sync_type' => 'full_product', 'source' => 'hook', 'attempts' => 1,
+        ]);
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('insert')->once()->andReturn(1);
+
+        // The transport error embeds the request URL (query_string auth):
+        // no credential may reach the stored last_error.
+        $leaky = 'cURL error 28 for https://shop2.example.com/wp-json/wc/v3/products'
+            . '?consumer_key=ck_supersecret1234567890&consumer_secret=cs_supersecret1234567890';
+
+        $wpdb->shouldReceive('update')
+            ->once()
+            ->with(
+                'wp_wc_mss_queue',
+                \Mockery::on(function ($data) {
+                    return $data['status'] === 'failed'
+                        && !str_contains($data['last_error'], 'ck_supersecret1234567890')
+                        && !str_contains($data['last_error'], 'cs_supersecret1234567890')
+                        && str_contains($data['last_error'], 'consumer_key=[REDACTED]')
+                        && str_contains($data['last_error'], 'consumer_secret=[REDACTED]');
+                }),
+                ['id' => 1],
+                ['%s', '%s', '%s'],
+                ['%d']
+            )
+            ->andReturn(1);
+
+        $result = WC_Multi_Store_Queue_Table::mark_failed(1, $leaky, true);
 
         $this->assertEquals(1, $result);
     }

@@ -177,6 +177,14 @@ class WC_Multi_Store_Sync_Engine {
             $product_name = $args['product_name'] ?? '';
         }
 
+        // Failure text can embed request URLs carrying the API credentials
+        // (query-string auth) — redact before it reaches the history table
+        // and the admin screens that read it. Success text is left intact.
+        $message = (string) ($args['message'] ?? '');
+        if (($args['status'] ?? '') !== 'success') {
+            $message = WC_Multi_Store_API_Client::sanitize_error_message($message);
+        }
+
         // Log to history table
         WC_Multi_Store_Sync_History::log_sync([
             'product_id' => $product_id,
@@ -186,7 +194,7 @@ class WC_Multi_Store_Sync_Engine {
             'sync_type' => $args['sync_type'],
             'sync_source' => $args['sync_source'],
             'status' => $args['status'],
-            'message' => $args['message'],
+            'message' => $message,
             'remote_product_id' => $args['remote_product_id'] ?? null,
             'duration_ms' => $duration_ms,
             'memory_mb' => $memory_mb,

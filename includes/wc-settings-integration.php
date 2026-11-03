@@ -511,12 +511,22 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'updated_date' => current_time('mysql'),
         ]);
 
-        // If URL changed, delete old entry first
-        if ($original_url !== $store_url) {
-            WC_Multi_Store_Settings::delete_store($original_url);
-        }
-
+        // On rename, save the new entry first and only then drop the old one.
+        // Deleting first loses the store (and its credentials) whenever
+        // update_store() rejects the URL or the write fails underneath.
         $result = WC_Multi_Store_Settings::update_store($store_url, $store_config);
+        // The store is saved even when only cache invalidation failed
+        // (update_store() says so in its error); complete the rename then.
+        $saved = $result === true
+            || (is_wp_error($result) && $result->get_error_code() === 'cache_invalidation_failed');
+        if ($saved && $original_url !== $store_url) {
+            // update_store() normalizes the key (trailing slash): never delete
+            // the entry that was just saved under that normalized URL.
+            $new_url = WC_Multi_Store_Settings::validate_store_url($store_url);
+            if (!is_wp_error($new_url) && $new_url !== $original_url) {
+                WC_Multi_Store_Settings::delete_store($original_url);
+            }
+        }
         if (is_wp_error($result)) {
             WC_Admin_Settings::add_error($result->get_error_message());
             return;

@@ -219,6 +219,29 @@ class SyncEngineInternalsTest extends WC_Multi_Store_TestCase
         $this->assertNull($row['remote_product_id']);
     }
 
+    public function test_log_operation_history_redacts_credentials_in_failure_messages(): void
+    {
+        Functions\when('absint')->alias(fn($v) => abs((int) $v));
+        Functions\when('sanitize_textarea_field')->returnArg();
+        Functions\when('esc_url_raw')->returnArg();
+        $row = null;
+        $this->historyDb($row);
+
+        $this->invoke('log_operation_history', [[
+            'product_id' => 5, 'product_sku' => 'GONE', 'product_name' => 'Deleted thing',
+            'store_url' => 'https://s.com', 'sync_type' => 'full_product', 'sync_source' => 'hook',
+            'status' => 'error',
+            'message' => 'cURL error for https://s.com/wp-json/wc/v3/products'
+                . '?consumer_key=ck_supersecret1234567890&consumer_secret=cs_supersecret1234567890',
+            'start_time' => microtime(true), 'start_memory' => memory_get_usage(true), 'api_calls' => 1,
+        ]]);
+
+        $this->assertStringNotContainsString('ck_supersecret1234567890', $row['message']);
+        $this->assertStringNotContainsString('cs_supersecret1234567890', $row['message']);
+        $this->assertStringContainsString('consumer_key=[REDACTED]', $row['message']);
+        $this->assertStringContainsString('consumer_secret=[REDACTED]', $row['message']);
+    }
+
     // ---- queue_full_sync_for_missing_product ------------------------------
 
     public function test_queue_full_sync_inserts_low_priority_item(): void

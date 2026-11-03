@@ -535,13 +535,14 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
     public function test_item_that_keeps_crashing_the_worker_is_parked_as_failed_after_three_resets(): void
     {
-        // Each run: the worker claims the row and dies (simulated by leaving it processing and old).
+        // Each recovery cycle: a worker claims the row and dies before finishing,
+        // leaving it 'processing' and old. Crash recovery runs under the processor
+        // lock, so each cycle is driven the way the lock holder resets it.
         $this->seed(1, ['status' => 'processing', 'started_at' => date('Y-m-d H:i:s', time() - 3600), 'attempts' => 0]);
         $this->engine->shouldNotReceive('sync_product_to_store');
-        $this->lockResult = 0; // another runner holds the lock; only the stuck reset runs
 
         for ($i = 1; $i <= 3; $i++) {
-            WC_MSS()->queue_manager->process_queue(10);
+            WC_Multi_Store_Queue_Table::reset_stuck_items(5);
             $this->assertSame($i, $this->rows[1]['attempts']);
             if ($i < 3) {
                 $this->assertSame('pending', $this->rows[1]['status']);
@@ -552,7 +553,6 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
         $this->assertSame('failed', $this->rows[1]['status'], 'Third strike must stop the crash loop.');
         $this->assertNotNull($this->rows[1]['completed_at'], 'Parked rows need completed_at so cleanup() can purge them.');
-        $this->lockResult = 1;
         $this->assertSame('empty', WC_MSS()->queue_manager->process_queue(10)['status']);
     }
 
@@ -613,15 +613,18 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
         ))[0]);
     }
 
-    public function test_stuck_rows_are_reset_even_when_lock_is_held_by_someone_else(): void
+    public function test_stuck_rows_are_left_for_the_lock_holder_while_lock_is_held_elsewhere(): void
     {
+        // The lock holder may still be working on this row; resetting it from
+        // outside would let Queue_Table::add() merge new requests into it, and
+        // the holder would then complete the row without ever syncing them.
         $this->seed(1, ['status' => 'processing', 'started_at' => date('Y-m-d H:i:s', time() - 3600)]);
         $this->lockResult = 0;
 
         WC_MSS()->queue_manager->process_queue(10);
 
-        $this->assertSame('pending', $this->rows[1]['status']);
-        $this->assertSame(1, $this->rows[1]['attempts']);
+        $this->assertSame('processing', $this->rows[1]['status']);
+        $this->assertSame(0, $this->rows[1]['attempts']);
     }
 
     public function test_empty_queue_returns_empty_and_still_releases_lock(): void

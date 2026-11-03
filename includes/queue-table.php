@@ -115,7 +115,7 @@ class WC_Multi_Store_Queue_Table {
         // Include 'processing' to prevent duplicates when items are stuck processing
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition. Operation predicate is either a fixed literal or a separately prepared sync type/source pair; product and store values are prepared.
         $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT id, status FROM {$table_name} WHERE product_id = %d AND store_url = %s AND status IN ('pending', 'processing'){$operation_filter}",
+            "SELECT id, status, sync_type FROM {$table_name} WHERE product_id = %d AND store_url = %s AND status IN ('pending', 'processing'){$operation_filter}",
             $product_id,
             $store_url
         ), ARRAY_A);
@@ -158,6 +158,15 @@ class WC_Multi_Store_Queue_Table {
             // Also update SKU and extra_data if provided (for deletion operations)
             $update_data = [];
             $update_format = [];
+
+            // A pending row must not absorb a request with a wider sync_type
+            // (e.g. a 'quantity' row swallowing a later 'full_product'): the
+            // merged run would send only the narrow payload and silently drop
+            // the wider request. Keep the broader of the two.
+            if (self::sync_type_rank($sync_type) > self::sync_type_rank((string) ($existing['sync_type'] ?? ''))) {
+                $update_data['sync_type'] = $sync_type;
+                $update_format[] = '%s';
+            }
 
             if ($priority < 5) {
                 $update_data['priority'] = $priority;
@@ -214,6 +223,26 @@ class WC_Multi_Store_Queue_Table {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-scoped advisory locking must execute in MySQL; caching would break mutual exclusion.
             $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
         }
+    }
+
+    /**
+     * Payload breadth of a sync_type, used when merging a new request into an
+     * existing pending row so the merged run sends the broader payload.
+     *
+     * quantity < price_quantity < price_quantity_categories < full_product.
+     * Unknown types fall through Product_Extractor's default case and build a
+     * full payload, so they rank with full_product.
+     *
+     * @param string $sync_type Sync type
+     * @return int Breadth rank
+     */
+    private static function sync_type_rank(string $sync_type): int {
+        return match ($sync_type) {
+            'quantity' => 1,
+            'price_quantity' => 2,
+            'price_quantity_categories' => 3,
+            default => 4,
+        };
     }
 
     /**
@@ -310,6 +339,11 @@ class WC_Multi_Store_Queue_Table {
      */
     public static function mark_failed(int $id, string $error = '', bool $no_retry = false): int|false {
         global $wpdb;
+
+        // Error text can embed request URLs that carry the API credentials
+        // (query-string auth). Never persist those into the queue table, the
+        // dead-letter copy, or the admin screens that read them.
+        $error = WC_Multi_Store_API_Client::sanitize_error_message($error);
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 

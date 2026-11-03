@@ -534,4 +534,66 @@ class ApiClientSecurityTest extends WC_Multi_Store_TestCase
 
         $this->assertTrue($action_called, 'do_action should be called with wc_mss_api_request');
     }
+
+    // ─── credential leak regression ─────────────────
+
+    public function test_errors_returned_to_callers_are_redacted(): void
+    {
+        $client = $this->createClient('query_string');
+
+        // What wp_remote_get returns on a transport failure: the full request
+        // URL, credentials included when auth_method is query_string. This
+        // error must never reach queue rows, history rows or emails as-is.
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return new WP_Error('api_error', 'cURL error 28: timed out for ' . $url);
+        });
+
+        $result = $client->get('products');
+
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $message = $result->get_error_message();
+        $this->assertStringNotContainsString($this->consumer_key, $message);
+        $this->assertStringNotContainsString($this->consumer_secret, $message);
+        $this->assertStringContainsString('consumer_key=[REDACTED]', $message);
+        $this->assertStringContainsString('consumer_secret=[REDACTED]', $message);
+        $this->assertStringContainsString('cURL error 28', $message, 'diagnostic context is preserved');
+    }
+
+    public function test_retry_exhausted_errors_are_redacted(): void
+    {
+        $client = $this->createClient('query_string');
+        // One attempt = the retry-exhausted branch without the backoff sleeps.
+        $prop = new ReflectionProperty($client, 'max_retries');
+        $prop->setValue($client, 1);
+
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return new WP_Error('http_request_failed', 'cURL error 7: could not connect to ' . $url);
+        });
+
+        $result = $client->get('products');
+
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $message = $result->get_error_message();
+        $this->assertStringNotContainsString($this->consumer_key, $message);
+        $this->assertStringNotContainsString($this->consumer_secret, $message);
+        $this->assertStringContainsString('(after 1 attempts)', $message);
+    }
+
+    public function test_pagination_transport_errors_are_redacted(): void
+    {
+        $client = $this->createClient('query_string');
+
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return new WP_Error('http_request_failed', 'cURL error 7: could not connect to ' . $url);
+        });
+
+        $result = $this->invoke($client, 'paginate_each', ['products', ['per_page' => 2], function () {
+            $this->fail('on_page must not run on a transport failure');
+        }]);
+
+        $this->assertInstanceOf(WP_Error::class, $result);
+        $message = $result->get_error_message();
+        $this->assertStringNotContainsString($this->consumer_key, $message);
+        $this->assertStringNotContainsString($this->consumer_secret, $message);
+    }
 }

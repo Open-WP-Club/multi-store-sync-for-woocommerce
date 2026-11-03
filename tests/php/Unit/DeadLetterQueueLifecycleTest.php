@@ -145,7 +145,7 @@ class DeadLetterQueueLifecycleTest extends WC_Multi_Store_TestCase
                 $r = $this->queue[(int) $m[1]] ?? null;
                 return ($r && $r['status'] === 'failed') ? $r : null;
             }
-            if (str_contains($sql, 'SELECT id, status FROM wp_wc_mss_queue')) {
+            if (preg_match('/SELECT id, status(, sync_type)? FROM wp_wc_mss_queue/', $sql)) {
                 preg_match('/product_id = (\d+)/', $sql, $p);
                 preg_match("/store_url = '([^']*)'/", $sql, $s);
                 $resolution = preg_match("/AND sync_type = '([^']+)' AND source = '([^']+)'/", $sql, $t);
@@ -156,14 +156,14 @@ class DeadLetterQueueLifecycleTest extends WC_Multi_Store_TestCase
                     }
                     if ($resolution) {
                         if ($r['sync_type'] === $t[1] && $r['source'] === $t[2]) {
-                            return ['id' => $r['id'], 'status' => $r['status']];
+                            return ['id' => $r['id'], 'status' => $r['status'], 'sync_type' => $r['sync_type']];
                         }
                     } elseif ($distinct) {
                         if ($r['sync_type'] === $d[1]) {
-                            return ['id' => $r['id'], 'status' => $r['status']];
+                            return ['id' => $r['id'], 'status' => $r['status'], 'sync_type' => $r['sync_type']];
                         }
                     } elseif (!in_array($r['sync_type'], ['conflict_resolution', 'stock_correction', 'delete_product', 'delete_variation', 'delete_orphan', 'restore_product', 'status_change'], true)) {
-                        return ['id' => $r['id'], 'status' => $r['status']];
+                        return ['id' => $r['id'], 'status' => $r['status'], 'sync_type' => $r['sync_type']];
                     }
                 }
                 return null;
