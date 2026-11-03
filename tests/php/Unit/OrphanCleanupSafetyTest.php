@@ -115,14 +115,36 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         });
     }
 
-    private function localCatalog(array $skus): void
+    /**
+     * Fake the local catalogue: identifiers come from the caller and the remote
+     * IDs mapped from local products (_mss_remote_id_* meta) default to none.
+     * Each query is recognised by its SQL text so the right list is returned.
+     */
+    private function localCatalog(array $skus, array $slugs = [], array $mapped_remote_ids = []): void
     {
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
-        $wpdb->shouldReceive('get_col')->andReturn([], $skus);
+        $wpdb->shouldReceive('prepare')->andReturnUsing(function ($query, ...$args) {
+            foreach ($args as $arg) {
+                $query = preg_replace('/%[ds]/', "'" . addslashes((string) $arg) . "'", $query, 1);
+            }
+            return $query;
+        });
+        $wpdb->shouldReceive('get_col')->andReturnUsing(function ($sql) use ($skus, $slugs, $mapped_remote_ids) {
+            if (str_contains($sql, '_mss_remote_id_')) {
+                return array_map('strval', $mapped_remote_ids);
+            }
+            if (str_contains($sql, 'post_name')) {
+                return $slugs;
+            }
+            if (str_contains($sql, "'_sku'")) {
+                return $skus;
+            }
+            return [];
+        });
     }
 
     /** Subclass whose background scheduling is forced to a given outcome. */
@@ -519,7 +541,7 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
 
         $this->assertCount(2, $this->delete_urls);
         $this->assertStringContainsString('force=1', $this->delete_urls[0]);
-        $this->assertSame('Cleanup complete: 1 deleted, 1 failed.', $this->json_success['message']);
+        $this->assertSame('Cleanup complete: 1 deleted, 1 failed, 0 skipped (recovered since the scan).', $this->json_success['message']);
         $this->assertSame(1, $this->json_success['results']['deleted']);
         $this->assertSame(1, $this->json_success['results']['failed']);
         $this->assertStringContainsString('Timeout', $this->json_success['results']['errors'][0]);
@@ -570,6 +592,43 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         $this->assertFalse($result['success']);
         $this->assertStringContainsString('aborted', $result['message']);
         $this->assertSame(0, $requests, 'No remote store may be contacted without a trustworthy local catalogue');
+    }
+
+    public function test_scan_honors_match_products_by_slug(): void
+    {
+        $this->options['wc_multi_store_sync_settings']['match_products_by'] = 'slug';
+        WC_Multi_Store_Settings::clear_static_cache();
+        $this->localCatalog(['SKU-LOCAL'], ['local-product']);
+        $remote = [
+            ['id' => 1, 'name' => 'Live copy', 'sku' => 'DRIFTED-SKU', 'slug' => 'local-product'],
+            ['id' => 2, 'name' => 'True orphan', 'sku' => 'GONE', 'slug' => 'gone-product'],
+        ];
+        Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
+
+        $result = (new WC_Multi_Store_Orphan_Cleanup())->scan_store_for_orphans();
+
+        $this->assertTrue($result['success']);
+        $store = $result['results'][0];
+        $this->assertSame(1, $store['total_orphans'], 'the slug-matched product is live even though its SKU drifted');
+        $this->assertSame('GONE', $store['orphans'][0]['sku']);
+    }
+
+    public function test_scan_never_flags_products_mapped_from_a_local_product(): void
+    {
+        // Remote product 505 is mapped from a local product whose SKU/slug was
+        // renamed and not re-synced yet — it must not be treated as an orphan.
+        $this->localCatalog(['LOCAL-1'], [], [505]);
+        $remote = [
+            ['id' => 505, 'name' => 'Renamed copy', 'sku' => 'RENAMED-AFTER-LOCAL-EDIT'],
+            ['id' => 606, 'name' => 'True orphan', 'sku' => 'GONE-1'],
+        ];
+        Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
+
+        $result = (new WC_Multi_Store_Orphan_Cleanup())->scan_store_for_orphans();
+
+        $store = $result['results'][0];
+        $this->assertSame(1, $store['total_orphans']);
+        $this->assertSame('GONE-1', $store['orphans'][0]['sku']);
     }
 
     public function test_ajax_scan_resolves_slash_variant_and_scans_only_that_store(): void
@@ -775,6 +834,25 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         $this->assertSame([[1, 0, 3], [1, 1, 3], [2, 1, 3]], $calls);
     }
 
+    public function test_cleanup_skips_products_recovered_since_the_scan(): void
+    {
+        // Product 505 was flagged as an orphan by a scan, but a local product
+        // is mapped to it again — the re-check must spare it and delete only
+        // the genuine orphan.
+        $this->localCatalog(['LOCAL-1'], [], [505]);
+        $this->stubRemoteDelete();
+
+        $result = (new WC_Multi_Store_Orphan_Cleanup())->cleanup_orphans([
+            ['store_url' => 'https://store1.com', 'product_id' => 505],
+            ['store_url' => 'https://store1.com', 'product_id' => 606],
+        ]);
+
+        $this->assertSame(1, $result['deleted']);
+        $this->assertSame(1, $result['skipped']);
+        $this->assertCount(1, $this->delete_urls);
+        $this->assertStringContainsString('products/606', $this->delete_urls[0]);
+    }
+
     public function test_cleanup_orphans_trash_mode_never_sends_force_true(): void
     {
         $this->stubRemoteDelete();
@@ -837,7 +915,7 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         $this->assertSame(1, $status['deleted']);
         $this->assertSame(1, $status['failed']);
         $this->assertSame(2, $status['processed']);
-        $this->assertSame('Cleanup complete: 1 deleted, 1 failed.', $status['message']);
+        $this->assertSame('Cleanup complete: 1 deleted, 1 failed, 0 skipped (recovered since the scan).', $status['message']);
         $this->assertCount(1, $status['errors']);
         $this->assertSame('2024-01-15 12:00:00', $status['finished_at']);
     }

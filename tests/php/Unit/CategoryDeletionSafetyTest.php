@@ -272,6 +272,32 @@ class CategoryDeletionSafetyTest extends WC_Multi_Store_TestCase
 
     // ── regressions: never lose data ──────────────────────────────
 
+    public function test_delete_action_keeps_products_that_still_belong_to_another_term(): void
+    {
+        $this->remainingCategories = [1 => [22, 23], 2 => [], 3 => new \WP_Error('invalid_taxonomy', 'x')];
+        $this->queue->shouldReceive('add_product_deletion')->once()->with(2, 'category_delete', 3, \Mockery::type('array'))->andReturn(1);
+        $this->queue->shouldReceive('add_product')->once()->with(1, 'category_change', 3)->andReturn(1);
+
+        $this->sync()->on_category_delete(5, 5, $this->term(), [1, 2, 3]);
+
+        $this->assertSame(
+            [2],
+            $this->deletedPosts,
+            'only the product the deletion left with no category is deleted; the others survive'
+        );
+    }
+
+    public function test_tag_delete_action_keeps_products_that_still_have_another_tag(): void
+    {
+        $this->remainingCategories = [7 => [88], 8 => []];
+        $this->queue->shouldReceive('add_product_deletion')->once()->with(8, 'tag_delete', 3, \Mockery::type('array'))->andReturn(1);
+        $this->queue->shouldReceive('add_product')->once()->with(7, 'tag_change', 3)->andReturn(1);
+
+        $this->sync()->on_tag_delete(5, 5, $this->term(), [7, 8]);
+
+        $this->assertSame([8], $this->deletedPosts, 'only the product left with no tag is deleted');
+    }
+
     public function test_product_is_kept_when_its_remote_deletion_could_not_be_queued(): void
     {
         $this->queue->shouldReceive('add_product_deletion')->andReturnUsing(fn($id) => $id === 2 ? 0 : 1);

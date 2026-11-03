@@ -55,7 +55,7 @@ class WC_Multi_Store_Category_Deletion_Sync {
         }
 
         if ($category_deletion_action === 'delete') {
-            $this->delete_products($products, 'category', $term_id);
+            $this->delete_products($products, 'category', $term_id, 'product_cat');
         } elseif ($category_deletion_action === 'uncategorize') {
             $this->uncategorize_products($products);
         }
@@ -93,7 +93,7 @@ class WC_Multi_Store_Category_Deletion_Sync {
         }
 
         if ($tag_deletion_action === 'delete') {
-            $this->delete_products($products, 'tag', $term_id);
+            $this->delete_products($products, 'tag', $term_id, 'product_tag');
         }
     }
 
@@ -133,13 +133,14 @@ class WC_Multi_Store_Category_Deletion_Sync {
     }
 
     /**
-     * Delete products
+     * Delete products that belonged exclusively to the deleted term
      *
      * @param array $product_ids Array of product IDs
      * @param string $deletion_reason Reason for deletion (category/tag)
      * @param int $term_id Term ID
+     * @param string $taxonomy Taxonomy of the deleted term (product_cat|product_tag)
      */
-    private function delete_products(array $product_ids, string $deletion_reason, int $term_id): void {
+    private function delete_products(array $product_ids, string $deletion_reason, int $term_id, string $taxonomy): void {
         $settings = WC_Multi_Store_Settings::get_settings();
         $auto_sync_deletions = $settings['auto_sync_deletions'] ?? false;
 
@@ -170,6 +171,37 @@ class WC_Multi_Store_Category_Deletion_Sync {
 
         foreach ($batches as $batch_index => $batch) {
             foreach ($batch as $product_id) {
+                // The deleted term is already gone here: only a product the deletion
+                // left with no term of this taxonomy belonged exclusively to it.
+                // Products that still belong to other categories/tags are live and
+                // must survive; when in doubt (terms could not be read), keep them.
+                $remaining = wp_get_object_terms($product_id, $taxonomy, ['fields' => 'ids']);
+                if (is_wp_error($remaining)) {
+                    WC_Multi_Store_Logger::write(sprintf(
+                        'Product ID %d kept: could not read its remaining %s terms',
+                        $product_id,
+                        $taxonomy
+                    ), 'error');
+                    continue;
+                }
+
+                if (!empty($remaining)) {
+                    WC_Multi_Store_Logger::write(sprintf(
+                        'Product ID %d kept: it still belongs to other %s terms',
+                        $product_id,
+                        $taxonomy
+                    ));
+
+                    // The deleted term is gone from this product; propagate the
+                    // changed category/tag list to the remote stores.
+                    WC_MSS()->queue_manager->add_product(
+                        $product_id,
+                        $deletion_reason . '_change',
+                        3 // Lower priority for bulk operations
+                    );
+                    continue;
+                }
+
                 // Queue product deletion - uses optimized SQL, no product loading
                 // Audit log will be created in the queue processor when deletion actually happens
                 $queued = WC_MSS()->queue_manager->add_product_deletion(

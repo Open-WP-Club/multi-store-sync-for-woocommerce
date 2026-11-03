@@ -251,6 +251,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['SKU-1']);
 
         // Orphan cleanup creates its own API client; mock the HTTP layer to return a WP_Error.
@@ -273,6 +274,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-SKU']);
 
         // Orphan cleanup creates its own API client; mock the HTTP layer.
@@ -317,6 +319,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1', '2'], ['SKU-A', 'SKU-B']);
 
         $remote_products = [
@@ -348,6 +351,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-SKU']);
 
         // Orphan cleanup creates a fresh API client per store; mock the HTTP layer.
@@ -394,6 +398,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['SKU-1']);
 
         // Orphan cleanup creates its own API client; mock the HTTP layer.
@@ -536,6 +541,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['SKU-1']);
 
         Functions\when('wp_remote_get')->justReturn(['body' => '[]', 'response' => ['code' => 200]]);
@@ -618,6 +624,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['SKU-1']);
 
         Functions\when('wp_remote_get')->justReturn(['body' => '[]', 'response' => ['code' => 200]]);
@@ -689,6 +696,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andThrow(new \RuntimeException('DB error'));
 
         $cleanup = new WC_Multi_Store_Orphan_Cleanup();
@@ -707,6 +715,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-ONLY']);
 
         $remote = [['id' => 1, 'name' => 'Orphan', 'sku' => 'ORPHAN-SKU', 'price' => '10', 'stock_quantity' => 2]];
@@ -1280,6 +1289,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-ONLY']);
 
         $remote = [['id' => 42, 'name' => 'Orphan', 'sku' => 'ORPHAN-SKU', 'price' => '10', 'stock_quantity' => 2]];
@@ -1339,6 +1349,7 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturn('');
         $wpdb->shouldReceive('get_col')->andReturn(['1'], ['LOCAL-ONLY']);
 
         Functions\when('get_option')->alias(function ($option, $default = false) {
