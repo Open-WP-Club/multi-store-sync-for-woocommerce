@@ -502,10 +502,13 @@ if (!class_exists('WP_Query')) {
         /** @var array<int,array<int,mixed>>|null Queue of results for successive WP_Query instantiations; null = default empty behavior. */
         public static ?array $resultsQueue = null;
         public array $posts = [];
+        /** Read by WC_Multi_Store_Settings::get_sync_product_count() (stores view). */
+        public int $found_posts = 0;
         public function __construct(array $args = []) {
             if (self::$resultsQueue !== null) {
                 $this->posts = array_shift(self::$resultsQueue) ?? [];
             }
+            $this->found_posts = count($this->posts);
         }
     }
 }

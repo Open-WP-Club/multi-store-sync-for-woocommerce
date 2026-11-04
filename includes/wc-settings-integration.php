@@ -1123,6 +1123,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     /* translators: %s: profile name. */
                     'confirm_apply_profile' => __('Apply profile "%s"? This will overwrite your current settings.', 'multi-store-sync-for-woocommerce'),
                     'error_applying_profile' => __('Error applying profile.', 'multi-store-sync-for-woocommerce'),
+                    'error_exporting_profile' => __('Error exporting profile.', 'multi-store-sync-for-woocommerce'),
                     /* translators: %s: profile name. */
                     'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'multi-store-sync-for-woocommerce'),
                     'error_deleting_profile' => __('Error deleting profile.', 'multi-store-sync-for-woocommerce'),

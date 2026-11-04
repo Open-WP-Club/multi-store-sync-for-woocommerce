@@ -354,7 +354,11 @@ foreach ($stores as $store_url => $store) {
     var exportBtn = document.getElementById('wc-mss-export-exclusions');
     if (!exportBtn) return;
 
-    var exclusionsData = <?php echo wp_json_encode($exclusions_export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE); ?>;
+    // JSON_HEX_* escapes keep embedded "</script>", "<!--" or quotes in
+    // exclusion strings from breaking out of this script block. The
+    // exported download below is re-encoded from the parsed object, so it
+    // still contains the original characters.
+    var exclusionsData = <?php echo wp_json_encode($exclusions_export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
     exportBtn.addEventListener('click', function() {
         // Create formatted JSON string

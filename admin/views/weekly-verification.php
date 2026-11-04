@@ -459,6 +459,12 @@ foreach ($active_stores as $store_url => $store_config) {
                             <h3><?php esc_html_e('Reported Discrepancies', 'multi-store-sync-for-woocommerce'); ?></h3>
                             <form method="post">
                             <?php
+                            // Row and bulk actions are verified against 'bulk-wc-mss-<type>' in
+                            // process_bulk_action(); emit the nonce here so the form works even
+                            // though the list table's bulk toolbar is not its only renderer.
+                            wp_nonce_field('bulk-wc-mss-verification');
+                            ?>
+                            <?php
                             $list_table = new WC_Multi_Store_Admin_List_Table('verification', [
                                 'product' => __('Product', 'multi-store-sync-for-woocommerce'),
                                 'sku' => __('SKU', 'multi-store-sync-for-woocommerce'),

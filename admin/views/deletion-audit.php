@@ -133,10 +133,25 @@ $total_logs = WC_Multi_Store_Deletion_Audit::get_total_count($args);
                                     <h4><?php esc_html_e('Affected Stores', 'multi-store-sync-for-woocommerce'); ?></h4>
                                     <ul>
                                         <?php foreach ($stores as $store_url => $store_config): ?>
+                                            <?php
+                                            // log_deletion() stores a plain list of store URLs (the map
+                                            // form is tolerated too). With a list the URL is the VALUE and
+                                            // the key is just its numeric index — iterating as a map here
+                                            // used to render "0", "1", … instead of the store URLs.
+                                            if (is_array($store_config)) {
+                                                $url  = (string) $store_url;
+                                                $name = isset($store_config['name']) ? (string) $store_config['name'] : '';
+                                            } else {
+                                                $url  = (string) $store_config;
+                                                $name = '';
+                                            }
+                                            ?>
                                             <li>
-                                                <strong><?php echo isset($store_config['name']) ? esc_html($store_config['name']) : esc_html($store_url); ?></strong>
-                                                <br>
-                                                <small><?php echo esc_html($store_url); ?></small>
+                                                <strong><?php echo esc_html($name !== '' ? $name : $url); ?></strong>
+                                                <?php if ($name !== ''): ?>
+                                                    <br>
+                                                    <small><?php echo esc_html($url); ?></small>
+                                                <?php endif; ?>
                                             </li>
                                         <?php endforeach; ?>
                                     </ul>

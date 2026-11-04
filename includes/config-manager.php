@@ -301,6 +301,28 @@ class WC_Multi_Store_Config_Manager {
             return;
         }
 
+        // Single-profile export (the profiles table's Export button). The
+        // button sends profile_id — before this branch existed the handler
+        // silently ignored it and exported the full store configuration
+        // instead. Same response shape as the config export so the client
+        // can download either payload the same way.
+        $profile_id = isset($_POST['profile_id']) && is_string($_POST['profile_id'])
+            ? sanitize_text_field(wp_unslash($_POST['profile_id']))
+            : '';
+        if ($profile_id !== '') {
+            $json = WC_Multi_Store_Sync_Profiles::export($profile_id);
+            if ($json === null) {
+                wp_send_json_error(['message' => __('Profile not found.', 'multi-store-sync-for-woocommerce')]);
+                return;
+            }
+
+            wp_send_json_success([
+                'config' => json_decode($json, true),
+                'filename' => 'wc-mss-profile-' . $profile_id . '-' . gmdate('Y-m-d-His') . '.json',
+            ]);
+            return;
+        }
+
         $include_keys = isset($_POST['include_keys']) && filter_var(wp_unslash($_POST['include_keys']), FILTER_VALIDATE_BOOLEAN);
         $config = self::export($include_keys);
 

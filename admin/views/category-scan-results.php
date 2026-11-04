@@ -10,6 +10,12 @@ if (!defined('ABSPATH')) {
 ?>
 <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=multi_store_sync&section=discrepancies')); ?>">
 <?php
+// Row and bulk actions are verified against 'bulk-wc-mss-<type>' in
+// process_bulk_action(); emit the nonce here so the form works even
+// though the list table's bulk toolbar is not its only renderer.
+wp_nonce_field('bulk-wc-mss-category-scan');
+?>
+<?php
 $scan_items = array_map(static fn(array $item): array => ['id' => $item['product_id']] + $item, $scan_result['items']);
 $list_table = new WC_Multi_Store_Admin_List_Table('category-scan', [
     'product' => __('Product', 'multi-store-sync-for-woocommerce'),
