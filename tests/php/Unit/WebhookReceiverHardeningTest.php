@@ -1209,6 +1209,34 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         $this->assertSame('https://s.example.com/?a=1&b=2#frag', urldecode($parsed['store_url']));
     }
 
+    public function test_webhook_ping_returns_200_and_does_not_modify_stock(): void
+    {
+        $this->addProduct(10, 'SKU-10', 25);
+        $pingRequest = $this->request(['webhook_id' => 123]);
+
+        $res = $this->receiver->handle_order_webhook($pingRequest);
+
+        $this->assertSame(200, $res->get_status());
+        $this->assertTrue($res->get_data()['success']);
+        $this->assertSame(123, $res->get_data()['webhook_id']);
+        $this->assertSame(25, $this->stock[10]);
+        $this->assertEmpty($this->wcStockCalls);
+    }
+
+    public function test_webhook_ping_by_header_returns_200(): void
+    {
+        $this->addProduct(10, 'SKU-10', 25);
+        $pingRequest = $this->request(['any' => 'payload']);
+        $pingRequest->set_header('x-wc-webhook-event', 'woocommerce_webhook_ping');
+
+        $res = $this->receiver->handle_order_webhook($pingRequest);
+
+        $this->assertSame(200, $res->get_status());
+        $this->assertTrue($res->get_data()['success']);
+        $this->assertSame(25, $this->stock[10]);
+        $this->assertEmpty($this->wcStockCalls);
+    }
+
     // ── regression: replay marker semantics ────────────────────────────────
 
     private function dedupKey(int $order, string $status = 'processing'): string

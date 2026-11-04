@@ -294,6 +294,20 @@ class WC_Multi_Store_Webhook_Receiver {
             ], 200); // Return 200 to avoid webhook retries
         }
 
+        // Handle WooCommerce webhook ping (sent upon webhook creation/activation)
+        if (isset($order_data['webhook_id']) || $request->get_header('x-wc-webhook-event') === 'woocommerce_webhook_ping') {
+            WC_Multi_Store_Logger::write(sprintf(
+                'Webhook ping received successfully from: %s (Webhook ID: %s)',
+                $store_url,
+                $order_data['webhook_id'] ?? 'unknown'
+            ));
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => 'Webhook ping received successfully.',
+                'webhook_id' => $order_data['webhook_id'] ?? null,
+            ], 200);
+        }
+
         // Extract order ID and status
         $order_id = isset($order_data['id']) && is_scalar($order_data['id']) ? absint($order_data['id']) : 0;
         $order_status = isset($order_data['status']) && is_string($order_data['status'])
@@ -768,7 +782,7 @@ class WC_Multi_Store_Webhook_Receiver {
      */
     public static function get_webhook_url(string $store_url): string {
         return add_query_arg(
-            ['store_url' => urlencode($store_url)],
+            ['store_url' => $store_url],
             rest_url('wc-multi-store-sync/v1/webhook/order')
         );
     }
