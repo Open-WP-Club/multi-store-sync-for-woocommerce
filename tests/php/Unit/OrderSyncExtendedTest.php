@@ -199,7 +199,11 @@ class OrderSyncExtendedTest extends WC_Multi_Store_TestCase
 
         $sync->on_order_status_changed(50, 'pending', 'processing', $order);
 
-        $this->assertEquals(60, $set_expiration, 'Should use custom debounce timeout from settings');
+        $this->assertEquals(
+            60 + WC_Multi_Store_Order_Sync::DEBOUNCE_TTL_GRACE,
+            $set_expiration,
+            'The transient must outlive the scheduled action (delay + grace), not expire exactly with it'
+        );
     }
 
     // ── Small order queuing ──────────────────────────────────────
@@ -309,6 +313,20 @@ class OrderSyncExtendedTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Order_Sync::process_debounced_order(99);
 
         $this->assertTrue($transient_deleted);
+    }
+
+    public function test_process_debounced_order_logs_when_payload_expired(): void
+    {
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('delete_transient')->justReturn(true);
+        $this->captureLogs();
+        $this->mockQueueManager()->shouldNotReceive('add_products');
+
+        WC_Multi_Store_Order_Sync::process_debounced_order(77);
+
+        $messages = $this->loggedMessages();
+        $this->assertNotEmpty($messages, 'A dropped debounced payload must leave a trace, not fail silently.');
+        $this->assertStringContainsString('expired before processing', $messages[0]);
     }
 
     // ── Cached settings ──────────────────────────────────────────

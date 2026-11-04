@@ -184,11 +184,15 @@ class OrderSyncSettingsHardeningTest extends WC_Multi_Store_TestCase
         $sync = new WC_Multi_Store_Order_Sync();
 
         $sync->on_order_status_changed(1, 'a', 'processing', $this->order(range(1, 10)));
-        $this->assertSame(WC_Multi_Store_Order_Sync::DEBOUNCE_TIMEOUT, $this->transients['wc_mss_order_debounce_1'][1]);
+        $this->assertSame(
+            WC_Multi_Store_Order_Sync::DEBOUNCE_TIMEOUT + WC_Multi_Store_Order_Sync::DEBOUNCE_TTL_GRACE,
+            $this->transients['wc_mss_order_debounce_1'][1],
+            'The transient must outlive the scheduled action (delay + grace)'
+        );
 
         $this->orderSettings['debounce_timeout'] = '120';
         $sync->on_order_status_changed(2, 'a', 'processing', $this->order(range(1, 10)));
-        $this->assertSame(120, $this->transients['wc_mss_order_debounce_2'][1]);
+        $this->assertSame(120 + WC_Multi_Store_Order_Sync::DEBOUNCE_TTL_GRACE, $this->transients['wc_mss_order_debounce_2'][1]);
     }
 
     public function test_repeat_events_for_one_order_merge_without_losing_or_duplicating_products(): void
