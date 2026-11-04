@@ -13,7 +13,10 @@ class StoreHealthCheckAjaxTest extends WC_Multi_Store_TestCase
 {
     private static bool $classLoaded = false;
 
-    private string $store_url    = 'https://remote-store.example.com';
+    // IP literal (TEST-NET-3, RFC 5737) so the SSRF guard
+    // (WC_Multi_Store_Settings::is_safe_remote_url()) accepts the URL without
+    // a DNS lookup — unresolvable hostnames fail closed by design.
+    private string $store_url    = 'https://203.0.113.10';
     private string $wp_username  = 'admin';
     private string $wp_password  = 'abcd 1234 efgh 5678';
 

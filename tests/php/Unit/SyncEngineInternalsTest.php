@@ -156,6 +156,17 @@ class SyncEngineInternalsTest extends WC_Multi_Store_TestCase
         $this->assertCount(1, $this->remoteCalls);
     }
 
+    public function test_purge_never_follows_redirects(): void
+    {
+        // wp_remote_* follows up to 5 redirects by default, each hop dialing a
+        // target is_safe_remote_url() never saw (e.g. a public URL redirecting
+        // to a cloud-metadata address). The purge request must not follow any.
+        $this->invoke('maybe_purge_remote_cache', [$this->product(), 'https://s.com', ['cache_purge_url' => self::SAFE_PURGE], 1]);
+
+        $this->assertCount(1, $this->remoteCalls);
+        $this->assertSame(0, $this->remoteCalls[0][2]['redirection'] ?? null, 'Purge requests must set redirection => 0');
+    }
+
     // ---- log_operation_history / log_sync_history -------------------------
 
     private function historyDb(?array &$captured): \Mockery\MockInterface
