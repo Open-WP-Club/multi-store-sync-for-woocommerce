@@ -189,6 +189,16 @@ class WC_Multi_Store_Webhook_Receiver {
                 );
             }
         } else {
+            // Check if this is an unsigned WooCommerce webhook activation ping (WC_Webhook::deliver_ping).
+            // WooCommerce core sends an unsigned POST with body `webhook_id=<id>` and User-Agent
+            // containing `Hookshot` when a webhook is created or activated in admin.
+            if ($this->is_ping_request($request)) {
+                $store_url = (string) $request->get_param('store_url');
+                if ($store_url !== '' && $this->is_store_registered($store_url)) {
+                    return true;
+                }
+            }
+
             // No credentials at all: file-log only. A DB row per anonymous
             // request would let anyone fill the webhook log table without ever
             // authenticating.
@@ -238,6 +248,22 @@ class WC_Multi_Store_Webhook_Receiver {
 
         // Get store URL from query parameter
         $store_url = $request->get_param('store_url');
+
+        // Handle WooCommerce webhook ping (sent upon webhook creation/activation)
+        // WooCommerce delivers pings as `webhook_id=<id>` in form body or JSON
+        if ($this->is_ping_request($request) || isset($order_data['webhook_id'])) {
+            $webhook_id = $request->get_param('webhook_id') ?? ($order_data['webhook_id'] ?? null);
+            WC_Multi_Store_Logger::write(sprintf(
+                'Webhook ping received successfully from: %s (Webhook ID: %s)',
+                is_string($store_url) ? $store_url : 'unknown',
+                is_scalar($webhook_id) ? (string) $webhook_id : 'unknown'
+            ));
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => 'Webhook ping received successfully.',
+                'webhook_id' => $webhook_id,
+            ], 200);
+        }
 
         // Validate required data
         if (empty($order_data)) {
@@ -294,19 +320,6 @@ class WC_Multi_Store_Webhook_Receiver {
             ], 200); // Return 200 to avoid webhook retries
         }
 
-        // Handle WooCommerce webhook ping (sent upon webhook creation/activation)
-        if (isset($order_data['webhook_id']) || $request->get_header('x-wc-webhook-event') === 'woocommerce_webhook_ping') {
-            WC_Multi_Store_Logger::write(sprintf(
-                'Webhook ping received successfully from: %s (Webhook ID: %s)',
-                $store_url,
-                $order_data['webhook_id'] ?? 'unknown'
-            ));
-            return new WP_REST_Response([
-                'success' => true,
-                'message' => 'Webhook ping received successfully.',
-                'webhook_id' => $order_data['webhook_id'] ?? null,
-            ], 200);
-        }
 
         // Extract order ID and status
         $order_id = isset($order_data['id']) && is_scalar($order_data['id']) ? absint($order_data['id']) : 0;
@@ -746,6 +759,27 @@ class WC_Multi_Store_Webhook_Receiver {
 
         // High priority queue items will be processed on next cron run (every 5 minutes)
         // Using priority 1 ensures master store updates are synced before other changes
+    }
+
+    /**
+     * Check if the incoming request is a WooCommerce webhook ping (test request sent during webhook creation).
+     *
+     * WooCommerce core (WC_Webhook::deliver_ping) sends an unsigned test ping with body `webhook_id=<id>`
+     * and User-Agent containing `Hookshot` when a webhook is created or activated.
+     *
+     * @param WP_REST_Request $request
+     * @return bool
+     */
+    private function is_ping_request(WP_REST_Request $request): bool {
+        $user_agent = (string) ($request->get_header('user-agent') ?: $request->get_header('user_agent'));
+        $body = trim($request->get_body());
+        $webhook_id = $request->get_param('webhook_id');
+
+        $is_hookshot = str_contains($user_agent, 'Hookshot') || str_starts_with($user_agent, 'WooCommerce/');
+        $has_ping_body = !empty($webhook_id) || preg_match('/^webhook_id=\d+$/', $body);
+        $has_ping_header = $request->get_header('x-wc-webhook-event') === 'woocommerce_webhook_ping';
+
+        return ($is_hookshot && $has_ping_body) || $has_ping_header;
     }
 
     /**

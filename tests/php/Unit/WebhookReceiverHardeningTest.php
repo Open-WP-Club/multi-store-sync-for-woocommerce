@@ -1237,6 +1237,26 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         $this->assertEmpty($this->wcStockCalls);
     }
 
+    public function test_unsigned_woocommerce_deliver_ping_passes_permission_callback_and_returns_200(): void
+    {
+        $this->addProduct(10, 'SKU-10', 25);
+        $pingRequest = new WP_REST_Request();
+        $pingRequest->set_header('user-agent', 'WooCommerce/9.4.0 Hookshot (WordPress/6.7)');
+        $pingRequest->set_body('webhook_id=789');
+        $pingRequest->set_param('webhook_id', '789');
+        $pingRequest->set_param('store_url', self::STORE);
+
+        $perm = $this->receiver->verify_webhook_signature($pingRequest);
+        $this->assertTrue($perm);
+
+        $res = $this->receiver->handle_order_webhook($pingRequest);
+        $this->assertSame(200, $res->get_status());
+        $this->assertTrue($res->get_data()['success']);
+        $this->assertSame('789', (string) $res->get_data()['webhook_id']);
+        $this->assertSame(25, $this->stock[10]);
+        $this->assertEmpty($this->wcStockCalls);
+    }
+
     // ── regression: replay marker semantics ────────────────────────────────
 
     private function dedupKey(int $order, string $status = 'processing'): string
