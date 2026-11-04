@@ -556,6 +556,18 @@ class WC_Multi_Store_Queue_Table {
         // Every reset counts as an attempt. An item that keeps crashing the worker (fatal error,
         // timeout) never reaches mark_failed(), so without this it would be retried forever; after
         // the third strike it is parked as failed where it is visible and can be retried by hand.
+        // Rows hitting the limit this round are also copied to the dead-letter queue below —
+        // the same path mark_failed() takes — so parked items show up on the dead-letter
+        // screen and retry_item() has a DLQ entry to mark as retried.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
+        $doomed = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name}
+            WHERE status = 'processing'
+            AND started_at < %s
+            AND attempts + 1 >= 3",
+            $cutoff_time
+        ), ARRAY_A);
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $reset_count = $wpdb->query($wpdb->prepare(
             "UPDATE {$table_name}
@@ -574,6 +586,17 @@ class WC_Multi_Store_Queue_Table {
                 $reset_count,
                 $minutes
             ));
+
+            if (is_array($doomed)) {
+                foreach ($doomed as $item) {
+                    $item['attempts']   = (int) ($item['attempts'] ?? 0) + 1; // The UPDATE above has already incremented it.
+                    $item['last_error'] = sprintf(
+                        'Stuck in processing for more than %d minutes (worker crash or timeout)',
+                        max(0, (int) $minutes)
+                    );
+                    WC_Multi_Store_Dead_Letter_Queue::add_from_queue($item);
+                }
+            }
         }
 
         return $reset_count;

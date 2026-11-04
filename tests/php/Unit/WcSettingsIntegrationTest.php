@@ -408,6 +408,7 @@ class WcSettingsIntegrationTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
 
         $wpdb->shouldReceive('prepare')->andReturn('UPDATE ...');
+        $wpdb->shouldReceive('get_results')->andReturn([]); // Pre-read of rows about to be parked as failed.
         $wpdb->shouldReceive('query')->once()->andReturn(0);
 
         $ref = new ReflectionClass($this->integration);

@@ -758,6 +758,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
 
         $wpdb->shouldReceive('prepare')->andReturn('UPDATE ...');
+        $wpdb->shouldReceive('get_results')->andReturn([]); // Pre-read of rows about to be parked as failed.
         $wpdb->shouldReceive('query')->once()->andReturn(3);
 
         $reset = WC_Multi_Store_Queue_Table::reset_stuck_items(10);
@@ -772,6 +773,7 @@ class QueueTableTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
 
         $wpdb->shouldReceive('prepare')->andReturn('UPDATE ...');
+        $wpdb->shouldReceive('get_results')->andReturn([]); // Pre-read of rows about to be parked as failed.
         $wpdb->shouldReceive('query')->once()->andReturn(0);
 
         $reset = WC_Multi_Store_Queue_Table::reset_stuck_items();

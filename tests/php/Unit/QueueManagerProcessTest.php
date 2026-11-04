@@ -82,7 +82,9 @@ class QueueManagerProcessTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
 
-        $wpdb->shouldReceive('prepare')->andReturn('')->byDefault();
+        // prepare() passes the query through so the get_results() SQL-shape
+        // dispatch below can tell the due-batch select apart from other selects.
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn(string $sql, ...$args): string => $sql)->byDefault();
         $wpdb->shouldReceive('query')->andReturn(0);
         $wpdb->shouldReceive('insert')->andReturn(1);
         $wpdb->shouldReceive('delete')->andReturn(1);
@@ -101,15 +103,13 @@ class QueueManagerProcessTest extends WC_Multi_Store_TestCase
             'total'      => '0',
         ])->byDefault();
 
-        // get_results: first call = get_next_batch (queue items), rest = empty
-        $firstCall = true;
+        // get_results: the due-batch select (get_next_batch) returns the queue
+        // items; any other select — e.g. reset_stuck_items()'s pre-read of rows
+        // about to be parked as failed — is empty. Keyed on SQL shape, not call
+        // order: process_queue() resets stuck items before fetching the batch.
         $items = $queueItems;
-        $wpdb->shouldReceive('get_results')->andReturnUsing(function () use (&$firstCall, $items) {
-            if ($firstCall) {
-                $firstCall = false;
-                return $items;
-            }
-            return [];
+        $wpdb->shouldReceive('get_results')->andReturnUsing(function (string $sql) use ($items) {
+            return str_contains($sql, 'ORDER BY priority ASC, store_url ASC, created_at ASC') ? $items : [];
         });
     }
 

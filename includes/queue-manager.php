@@ -825,6 +825,14 @@ class WC_Multi_Store_Queue_Manager {
                 continue;
             }
 
+            // A store disabled for maintenance must not burn attempts or be
+            // dead-lettered: skip before claiming so the row stays pending and
+            // resumes automatically once the store is active again.
+            if (isset($stores[$store_url]) && ($stores[$store_url]['status'] ?? '') !== 'active') {
+                if ($notify) $notify('skipped', 'Store is not active — resumes when the store is reactivated');
+                continue;
+            }
+
             // Claim the item. The update only matches rows that are still pending, so if another
             // runner got there first nothing changes and we must not process it a second time.
             if (!WC_Multi_Store_Queue_Table::mark_processing($item_id)) {
@@ -844,13 +852,6 @@ class WC_Multi_Store_Queue_Manager {
                 }
 
                 $store_config = $stores[$store_url];
-                if (($store_config['status'] ?? '') !== 'active') {
-                    WC_Multi_Store_Queue_Table::mark_failed($item_id, 'Store is not active', true);
-                    $error_count++;
-                    $processed++;
-                    if ($notify) $notify('error', 'Store is not active');
-                    continue;
-                }
                 $result = null;
                 $transient_key = null; // Track transient for cleanup on success only
 
