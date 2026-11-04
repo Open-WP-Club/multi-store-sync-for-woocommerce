@@ -94,7 +94,7 @@ class WC_Multi_Store_Webhook_Logger {
             'quantity_changed' => $data['quantity_changed'] ?? null,
             'change_reason' => $data['change_reason'] ?? null,
             'request_ip' => $data['request_ip'] ?? self::get_client_ip(),
-            'request_data' => isset($data['request_data']) ? wp_json_encode($data['request_data']) : null,
+            'request_data' => isset($data['request_data']) ? wp_json_encode(self::scrub_secrets($data['request_data'])) : null,
             'response_data' => isset($data['response_data']) ? wp_json_encode($data['response_data']) : null,
             'status' => $data['status'] ?? 'success',
             'error_message' => $data['error_message'] ?? null,
@@ -111,6 +111,42 @@ class WC_Multi_Store_Webhook_Logger {
         }
 
         return $wpdb->insert_id;
+    }
+
+    /**
+     * Request-data keys holding authentication material that must never be
+     * persisted to the webhook log table.
+     */
+    private const array SENSITIVE_REQUEST_KEYS = [
+        'x-wc-mss-secret',
+        'secret',
+        'authorization',
+        'consumer_secret',
+        'webhook_secret',
+    ];
+
+    /**
+     * Redact authentication material before request data is persisted.
+     * Anyone with read access to webhook_logs could otherwise lift the shared
+     * secret and replay it as the x-wc-mss-secret bearer.
+     *
+     * @param mixed $data Request data (possibly nested arrays).
+     * @return mixed Copy with sensitive values replaced by '[REDACTED]'.
+     */
+    private static function scrub_secrets(mixed $data): mixed {
+        if (!is_array($data)) {
+            return $data;
+        }
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $data[$key] = self::scrub_secrets($value);
+                continue;
+            }
+            if (is_string($key) && in_array(strtolower($key), self::SENSITIVE_REQUEST_KEYS, true)) {
+                $data[$key] = '[REDACTED]';
+            }
+        }
+        return $data;
     }
 
     /**

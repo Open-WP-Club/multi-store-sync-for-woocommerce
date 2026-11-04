@@ -439,7 +439,12 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             }
         };
 
-        $this->receiver->verify_webhook_signature(new WP_REST_Request());
+        // Credential-bearing failures are still audited with the caller IP;
+        // credential-less requests no longer write audit rows at all (that
+        // flood path is covered in WebhookAuthHardeningTest).
+        $request = new WP_REST_Request();
+        $request->set_header('x-wc-mss-secret', 'not-the-secret');
+        $this->receiver->verify_webhook_signature($request);
 
         $this->assertCount(1, $rows);
         $this->assertSame('auth_failed', $rows[0]['log_type']);
@@ -530,7 +535,10 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             }
         };
 
-        $this->receiver->verify_webhook_signature(new WP_REST_Request());
+        // Credential-bearing clients hitting the limit are logged as
+        // rate_limited and nothing else (the limiter returns before auth).
+        // Credential-less floods no longer write rows at all.
+        $this->receiver->verify_webhook_signature($this->signed('{}'));
 
         $this->assertSame(['rate_limited'], $types);
     }

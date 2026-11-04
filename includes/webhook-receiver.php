@@ -40,9 +40,11 @@ class WC_Multi_Store_Webhook_Receiver {
     /**
      * Check rate limiting for incoming requests
      *
+     * @param bool $has_credentials Whether the request presented any auth
+     *                              material (a signature or secret header).
      * @return bool|WP_Error True if allowed, WP_Error if rate limited
      */
-    private function check_rate_limit(): bool|WP_Error {
+    private function check_rate_limit(bool $has_credentials): bool|WP_Error {
         $client_ip = WC_Multi_Store_Webhook_Logger::get_client_ip();
         $rate_key = 'wc_mss_webhook_rate_' . md5($client_ip);
 
@@ -67,8 +69,13 @@ class WC_Multi_Store_Webhook_Receiver {
                 sprintf('Rate limit exceeded for IP: %s (%d requests)', $client_ip, $current_count),
                 'warning'
             );
-            // Log to webhook logger
-            WC_Multi_Store_Webhook_Logger::log_rate_limited($client_ip, $current_count);
+            // Log to webhook logger — but only for credential-bearing requests.
+            // Rate limiting runs before auth, so logging every rejected request
+            // would hand credential-less floods a free DB write per request.
+            // The file log above still records every event.
+            if ($has_credentials) {
+                WC_Multi_Store_Webhook_Logger::log_rate_limited($client_ip, $current_count);
+            }
             return new WP_Error(
                 'rate_limit_exceeded',
                 __('Too many requests. Please try again later.', 'multi-store-sync-for-woocommerce'),
@@ -103,8 +110,18 @@ class WC_Multi_Store_Webhook_Receiver {
      * @return bool|WP_Error
      */
     public function verify_webhook_signature(WP_REST_Request $request): bool|WP_Error {
+        // Read the auth material up front so credential-less scanner noise can
+        // be told apart from real auth attempts (see the DB logging below).
+        // The signature headers carry a base64 HMAC-SHA256 of the payload and
+        // never put the shared secret on the wire; the clear-secret header is
+        // a legacy bearer kept for backward compatibility.
+        $signature = (string) $request->get_header('x-wc-webhook-signature'); // WooCommerce standard
+        $mss_signature = (string) $request->get_header('x-wc-mss-signature'); // custom integrations
+        $store_secret = (string) $request->get_header('x-wc-mss-secret'); // legacy clear bearer
+        $has_credentials = ($signature !== '' || $mss_signature !== '' || $store_secret !== '');
+
         // Check rate limiting first
-        $rate_check = $this->check_rate_limit();
+        $rate_check = $this->check_rate_limit($has_credentials);
         if (is_wp_error($rate_check)) {
             return $rate_check;
         }
@@ -116,10 +133,14 @@ class WC_Multi_Store_Webhook_Receiver {
         // If no secret is set, reject the request
         if (empty($webhook_secret)) {
             WC_Multi_Store_Logger::write('Webhook rejected: No webhook secret configured', 'error');
-            WC_Multi_Store_Webhook_Logger::log_auth_failed(
-                'Webhook secret not configured',
-                WC_Multi_Store_Webhook_Logger::get_client_ip()
-            );
+            // Only credential-bearing attempts are worth a DB row; requests
+            // with no auth material must not be able to flood webhook_logs.
+            if ($has_credentials) {
+                WC_Multi_Store_Webhook_Logger::log_auth_failed(
+                    'Webhook secret not configured',
+                    WC_Multi_Store_Webhook_Logger::get_client_ip()
+                );
+            }
             return new WP_Error(
                 'webhook_not_configured',
                 __('Webhook receiver is not configured. Please set up webhook secret in settings.', 'multi-store-sync-for-woocommerce'),
@@ -127,22 +148,22 @@ class WC_Multi_Store_Webhook_Receiver {
             );
         }
 
-        // Get signature from header (WooCommerce sends X-WC-Webhook-Signature)
-        $signature = $request->get_header('x-wc-webhook-signature');
-
-        // Also check custom header for store identification
-        $store_secret = $request->get_header('x-wc-mss-secret');
-
-        // Allow either WooCommerce standard signature or our custom secret
-        if (!empty($signature)) {
-            // Verify WooCommerce signature (base64 encoded HMAC-SHA256)
+        // Prefer payload signatures over the clear-secret bearer below: an
+        // HMAC can pass through proxies and access logs without leaking the
+        // key, while x-wc-mss-secret travels in clear and any middlebox that
+        // records headers captures it permanently. When a signature header is
+        // present it is authoritative — the body must match it.
+        if ($signature !== '' || $mss_signature !== '') {
+            // Verify signature (base64 encoded HMAC-SHA256 of the payload)
             $payload = $request->get_body();
             $calculated_signature = base64_encode(hash_hmac('sha256', $payload, $webhook_secret, true));
+            $provided_signature = $signature !== '' ? $signature : $mss_signature;
 
-            if (!hash_equals($calculated_signature, $signature)) {
-                WC_Multi_Store_Logger::write('Webhook rejected: Invalid WooCommerce signature', 'error');
+            if (!hash_equals($calculated_signature, $provided_signature)) {
+                $reason = $signature !== '' ? 'Invalid WooCommerce signature' : 'Invalid payload signature';
+                WC_Multi_Store_Logger::write('Webhook rejected: ' . $reason, 'error');
                 WC_Multi_Store_Webhook_Logger::log_auth_failed(
-                    'Invalid WooCommerce signature',
+                    $reason,
                     WC_Multi_Store_Webhook_Logger::get_client_ip()
                 );
                 return new WP_Error(
@@ -151,8 +172,10 @@ class WC_Multi_Store_Webhook_Receiver {
                     ['status' => 401]
                 );
             }
-        } elseif (!empty($store_secret)) {
-            // Verify custom secret
+        } elseif ($store_secret !== '') {
+            // Legacy clear-secret bearer, kept for backward compatibility —
+            // prefer the signature headers above. The presented value is never
+            // written to any log (Webhook_Logger::log() redacts it as well).
             if (!hash_equals($webhook_secret, $store_secret)) {
                 WC_Multi_Store_Logger::write('Webhook rejected: Invalid secret', 'error');
                 WC_Multi_Store_Webhook_Logger::log_auth_failed(
@@ -166,11 +189,10 @@ class WC_Multi_Store_Webhook_Receiver {
                 );
             }
         } else {
+            // No credentials at all: file-log only. A DB row per anonymous
+            // request would let anyone fill the webhook log table without ever
+            // authenticating.
             WC_Multi_Store_Logger::write('Webhook rejected: No signature or secret provided', 'error');
-            WC_Multi_Store_Webhook_Logger::log_auth_failed(
-                'Missing signature or secret',
-                WC_Multi_Store_Webhook_Logger::get_client_ip()
-            );
             return new WP_Error(
                 'missing_auth',
                 __('Missing webhook authentication.', 'multi-store-sync-for-woocommerce'),
