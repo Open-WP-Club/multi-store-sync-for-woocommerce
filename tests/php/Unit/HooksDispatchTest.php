@@ -218,15 +218,52 @@ class HooksDispatchTest extends WC_Multi_Store_TestCase
         $this->hooks(['stock_sync_enabled' => false])->on_stock_change($this->product());
     }
 
-    public function test_price_change_queues_high_priority_for_published_products_only(): void
+    public function test_price_change_queues_high_priority_when_a_price_prop_changes(): void
     {
         $this->qm->shouldReceive('add_product')->once()
             ->with(100, 'price_change', WC_Multi_Store_Queue_Manager::PRIORITY_HIGH)->andReturn(1);
+
+        $this->hooks()->on_price_change($this->product(), ['regular_price']);
+    }
+
+    public function test_price_change_ignores_saves_without_price_props(): void
+    {
+        $this->nothingQueued();
         $hooks = $this->hooks();
 
+        $hooks->on_price_change($this->product(), ['stock_quantity']);
+        $hooks->on_price_change($this->product(), []);
         $hooks->on_price_change($this->product());
-        $hooks->on_price_change($this->product(101, 'private'));
-        $this->hooks(['auto_sync_on_save' => false])->on_price_change($this->product(102));
+    }
+
+    public function test_price_change_skips_unpublished_and_when_auto_sync_disabled(): void
+    {
+        $this->nothingQueued();
+
+        Functions\when('get_post_status')->justReturn('draft');
+        $this->hooks()->on_price_change($this->product(), ['price']);
+        Functions\when('get_post_status')->justReturn('publish');
+        $this->hooks(['auto_sync_on_save' => false])->on_price_change($this->product(), ['sale_price']);
+    }
+
+    public function test_price_change_skips_during_webhook_processing_and_bulk_edit(): void
+    {
+        $this->nothingQueued();
+
+        WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = true;
+        $this->hooks()->on_price_change($this->product(), ['price']);
+        WC_Multi_Store_Webhook_Receiver::$is_processing_webhook = false;
+        $_REQUEST['bulk_edit'] = 'Update';
+        $this->hooks()->on_price_change($this->product(), ['price']);
+    }
+
+    public function test_price_change_queues_the_parent_for_variation_price_changes(): void
+    {
+        Functions\when('get_post_type')->justReturn('product_variation');
+        $this->qm->shouldReceive('add_product')->once()
+            ->with(50, 'price_change', WC_Multi_Store_Queue_Manager::PRIORITY_HIGH)->andReturn(1);
+
+        $this->hooks()->on_price_change($this->product(200), ['price']);
     }
 
     // ---- delete / restore -------------------------------------------------

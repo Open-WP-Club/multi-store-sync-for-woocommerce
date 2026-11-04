@@ -1781,6 +1781,13 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
+        // schedule_async_verification() now takes the shared verification lock
+        // (add_option) and stores the product-ID option (update_option); stub the
+        // persistence calls so the real code path runs without a DB.
+        Functions\when('add_option')->justReturn(true);
+        Functions\when('update_option')->justReturn(true);
+        Functions\when('delete_option')->justReturn(true);
+        Functions\when('delete_transient')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('as_schedule_single_action')->justReturn(123);
         // get_products_to_verify() logs a "filtered from N total" count via this.
@@ -1859,6 +1866,10 @@ class AdminAjaxForceSyncTest extends WC_Multi_Store_TestCase
         // for the running progress and, if running, cancels it.
         Functions\when('get_transient')->justReturn(['status' => 'running']);
         Functions\when('set_transient')->justReturn(true);
+        // cancel_async_verification() now releases the shared lock (delete_option +
+        // delete_transient); stub the persistence calls so the real path runs.
+        Functions\when('delete_option')->justReturn(true);
+        Functions\when('delete_transient')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         // Once any earlier test in the suite mocks as_unschedule_all_actions() via
         // Brain Monkey, function_exists() reports it as permanently defined for the

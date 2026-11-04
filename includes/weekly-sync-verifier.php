@@ -174,6 +174,15 @@ class WC_Multi_Store_Weekly_Sync_Verifier {
     }
 
     /**
+     * Continue an async verification after one batch threw an exception
+     *
+     * @param int $batch_number Batch number (0-indexed) that failed
+     */
+    public static function continue_after_failed_batch(int $batch_number): void {
+        WC_Multi_Store_Weekly_Verification_Scheduler::continue_after_failed_batch($batch_number);
+    }
+
+    /**
      * Get current verification progress
      *
      * @return array|null Progress data or null if no verification running

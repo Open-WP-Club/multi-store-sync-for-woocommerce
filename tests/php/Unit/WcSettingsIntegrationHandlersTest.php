@@ -28,6 +28,11 @@ class WcSettingsIntegrationHandlersTest extends WC_Multi_Store_TestCase
         Functions\when('add_filter')->justReturn(true);
         Functions\when('remove_action')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-06-15 12:00:00');
+        // calculate_next_run_time()/schedule_verification() read the site clock via
+        // current_datetime() and render the log line with wp_date(); stub both so
+        // scheduling tests don't hit the (UTC-pinned) real wall clock.
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('now'));
+        Functions\when('wp_date')->alias(fn($format, $timestamp = null) => date($format, $timestamp ?? time()));
         Functions\when('current_user_can')->justReturn(true);
         Functions\when('esc_html')->alias(fn($t) => htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8'));
         Functions\when('esc_html_e')->alias(function ($t, $d = 'default') {

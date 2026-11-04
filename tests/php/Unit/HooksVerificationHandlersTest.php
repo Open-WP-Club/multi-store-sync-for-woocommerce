@@ -64,6 +64,23 @@ class HooksVerificationHandlersTest extends WC_Multi_Store_TestCase
         Functions\when('wc_get_logger')->justReturn($logger);
 
         Functions\when('get_option')->alias(fn($k, $d = false) => $this->options[$k] ?? $d);
+        // Mirrors add_option() semantics: fails when the option already exists
+        // (which is exactly how the verification lock is acquired atomically).
+        Functions\when('add_option')->alias(function ($k, $v) {
+            if (array_key_exists($k, $this->options)) {
+                return false;
+            }
+            $this->options[$k] = $v;
+            return true;
+        });
+        Functions\when('update_option')->alias(function ($k, $v) {
+            $this->options[$k] = $v;
+            return true;
+        });
+        Functions\when('delete_option')->alias(function ($k) {
+            unset($this->options[$k]);
+            return true;
+        });
         Functions\when('get_transient')->alias(fn($k) => $this->transients[$k] ?? false);
         Functions\when('set_transient')->alias(function ($k, $v) {
             $this->transients[$k] = $v;
@@ -75,6 +92,9 @@ class HooksVerificationHandlersTest extends WC_Multi_Store_TestCase
             return true;
         });
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        // Scheduling uses the site timezone via current_datetime()/wp_date().
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('now'));
+        Functions\when('wp_date')->alias(fn($format, $timestamp = null) => date($format, $timestamp ?? time()));
         Functions\when('wp_parse_args')->alias(fn($a, $d) => array_merge($d, (array) $a));
         Functions\when('as_next_scheduled_action')->alias(fn() => $this->nextScheduled);
         Functions\when('as_unschedule_all_actions')->alias(function () {
@@ -147,7 +167,10 @@ class HooksVerificationHandlersTest extends WC_Multi_Store_TestCase
         $this->assertSame('wc_multi_store_sync', $this->single[0][3]);
         $this->assertSame([0], $this->single[0][2]);
         $this->assertSame('running', $this->transients[self::PROGRESS]['status']);
-        $this->assertSame([1, 2, 3, 4, 5], $this->transients[self::PROGRESS]['product_ids']);
+        // The product-ID list lives in its own option (written once) so the
+        // per-batch progress updates stay small.
+        $this->assertSame([1, 2, 3, 4, 5], $this->options['wc_mss_async_verification_products'] ?? null);
+        $this->assertArrayNotHasKey('product_ids', $this->transients[self::PROGRESS]);
     }
 
     public function test_weekly_verification_logs_warning_when_no_active_stores(): void
@@ -257,9 +280,9 @@ class HooksVerificationHandlersTest extends WC_Multi_Store_TestCase
         $this->assertArrayHasKey(self::PROGRESS, $this->transients);
     }
 
-    public function test_async_batch_exception_is_logged_and_progress_lock_is_cleared(): void
+    public function test_async_batch_exception_keeps_the_run_alive_and_continues_with_the_next_batch(): void
     {
-        $this->transients[self::PROGRESS] = ['status' => 'running', 'product_ids' => [1], 'batch_size' => 10, 'total_batches' => 1];
+        $this->transients[self::PROGRESS] = ['status' => 'running', 'product_ids' => [1], 'batch_size' => 10, 'total_batches' => 4];
         // get_active_stores() runs after the progress check; make it blow up.
         Functions\when('get_option')->alias(function ($k, $d = false) {
             if ($k === 'wc_multi_store_sync_stores') {
@@ -271,8 +294,13 @@ class HooksVerificationHandlersTest extends WC_Multi_Store_TestCase
         $this->hooks->on_async_verification_batch('2');
 
         $this->assertLogged('Async verification batch 2 failed with exception: options table unavailable in ', 'error');
-        $this->assertSame([self::PROGRESS], $this->deletedTransients, 'Stale progress lock must be removed so a retry can start');
-        $this->assertArrayNotHasKey(self::PROGRESS, $this->transients);
+        // One failed batch must not cancel the rest of a multi-batch run: the
+        // progress stays 'running' and the chain continues with the next batch.
+        $this->assertSame([], $this->deletedTransients, 'A failed batch must not wipe the run\u{2019}s progress');
+        $this->assertSame('running', $this->transients[self::PROGRESS]['status'] ?? null);
+        $this->assertCount(1, $this->single, 'the next batch must still be scheduled');
+        $this->assertSame('wc_mss_async_verification_batch', $this->single[0][1]);
+        $this->assertSame([3], $this->single[0][2], 'the chain must advance past the failed batch');
     }
 
     public function test_async_batch_success_does_not_delete_progress(): void
