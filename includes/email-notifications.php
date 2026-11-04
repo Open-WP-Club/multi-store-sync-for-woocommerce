@@ -102,10 +102,14 @@ class WC_Multi_Store_Email_Notifications {
                 $hour = isset($time_parts[0]) ? intval($time_parts[0]) : 8;
                 $minute = isset($time_parts[1]) ? intval($time_parts[1]) : 0;
 
-                // Calculate timestamp for next run
-                $timestamp = strtotime("today {$hour}:{$minute}:00");
-                if ($timestamp < time()) {
-                    $timestamp = strtotime("tomorrow {$hour}:{$minute}:00");
+                // Calculate timestamp for next run in the site timezone.
+                // current_datetime() is a DateTimeImmutable in site time;
+                // strtotime()/time() would use UTC (WP pins PHP's timezone) and
+                // fire the summary at the wrong instant for non-UTC sites.
+                $now = current_datetime();
+                $timestamp = $now->setTime($hour, $minute, 0)->getTimestamp();
+                if ($timestamp < $now->getTimestamp()) {
+                    $timestamp = $now->modify('+1 day')->setTime($hour, $minute, 0)->getTimestamp();
                 }
 
                 as_schedule_recurring_action($timestamp, DAY_IN_SECONDS, $hook, [], $group);
@@ -225,11 +229,10 @@ class WC_Multi_Store_Email_Notifications {
             return;
         }
 
-        if (!$this->claim_daily_slot('low_stock')) {
-            return;
-        }
-
-        // Check threshold
+        // Validate before claiming the daily send slot. This notification fires on
+        // every stock sync (see product-transformer), so a product that is not
+        // actually below the threshold must not consume the one-per-period slot and
+        // suppress a genuine low-stock alert later in that window.
         $threshold = isset($settings['low_stock_threshold']) ? intval($settings['low_stock_threshold']) : 10;
         if ($stock_quantity > $threshold) {
             return;
@@ -237,6 +240,10 @@ class WC_Multi_Store_Email_Notifications {
 
         $product = wc_get_product($product_id);
         if (!$product) {
+            return;
+        }
+
+        if (!$this->claim_daily_slot('low_stock')) {
             return;
         }
 

@@ -182,6 +182,26 @@ class EmailNotificationsRateLimitTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('low_stock', $transient_key_set);
     }
 
+    public function test_low_stock_does_not_claim_daily_slot_when_stock_is_above_threshold(): void
+    {
+        // This notification fires on every stock sync (see product-transformer). A
+        // product that is NOT below the threshold must not consume the one-per-period
+        // slot, or it swallows the slot and a real low-stock alert later is suppressed.
+        $transient_key_set = '';
+        Functions\when('get_transient')->justReturn(false);
+        Functions\when('set_transient')->alias(function ($key, $value, $ttl) use (&$transient_key_set) {
+            $transient_key_set = $key;
+            return true;
+        });
+
+        $notifier = new WC_Multi_Store_Email_Notifications();
+        // 50 > threshold (10) — not low stock, so the slot must stay free.
+        $notifier->send_low_stock_notification(1, 'https://store.com', 50);
+
+        $this->assertStringNotContainsString('low_stock', $transient_key_set,
+            'the daily low-stock slot must not be claimed when stock is above the threshold');
+    }
+
     // ── wrap_email helper ─────────────────────────────────────────────
 
     public function test_wrap_email_delegates_to_wc_mailer(): void
