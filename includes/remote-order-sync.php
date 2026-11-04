@@ -18,6 +18,27 @@ if (!defined('ABSPATH')) {
 class WC_Multi_Store_Remote_Order_Sync {
 
     /**
+     * Per-store option holding the import high-water mark ("Y-m-d H:i:s", the
+     * store's own wall clock): every order at or before it has been imported.
+     */
+    private const CURSOR_OPTION_PREFIX = 'wc_mss_remote_order_cursor_';
+
+    /**
+     * Seconds pulled back from the high-water mark when deriving a run's `after`
+     * filter. Orders can share a timestamp and WooCommerce's `after` boundary is
+     * not inclusive in every version, so the next run re-reads the boundary
+     * second; process_order() is idempotent, which makes that overlap free.
+     */
+    private const CURSOR_OVERLAP_SECONDS = 2;
+
+    /**
+     * Maximum number of pages one run fetches. This is a work budget, not a data
+     * limit: a run that reaches it leaves the un-imported tail behind the cursor
+     * for the next run instead of dropping it.
+     */
+    private const MAX_PAGES_PER_RUN = 10;
+
+    /**
      * Constructor
      */
     public function __construct() {
@@ -71,10 +92,16 @@ class WC_Multi_Store_Remote_Order_Sync {
     /**
      * Sync orders from a specific store
      *
+     * Runs are incremental: a per-store cursor records the newest order already
+     * imported, and the next run only asks for what is newer. The stream is walked
+     * oldest-first so that a run hitting the page budget postpones the NEWEST
+     * orders — which the cursor then resumes — instead of dropping them.
+     *
      * @param string $store_url Store URL
      * @param array  $store     Store configuration
      * @param array  $args      Sync arguments
-     * @return array Result
+     * @return array Result, with 'truncated' telling the caller the run stopped at
+     *               its page budget and the remainder continues on a later run
      */
     public function sync_store_orders(string $store_url, array $store, array $args = []): array {
         $defaults = [
@@ -92,27 +119,48 @@ class WC_Multi_Store_Remote_Order_Sync {
         // Create a per-store API client with proper credentials
         $api = WC_Multi_Store_API_Client::for_store($store_url, $store);
 
+        // Only runs that walk the stream from its head manage the cursor: an
+        // explicit upper bound (`before`) or starting page is a one-off filtered
+        // query, and letting it move the cursor could skip orders it never saw.
+        $cursor_option = self::CURSOR_OPTION_PREFIX . md5($store_url);
+        $manages_cursor = $args['before'] === null && (int) $args['page'] <= 1;
+        $stored_cursor = $manages_cursor ? (string) get_option($cursor_option, '') : '';
+
+        if ($args['after']) {
+            // Explicit filter: sent exactly as the caller gave it.
+            $after_filter = (string) $args['after'];
+        } elseif ($stored_cursor !== '') {
+            $after_filter = date('Y-m-d\TH:i:s', strtotime($stored_cursor) - self::CURSOR_OVERLAP_SECONDS);
+        } else {
+            $after_filter = '';
+        }
+
         $synced = 0;
         $updated = 0;
         $errors = 0;
         $page = $args['page'];
         $has_more = true;
+        $max_seen = '';
+        $natural_end = false;
+        $truncated = false;
 
         while ($has_more) {
             // Build API request parameters
             $params = [
                 'per_page' => $args['per_page'],
                 'page' => $page,
+                // Oldest first, so the page budget below postpones the newest
+                // orders (resumable through the cursor) rather than the oldest.
                 'orderby' => 'date',
-                'order' => 'desc',
+                'order' => 'asc',
             ];
 
             if ($args['status'] && $args['status'] !== 'any') {
                 $params['status'] = $args['status'];
             }
 
-            if ($args['after']) {
-                $params['after'] = $args['after'];
+            if ($after_filter !== '') {
+                $params['after'] = $after_filter;
             }
 
             if ($args['before']) {
@@ -131,7 +179,8 @@ class WC_Multi_Store_Remote_Order_Sync {
                 break;
             }
 
-            if (empty($response) || !is_array($response)) {
+            if (empty($response)) {
+                $natural_end = true;
                 break;
             }
 
@@ -140,6 +189,21 @@ class WC_Multi_Store_Remote_Order_Sync {
                 try {
                     if (!is_array($order_data)) {
                         throw new Exception('Unexpected order entry in API response');
+                    }
+
+                    // Track the stream high-water mark from the raw API timestamp,
+                    // which is the same wall-clock space WooCommerce filters `after`
+                    // in. It must not fall back to prepare_order_data()'s "now"
+                    // default: that would jump the cursor past unimported orders.
+                    // Per-order failures still advance it — a broken entry is logged
+                    // and counted below, and must not hold the cursor hostage.
+                    if (is_string($order_data['date_created'] ?? null)
+                        && preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/', $order_data['date_created'], $date_parts)
+                    ) {
+                        $order_date = $date_parts[1] . ' ' . $date_parts[2];
+                        if ($max_seen === '' || $order_date > $max_seen) {
+                            $max_seen = $order_date;
+                        }
                     }
 
                     $result = $this->process_order($order_data, $store_url);
@@ -162,17 +226,26 @@ class WC_Multi_Store_Remote_Order_Sync {
                 }
             }
 
+            // Persist progress after every page: a run killed mid-way keeps what it
+            // imported instead of restarting from the same place every time.
+            if ($manages_cursor && $max_seen !== '' && $max_seen !== $stored_cursor) {
+                update_option($cursor_option, $max_seen, false);
+            }
+
             // Check if there are more pages
             if (count($response) < $args['per_page']) {
+                $natural_end = true;
                 $has_more = false;
             } else {
                 $page++;
             }
 
-            // Safety limit - stop after 10 pages
-            if ($page > 10) {
+            // Work budget: stop after MAX_PAGES_PER_RUN pages. The cursor keeps the
+            // un-imported tail reachable, so this postpones work instead of losing it.
+            if ($page > self::MAX_PAGES_PER_RUN) {
+                $truncated = true;
                 WC_Multi_Store_Logger::write(
-                    sprintf('Order sync stopped after 10 pages for %s', $store_url),
+                    sprintf('Order sync for %s paused after %d pages; the remainder continues on the next run', $store_url, self::MAX_PAGES_PER_RUN),
                     'warning'
                 );
                 break;
@@ -189,11 +262,24 @@ class WC_Multi_Store_Remote_Order_Sync {
 
         WC_Multi_Store_Logger::write($message);
 
+        if ($manages_cursor) {
+            $new_cursor = $max_seen !== '' ? $max_seen : $stored_cursor;
+            if ($natural_end && $stored_cursor !== '' && $stored_cursor > $new_cursor) {
+                // A completed run caught up to the present, so it must never pull
+                // the mark back over orders that were already imported.
+                $new_cursor = $stored_cursor;
+            }
+            if ($new_cursor !== '' && $new_cursor !== $stored_cursor) {
+                update_option($cursor_option, $new_cursor, false);
+            }
+        }
+
         return [
             'success' => true,
             'synced' => $synced,
             'updated' => $updated,
             'errors' => $errors,
+            'truncated' => $truncated,
             'message' => $message,
         ];
     }
@@ -380,6 +466,7 @@ class WC_Multi_Store_Remote_Order_Sync {
         $total_synced = 0;
         $total_updated = 0;
         $total_errors = 0;
+        $truncated = false;
 
         foreach ($results as $result) {
             if (isset($result['synced'])) {
@@ -391,6 +478,9 @@ class WC_Multi_Store_Remote_Order_Sync {
             if (isset($result['errors'])) {
                 $total_errors += $result['errors'];
             }
+            if (!empty($result['truncated'])) {
+                $truncated = true;
+            }
         }
 
         wp_safe_redirect(add_query_arg([
@@ -398,7 +488,7 @@ class WC_Multi_Store_Remote_Order_Sync {
             'synced' => $total_synced,
             'updated' => $total_updated,
             'errors' => $total_errors,
-        ], admin_url('admin.php')));
+        ] + ($truncated ? ['truncated' => 1] : []), admin_url('admin.php')));
         exit;
     }
 

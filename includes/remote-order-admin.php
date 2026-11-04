@@ -178,6 +178,15 @@ class WC_Multi_Store_Remote_Order_Admin {
             );
         }
 
+        // A manual sync that reached its page budget must not look complete.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only redirect notice.
+        if (isset($_GET['truncated'])) {
+            printf(
+                '<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
+                esc_html__('The sync stopped at its per-run page limit. The orders it did not reach yet will be imported by the next sync.', 'multi-store-sync-for-woocommerce')
+            );
+        }
+
         ?>
         <div class="wrap woocommerce">
             <h1 class="wp-heading-inline"><?php esc_html_e('Remote Orders', 'multi-store-sync-for-woocommerce'); ?></h1>
