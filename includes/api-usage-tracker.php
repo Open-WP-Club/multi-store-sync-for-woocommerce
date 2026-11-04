@@ -503,12 +503,17 @@ class WC_Multi_Store_API_Usage_Tracker {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
+        // One fixed cutoff for both the SELECT and the DELETE: recomputing NOW() at
+        // delete time would drift from the archived snapshot and could delete rows that
+        // were never written to the archive file.
+        $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         $records = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$table_name}
-            WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)
+            WHERE created_at < %s
             ORDER BY created_at ASC",
-            $days
+            $cutoff_date
         ), ARRAY_A);
 
         if (!empty($records) && self::archive_records_to_json('api-usage', $records, 'created_at') === false) {
@@ -518,8 +523,8 @@ class WC_Multi_Store_API_Usage_Tracker {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         return $wpdb->query($wpdb->prepare(
             "DELETE FROM {$table_name}
-            WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",
-            $days
+            WHERE created_at < %s",
+            $cutoff_date
         ));
     }
 
