@@ -816,7 +816,7 @@ class WC_Multi_Store_Webhook_Receiver {
      */
     public static function get_webhook_url(string $store_url): string {
         return add_query_arg(
-            ['store_url' => $store_url],
+            ['store_url' => rawurlencode($store_url)],
             rest_url('wc-multi-store-sync/v1/webhook/order')
         );
     }

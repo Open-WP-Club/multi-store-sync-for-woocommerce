@@ -755,8 +755,17 @@ class WC_Multi_Store_Queue_Manager {
             $batch_size = WC_Multi_Store_Time_Manager::get_batch_size();
         }
 
-        // Get next batch from queue table
-        $queue_items = WC_Multi_Store_Queue_Table::get_next_batch($batch_size);
+        // Fetch stores once before batch fetch to avoid N+1 queries and exclude inactive stores
+        $stores = WC_Multi_Store_Settings::get_stores();
+        $inactive_stores = [];
+        foreach ($stores as $url => $config) {
+            if (($config['status'] ?? '') !== 'active') {
+                $inactive_stores[] = $url;
+            }
+        }
+
+        // Get next batch from queue table, excluding inactive stores so they do not starve the queue
+        $queue_items = WC_Multi_Store_Queue_Table::get_next_batch($batch_size, $inactive_stores);
 
         $time_period = WC_Multi_Store_Time_Manager::get_time_period();
 
@@ -773,8 +782,6 @@ class WC_Multi_Store_Queue_Manager {
             $time_period
         ));
 
-        // Fetch stores once before loop to avoid N+1 query pattern
-        $stores = WC_Multi_Store_Settings::get_stores();
         $sync_engine = WC_MSS()->sync_engine;
 
         $processed = 0;

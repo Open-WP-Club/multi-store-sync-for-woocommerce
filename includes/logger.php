@@ -205,7 +205,8 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         // computed here and reused for BOTH the SELECT and the DELETE below: recomputing
         // NOW() at delete time would drift from the snapshot just archived and could
         // delete rows that were never written to the archive file.
-        $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days_to_keep} days"));
+        $cutoff_timestamp = time() - ($days_to_keep * DAY_IN_SECONDS);
+        $cutoff_date = date('Y-m-d H:i:s', $cutoff_timestamp);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Archive and remove current records from the custom history table; cached rows could omit newly completed syncs. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $records = $wpdb->get_results(

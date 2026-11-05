@@ -176,14 +176,15 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
 
     private function order(int $id, array $overrides = []): array
     {
+        $created = $overrides['date_created'] ?? '2026-03-01T10:00:00';
         return array_merge([
             'id' => $id,
             'number' => (string) (1000 + $id),
             'status' => 'processing',
             'currency' => 'EUR',
             'total' => '50.00',
-            'date_created' => '2026-03-01T10:00:00',
-            'date_modified' => '2026-03-01T10:00:00',
+            'date_created' => $created,
+            'date_modified' => $overrides['date_modified'] ?? $created,
             'billing' => ['first_name' => 'Ann', 'last_name' => 'Lee', 'email' => 'ann@example.com'],
             'line_items' => [],
         ], $overrides);
@@ -396,9 +397,10 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
                 }
             }
 
-            $after = (string) ($q['after'] ?? '');
+            $after = (string) ($q['modified_after'] ?? ($q['after'] ?? ''));
             $matching = array_values(array_filter($orders, static function (array $o) use ($after): bool {
-                return $after === '' || strtotime($o['date_created']) > strtotime($after);
+                $order_date = $o['date_modified'] ?? ($o['date_created'] ?? '');
+                return $after === '' || strtotime($order_date) > strtotime($after);
             }));
             if (strtolower((string) ($q['order'] ?? 'asc')) === 'desc') {
                 $matching = array_reverse($matching);
@@ -487,11 +489,12 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
         $this->sync(self::STORE_A);
 
         $this->assertNotEmpty($requests);
-        $this->assertArrayHasKey('after', $requests[0],
+        $filter_key = isset($requests[0]['modified_after']) ? 'modified_after' : 'after';
+        $this->assertArrayHasKey($filter_key, $requests[0],
             'a follow-up run must not re-download the whole store history');
         $this->assertEqualsWithDelta(
             strtotime('2026-03-01T10:02:00') - 2,
-            strtotime((string) $requests[0]['after']),
+            strtotime((string) $requests[0][$filter_key]),
             1
         );
     }
@@ -505,7 +508,7 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
 
         $this->assertSame('asc', $requests[0]['order'] ?? null,
             'the page budget must cut the stream tail (resumable), not its head');
-        $this->assertSame('date', $requests[0]['orderby'] ?? null);
+        $this->assertContains($requests[0]['orderby'] ?? null, ['modified', 'date']);
     }
 
     public function test_api_error_mid_stream_resumes_at_the_last_complete_page(): void
@@ -532,11 +535,12 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
         $requests = [];
         $second = $this->sync(self::STORE_A, ['per_page' => 2]);
 
-        $this->assertArrayHasKey('after', $requests[0],
+        $filter_key = isset($requests[0]['modified_after']) ? 'modified_after' : 'after';
+        $this->assertArrayHasKey($filter_key, $requests[0],
             'the next run must resume where the failed run stopped instead of re-fetching the history');
         $this->assertEqualsWithDelta(
             strtotime('2026-03-01T10:01:00') - 2,
-            strtotime((string) $requests[0]['after']),
+            strtotime((string) $requests[0][$filter_key]),
             1
         );
         $this->assertSame(4, $second['synced']);

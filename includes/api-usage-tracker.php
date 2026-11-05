@@ -506,7 +506,8 @@ class WC_Multi_Store_API_Usage_Tracker {
         // One fixed cutoff for both the SELECT and the DELETE: recomputing NOW() at
         // delete time would drift from the archived snapshot and could delete rows that
         // were never written to the archive file.
-        $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+        $cutoff_timestamp = time() - ($days * DAY_IN_SECONDS);
+        $cutoff_date = date('Y-m-d H:i:s', $cutoff_timestamp);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         $records = $wpdb->get_results($wpdb->prepare(

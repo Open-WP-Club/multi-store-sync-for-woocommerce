@@ -248,10 +248,11 @@ class WC_Multi_Store_Queue_Table {
     /**
      * Get next batch of items to process
      *
-     * @param int $limit Number of items to get
+     * @param int   $limit          Number of items to get
+     * @param array $exclude_stores Store URLs to exclude (e.g. inactive stores)
      * @return array Queue items
      */
-    public static function get_next_batch($limit = 10): array {
+    public static function get_next_batch($limit = 10, array $exclude_stores = []): array {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
@@ -259,23 +260,27 @@ class WC_Multi_Store_Queue_Table {
         // LIMIT 0 would make the queue look permanently empty and a negative LIMIT is a SQL error.
         $limit = max(1, (int) $limit);
 
-        // Get items that are:
-        // - status = pending
-        // - scheduled_at is null or in the past
-        // - attempts < 3
-        // Order by priority (ASC), then store_url (ASC) for HTTP keep-alive optimization,
-        // then created_at (ASC)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
-        $items = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_name}
+        $clean_exclude = array_values(array_filter(array_unique($exclude_stores), 'is_string'));
+
+        $sql = "SELECT * FROM {$table_name}
             WHERE status = 'pending'
             AND (scheduled_at IS NULL OR scheduled_at <= %s)
-            AND attempts < 3
-            ORDER BY priority ASC, store_url ASC, created_at ASC
-            LIMIT %d",
-            $current_time,
-            $limit
-        ), ARRAY_A);
+            AND attempts < 3";
+        $params = [$current_time];
+
+        if (!empty($clean_exclude)) {
+            $placeholders = implode(', ', array_fill(0, count($clean_exclude), '%s'));
+            $sql .= " AND store_url NOT IN ({$placeholders})";
+            $params = array_merge($params, $clean_exclude);
+        }
+
+        $sql .= " ORDER BY priority ASC, store_url ASC, created_at ASC LIMIT %d";
+        $params[] = $limit;
+
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The placeholders are dynamically generated %s tokens; values are passed to prepare().
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
+        $items = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
+        // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 
         // $wpdb returns null when the query fails; treat that as "nothing to do" instead of a TypeError.
         return is_array($items) ? $items : [];

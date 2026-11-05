@@ -1518,4 +1518,85 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
             'the log must show the run time in site time'
         );
     }
+
+    public function test_async_verification_reclaims_stale_lock(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $stale_time = time() - (2 * HOUR_IN_SECONDS);
+
+        Functions\when('get_option')->alias(function ($option, $default = false) use ($stale_time) {
+            if ($option === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK_OPTION) {
+                return $stale_time;
+            }
+            if ($option === 'wc_multi_store_sync_weekly_verification') {
+                return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['sync_type_default' => 'full_product'];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs']];
+            }
+            return $default;
+        });
+
+        WP_Query::$resultsQueue = [[101, 102]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 2]);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+
+        $released = false;
+        Functions\when('delete_option')->alias(function ($key) use (&$released) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK_OPTION) {
+                $released = true;
+            }
+            return true;
+        });
+
+        Functions\when('add_option')->alias(function ($key, $val) use (&$released) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK_OPTION) {
+                return $released;
+            }
+            return true;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::schedule_async_verification();
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($released, 'Stale lock must be cleared so the async run can acquire it');
+    }
+
+    public function test_process_verification_batch_copies_legacy_product_ids_to_option(): void
+    {
+        $saved_option = null;
+        Functions\when('get_option')->alias(function ($key, $default = false) use (&$saved_option) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PRODUCTS_OPTION) {
+                return $saved_option ?? [];
+            }
+            return $default;
+        });
+        Functions\when('update_option')->alias(function ($key, $val) use (&$saved_option) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PRODUCTS_OPTION) {
+                $saved_option = $val;
+            }
+            return true;
+        });
+
+        $progress = [
+            'status' => 'running',
+            'product_ids' => [1, 2, 3, 4, 5, 6],
+            'batch_size' => 2,
+            'current_batch' => 0,
+            'total_batches' => 3,
+            'processed_products' => 0,
+            'discrepancies_found' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(fn($k) => $k === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+        Functions\when('wc_get_product')->justReturn(false);
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::process_verification_batch(0);
+
+        $this->assertSame([1, 2, 3, 4, 5, 6], $saved_option, 'Legacy product_ids from progress transient must be copied to ASYNC_PRODUCTS_OPTION');
+    }
 }

@@ -498,6 +498,8 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         $total = count($orphans);
 
+        $mapped_by_store = [];
+
         foreach ($orphans as $orphan) {
             $store_url = $orphan['store_url'];
             $product_id = $orphan['product_id'];
@@ -519,7 +521,11 @@ class WC_Multi_Store_Orphan_Cleanup {
             // current catalog before deleting: if a local product is mapped to
             // this remote product again, it was recovered since the scan and
             // must not be deleted.
-            if (in_array((int) $product_id, $this->get_mapped_remote_ids($store_url), true)) {
+            if (!isset($mapped_by_store[$store_url])) {
+                $mapped_by_store[$store_url] = $this->get_mapped_remote_ids($store_url);
+            }
+
+            if (in_array((int) $product_id, $mapped_by_store[$store_url], true)) {
                 $results['skipped']++;
                 WC_Multi_Store_Logger::write(sprintf(
                     'Orphan product ID %d from %s skipped: it is mapped from a local product again',

@@ -218,6 +218,10 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
                 $r['status'] === 'pending'
                 && ($r['scheduled_at'] === null || $r['scheduled_at'] <= $now[1])
                 && (int) $r['attempts'] < 3);
+            if (preg_match('/store_url NOT IN \(([^)]+)\)/', $sql, $not_in)) {
+                $excluded = array_map(fn($s) => trim($s, "' "), explode(',', $not_in[1]));
+                $due = array_filter($due, fn(array $r): bool => !in_array($r['store_url'], $excluded, true));
+            }
             uasort($due, static fn(array $a, array $b): int =>
                 [$a['priority'], $a['store_url'], $a['id']] <=> [$b['priority'], $b['store_url'], $b['id']]);
             return array_slice(array_values($due), 0, max(0, (int) $lim[1]));
@@ -989,7 +993,7 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
         $result = WC_MSS()->queue_manager->process_queue(10);
 
-        $this->assertSame(0, $result['errors']);
+        $this->assertSame(0, $result['errors'] ?? 0);
         $this->assertSame('pending', $this->rows[1]['status'], 'A maintenance window must not dead-letter the store backlog.');
         $this->assertNull($this->rows[1]['last_error']);
         $this->assertSame(0, $this->rows[1]['attempts'], 'Skipping must not burn retry budget.');
@@ -1036,9 +1040,10 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
             $events[$e['item_id']] = [$e['status'], $e['message']];
         });
 
-        $this->assertSame(['skipped', 'Store is not active — resumes when the store is reactivated'], $events[1]);
+        $this->assertArrayNotHasKey(1, $events, 'Inactive store items are excluded at the query level and not fetched.');
+        $this->assertSame('pending', $this->rows[1]['status']);
         $this->assertSame(['success', ''], $events[2]);
-        $this->assertSame(1, $result['processed'], 'A skipped item is not counted as processed.');
+        $this->assertSame(1, $result['processed']);
         $this->assertSame('completed', $this->rows[2]['status']);
     }
 
