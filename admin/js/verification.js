@@ -55,7 +55,7 @@
                 details.textContent = data.processed + '/' + data.total + ' ' + strings.products +
                     ' | ' + strings.batch + ' ' + data.current_batch + '/' + data.total_batches +
                     ' | ' + strings.discrepancies + ': ' + data.discrepancies;
-            } else if (data.status === 'completed' || data.status === 'cancelled') {
+            } else if (data.status === 'completed' || data.status === 'partial' || data.status === 'cancelled') {
                 stopPolling();
                 restoreControls();
                 if (data.status === 'completed') {
@@ -65,6 +65,9 @@
                         strings.discrepancies + ': ' + data.discrepancies;
                     window.wcMssNotice(result, strings.completed_results, 'success');
                     if (suffix) timer = setTimeout(function() { window.location.reload(); }, 3000);
+                } else if (data.status === 'partial') {
+                    status.textContent = strings.partial;
+                    window.wcMssNotice(result, strings.partial, 'error');
                 } else {
                     progress.hidden = true;
                     window.wcMssNotice(result, strings.cancelled, 'success');

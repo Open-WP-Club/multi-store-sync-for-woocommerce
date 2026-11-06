@@ -410,6 +410,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             WHERE post_type IN ('product', 'product_variation')
             AND post_status != 'trash'
         ");
+        $ids_error = (string) ($wpdb->last_error ?? '');
 
         // Get all SKUs directly from postmeta - much more memory efficient
         // than loading each product object
@@ -423,6 +424,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             AND p.post_type IN ('product', 'product_variation')
             AND p.post_status != 'trash'
         ");
+        $skus_error = (string) ($wpdb->last_error ?? '');
 
         // Product slugs (the match identity when match_products_by is 'slug')
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog snapshot for orphan detection; stale product IDs could cause incorrect deletions.
@@ -433,11 +435,13 @@ class WC_Multi_Store_Orphan_Cleanup {
             AND post_status != 'trash'
             AND post_name != ''
         ");
+        $slugs_error = (string) ($wpdb->last_error ?? '');
 
         return [
             'skus' => $skus,
             'slugs' => $slugs,
             'ids' => $ids,
+            'error' => $ids_error !== '' || $skus_error !== '' || $slugs_error !== '',
         ];
     }
 
@@ -498,8 +502,6 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         $total = count($orphans);
 
-        $mapped_by_store = [];
-
         foreach ($orphans as $orphan) {
             $store_url = $orphan['store_url'];
             $product_id = $orphan['product_id'];
@@ -521,11 +523,27 @@ class WC_Multi_Store_Orphan_Cleanup {
             // current catalog before deleting: if a local product is mapped to
             // this remote product again, it was recovered since the scan and
             // must not be deleted.
-            if (!isset($mapped_by_store[$store_url])) {
-                $mapped_by_store[$store_url] = $this->get_mapped_remote_ids($store_url);
+            global $wpdb;
+            $mapped = $this->get_mapped_remote_ids($store_url);
+            $mapping_error = (string) ($wpdb->last_error ?? '');
+            $api_client = WC_Multi_Store_API_Client::for_store($store_url, $config);
+            $remote = $api_client->get_product((int) $product_id);
+            $local = $this->get_local_product_identifiers();
+            $local_error = $local['error'];
+            $match_by = WC_Multi_Store_Settings::get('match_products_by', 'sku') === 'slug' ? 'slug' : 'sku';
+            $key = is_array($remote) ? (string) ($remote[$match_by] ?? '') : '';
+            $identifiers = $match_by === 'slug' ? $local['slugs'] : $local['skus'];
+
+            if ($mapping_error || $local_error || is_wp_error($remote) || $key === '' || !is_array($identifiers)) {
+                $results['failed']++;
+                $results['errors'][] = sprintf('Could not verify remote product %d before cleanup.', $product_id);
+                if ($on_progress) {
+                    $on_progress($results['deleted'], $results['failed'], $total, $results['skipped']);
+                }
+                continue;
             }
 
-            if (in_array((int) $product_id, $mapped_by_store[$store_url], true)) {
+            if (in_array((int) $product_id, $mapped, true) || in_array($key, $identifiers, true)) {
                 $results['skipped']++;
                 WC_Multi_Store_Logger::write(sprintf(
                     'Orphan product ID %d from %s skipped: it is mapped from a local product again',
@@ -539,7 +557,6 @@ class WC_Multi_Store_Orphan_Cleanup {
             }
 
             // Delete product from remote store
-            $api_client = WC_Multi_Store_API_Client::for_store($store_url, $config);
             $response = $api_client->delete_product($product_id, $force);
 
             if (is_wp_error($response)) {

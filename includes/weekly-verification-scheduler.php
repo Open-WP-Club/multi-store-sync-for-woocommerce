@@ -790,6 +790,10 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         $progress['current_batch'] = $batch_number + 1;
         $progress['last_activity'] = time();
+        $progress['failed_batches'] = array_values(array_unique([
+            ...($progress['failed_batches'] ?? []),
+            $batch_number,
+        ]));
         if (!empty($progress['product_ids'])) {
             $existing_ids = get_option(self::ASYNC_PRODUCTS_OPTION, []);
             if (empty($existing_ids)) {
@@ -848,7 +852,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             'category_mismatches' => $progress['category_mismatches'] ?? 0,
             'field_mismatches' => $progress['field_mismatches'] ?? 0,
             'details' => [...$progress['details'], ...$ghost_details],
-            'status' => 'completed',
+            'status' => empty($progress['failed_batches']) ? 'completed' : 'partial',
         ];
 
         // Calculate duration
@@ -884,7 +888,7 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         // during normal sync operations before the next maintenance run
 
         // Update progress to completed
-        $progress['status'] = 'completed';
+        $progress['status'] = $report['status'];
         $progress['completed_at'] = $report['completed_at'];
         delete_option(self::ASYNC_PRODUCTS_OPTION);
         self::release_verification_lock();

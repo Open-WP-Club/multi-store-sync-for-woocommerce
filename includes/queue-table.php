@@ -280,7 +280,7 @@ class WC_Multi_Store_Queue_Table {
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The placeholders are dynamically generated %s tokens; values are passed to prepare().
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $items = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
-        // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+        // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
         // $wpdb returns null when the query fails; treat that as "nothing to do" instead of a TypeError.
         return is_array($items) ? $items : [];

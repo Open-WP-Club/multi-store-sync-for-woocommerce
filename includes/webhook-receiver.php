@@ -251,7 +251,7 @@ class WC_Multi_Store_Webhook_Receiver {
 
         // Handle WooCommerce webhook ping (sent upon webhook creation/activation)
         // WooCommerce delivers pings as `webhook_id=<id>` in form body or JSON
-        if ($this->is_ping_request($request) || isset($order_data['webhook_id'])) {
+        if ($this->is_ping_request($request)) {
             $webhook_id = $request->get_param('webhook_id') ?? ($order_data['webhook_id'] ?? null);
             WC_Multi_Store_Logger::write(sprintf(
                 'Webhook ping received successfully from: %s (Webhook ID: %s)',
@@ -773,13 +773,14 @@ class WC_Multi_Store_Webhook_Receiver {
     private function is_ping_request(WP_REST_Request $request): bool {
         $user_agent = (string) ($request->get_header('user-agent') ?: $request->get_header('user_agent'));
         $body = trim($request->get_body());
-        $webhook_id = $request->get_param('webhook_id');
-
         $is_hookshot = str_contains($user_agent, 'Hookshot') || str_starts_with($user_agent, 'WooCommerce/');
-        $has_ping_body = !empty($webhook_id) || preg_match('/^webhook_id=\d+$/', $body);
+        $json = (array) $request->get_json_params();
+        $has_ping_body = preg_match('/^webhook_id=\d+$/', $body)
+            || (count($json) === 1 && isset($json['webhook_id'])
+                && is_scalar($json['webhook_id']) && ctype_digit((string) $json['webhook_id']));
         $has_ping_header = $request->get_header('x-wc-webhook-event') === 'woocommerce_webhook_ping';
 
-        return ($is_hookshot && $has_ping_body) || $has_ping_header;
+        return ($is_hookshot || $has_ping_header) && $has_ping_body;
     }
 
     /**

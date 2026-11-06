@@ -167,9 +167,8 @@ class WC_Multi_Store_Remote_Order_Sync {
         // Retry previously failed orders (transient failure recovery)
         $failed_orders = (array) get_option($failed_option, []);
         if (!empty($failed_orders)) {
-            $retry_ids = array_keys(array_filter($failed_orders, fn($count) => (int) $count < 3));
-            if (!empty($retry_ids)) {
-                $retry_response = $api->get_orders(['include' => $retry_ids]);
+            $retry_ids = array_slice(array_keys($failed_orders), 0, 100);
+                $retry_response = $api->get_orders(['include' => $retry_ids, 'per_page' => 100]);
                 if (is_array($retry_response)) {
                     foreach ($retry_response as $retry_order) {
                         if (!is_array($retry_order) || empty($retry_order['id'])) {
@@ -188,6 +187,14 @@ class WC_Multi_Store_Remote_Order_Sync {
                             $failed_orders[$roid] = ((int) ($failed_orders[$roid] ?? 0)) + 1;
                         }
                     }
+                }
+            // Move attempted IDs to the end so one permanently failing group
+            // cannot prevent later entries from ever being retried.
+            foreach ($retry_ids as $retry_id) {
+                if (isset($failed_orders[$retry_id])) {
+                    $attempts = $failed_orders[$retry_id];
+                    unset($failed_orders[$retry_id]);
+                    $failed_orders[$retry_id] = $attempts;
                 }
             }
         }
@@ -282,6 +289,10 @@ class WC_Multi_Store_Remote_Order_Sync {
                 }
             }
 
+            // Save retry IDs before moving the cursor: a worker crash must not
+            // strand failed orders behind an already persisted high-water mark.
+            update_option($failed_option, $failed_orders, false);
+
             // Persist progress after every page: only advance forward
             if ($manages_cursor && $max_seen !== '') {
                 if ($stored_cursor === '' || $max_seen > $stored_cursor) {
@@ -325,8 +336,7 @@ class WC_Multi_Store_Remote_Order_Sync {
             }
         }
 
-        // Prune permanently failed orders (>= 3 attempts) and persist remaining retry list
-        $failed_orders = array_filter($failed_orders, fn($count) => (int) $count < 3);
+        // Keep failures until a subsequent retry actually succeeds.
         if (!empty($failed_orders)) {
             update_option($failed_option, $failed_orders, false);
         } else {

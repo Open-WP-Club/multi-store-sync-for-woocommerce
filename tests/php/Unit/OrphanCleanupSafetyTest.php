@@ -51,6 +51,12 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         $this->json_error = null;
         $this->json_success = null;
 
+        $this->localCatalog(['LOCAL-1']);
+        Functions\when('wp_remote_get')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 1, 'sku' => 'ORPHAN-1', 'slug' => 'orphan-1']),
+        ]);
+
         Functions\when('add_action')->justReturn(true);
         Functions\when('get_option')->alias(fn($name, $default = false) => $this->options[$name] ?? $default);
         Functions\when('update_option')->alias(function ($name, $value) {
@@ -127,6 +133,7 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
+        $wpdb->last_error = '';
         $wpdb->shouldReceive('prepare')->andReturnUsing(function ($query, ...$args) {
             foreach ($args as $arg) {
                 $query = preg_replace('/%[ds]/', "'" . addslashes((string) $arg) . "'", $query, 1);
@@ -603,7 +610,13 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
             ['id' => 1, 'name' => 'Live copy', 'sku' => 'DRIFTED-SKU', 'slug' => 'local-product'],
             ['id' => 2, 'name' => 'True orphan', 'sku' => 'GONE', 'slug' => 'gone-product'],
         ];
-        Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
+        Functions\when('wp_remote_get')->alias(function ($url) use ($remote) {
+            $path = (string) parse_url($url, PHP_URL_PATH);
+            $data = preg_match('~/products/(\d+)$~', $path, $match)
+                ? current(array_filter($remote, fn($item) => $item['id'] === (int) $match[1]))
+                : $remote;
+            return ['body' => json_encode($data), 'response' => ['code' => 200]];
+        });
 
         $result = (new WC_Multi_Store_Orphan_Cleanup())->scan_store_for_orphans();
 
@@ -853,6 +866,23 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         $this->assertStringContainsString('products/606', $this->delete_urls[0]);
     }
 
+    public function test_cleanup_skips_recovered_sku_without_saved_mapping(): void
+    {
+        $this->localCatalog(['RESTORED']);
+        Functions\when('wp_remote_get')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 505, 'sku' => 'RESTORED']),
+        ]);
+        $this->stubRemoteDelete();
+
+        $result = (new WC_Multi_Store_Orphan_Cleanup())->cleanup_orphans([
+            ['store_url' => 'https://store1.com', 'product_id' => 505],
+        ]);
+
+        $this->assertSame(1, $result['skipped']);
+        $this->assertSame([], $this->delete_urls);
+    }
+
     public function test_cleanup_orphans_trash_mode_never_sends_force_true(): void
     {
         $this->stubRemoteDelete();
@@ -969,7 +999,12 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
             ['id' => 3, 'name' => 'Case differs', 'sku' => 'keep-1'],
             ['id' => 4, 'name' => 'True orphan', 'sku' => 'GONE-1', 'price' => '5', 'stock_quantity' => 1],
         ];
-        Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
+        Functions\when('wp_remote_get')->alias(function ($url) use ($remote) {
+            $path = (string) parse_url($url, PHP_URL_PATH);
+            $data = preg_match('~/products/(\d+)$~', $path, $match)
+                ? current(array_filter($remote, fn($item) => $item['id'] === (int) $match[1])) : $remote;
+            return ['body' => json_encode($data), 'response' => ['code' => 200]];
+        });
         $this->stubRemoteDelete();
 
         (new WC_Multi_Store_Orphan_Cleanup())->run_auto_trash();
@@ -999,7 +1034,12 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
             ['id' => 10, 'name' => 'A', 'sku' => 'A'],
             ['id' => 11, 'name' => 'B', 'sku' => 'B'],
         ];
-        Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
+        Functions\when('wp_remote_get')->alias(function ($url) use ($remote) {
+            $path = (string) parse_url($url, PHP_URL_PATH);
+            $data = preg_match('~/products/(\d+)$~', $path, $match)
+                ? current(array_filter($remote, fn($item) => $item['id'] === (int) $match[1])) : $remote;
+            return ['body' => json_encode($data), 'response' => ['code' => 200]];
+        });
         $this->stubRemoteDelete(fn($url) => str_contains($url, 'products/11')
             ? new \WP_Error('x', 'denied')
             : null);

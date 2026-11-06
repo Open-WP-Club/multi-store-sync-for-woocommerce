@@ -912,7 +912,9 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
             'discrepancies_found' => 0,
             'details' => [],
         ];
-        Functions\when('get_transient')->alias(fn($key) => $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false);
+        Functions\when('get_transient')->alias(function ($key) use (&$progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
         Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
 
         $scheduled = null;
@@ -924,9 +926,10 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         });
 
         $captured = null;
-        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured) {
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured, &$progress) {
             if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
                 $captured = $value;
+                $progress = $value;
             }
             return true;
         });
@@ -962,14 +965,17 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
             'field_mismatches' => 0,
             'details' => [],
         ];
-        Functions\when('get_transient')->alias(fn($key) => $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false);
+        Functions\when('get_transient')->alias(function ($key) use (&$progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
         Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
         Functions\expect('as_schedule_single_action')->never();
 
         $captured = null;
-        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured) {
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured, &$progress) {
             if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
                 $captured = $value;
+                $progress = $value;
             }
             return true;
         });
@@ -977,7 +983,7 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Weekly_Verification_Scheduler::continue_after_failed_batch(1);
 
         $this->assertNotNull($captured);
-        $this->assertSame('completed', $captured['status'], 'a failed final batch must still produce the report');
+        $this->assertSame('partial', $captured['status'], 'a failed batch must be visible in the final result');
     }
 
     public function test_continue_after_failed_batch_without_a_running_verification_does_nothing(): void

@@ -1213,6 +1213,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
     {
         $this->addProduct(10, 'SKU-10', 25);
         $pingRequest = $this->request(['webhook_id' => 123]);
+        $pingRequest->set_header('user-agent', 'WooCommerce/9.4 Hookshot');
 
         $res = $this->receiver->handle_order_webhook($pingRequest);
 
@@ -1226,7 +1227,7 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
     public function test_webhook_ping_by_header_returns_200(): void
     {
         $this->addProduct(10, 'SKU-10', 25);
-        $pingRequest = $this->request(['any' => 'payload']);
+        $pingRequest = $this->request(['webhook_id' => 123]);
         $pingRequest->set_header('x-wc-webhook-event', 'woocommerce_webhook_ping');
 
         $res = $this->receiver->handle_order_webhook($pingRequest);

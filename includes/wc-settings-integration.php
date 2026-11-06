@@ -479,6 +479,30 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         $stores = WC_Multi_Store_Settings::get_stores();
         $existing_store = $stores[$original_url] ?? [];
 
+        $origin = static function (string $url): string {
+            $parts = wp_parse_url($url);
+            if (!is_array($parts) || empty($parts['host']) || empty($parts['scheme'])) {
+                return '';
+            }
+            $scheme = strtolower($parts['scheme']);
+            $port = $parts['port'] ?? ($scheme === 'https' ? 443 : 80);
+            return $scheme . '://' . strtolower($parts['host']) . ':' . $port;
+        };
+        $old_origin = $origin($original_url);
+        $new_origin = $origin($store_url);
+        $host_changed = $old_origin !== '' && $new_origin !== '' && $old_origin !== $new_origin;
+        if ($host_changed && ($consumer_key === '' || $consumer_secret === ''
+            || (!empty($existing_store['wp_app_password']) && $wp_app_password === ''))) {
+            WC_Admin_Settings::add_error(__('Enter new credentials when changing the store host.', 'multi-store-sync-for-woocommerce'));
+            return;
+        }
+
+        $normalized_url = WC_Multi_Store_Settings::validate_store_url($store_url);
+        if (!is_wp_error($normalized_url) && $normalized_url !== $original_url && isset($stores[$normalized_url])) {
+            WC_Admin_Settings::add_error(__('A store with that URL already exists.', 'multi-store-sync-for-woocommerce'));
+            return;
+        }
+
         // Blank key/secret on edit means "keep the saved one" — the view uses the
         // placeholder pattern so credentials are never embedded in the DOM.
         if (empty($consumer_key)) {
@@ -991,6 +1015,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 'discrepancies' => __('Discrepancies', 'multi-store-sync-for-woocommerce'),
                 'completed' => __('Verification completed!', 'multi-store-sync-for-woocommerce'),
                 'completed_results' => __('Verification completed. Refresh page to see results.', 'multi-store-sync-for-woocommerce'),
+                'partial' => __('Verification was incomplete because a batch failed. Run it again.', 'multi-store-sync-for-woocommerce'),
                 'cancelled' => __('Verification cancelled', 'multi-store-sync-for-woocommerce'),
                 'waiting' => __('Waiting for background process...', 'multi-store-sync-for-woocommerce'),
                 'background' => __('The verification is running in the background. Refresh this page to check progress.', 'multi-store-sync-for-woocommerce'),

@@ -21,6 +21,18 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
 
     protected function setUpOrphanMocks(): void
     {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->last_error = '';
+        $wpdb->shouldReceive('prepare')->andReturn('');
+        $wpdb->shouldReceive('get_col')->andReturn([]);
+        Functions\when('wp_remote_get')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 42, 'sku' => 'ORPHAN-SKU']),
+        ]);
         Functions\when('add_action')->justReturn(true);
         Functions\when('get_option')->alias(function ($option, $default = false) {
             if ($option === 'wc_multi_store_sync_settings') {
@@ -1306,7 +1318,10 @@ class OrphanCleanupTest extends WC_Multi_Store_TestCase
             };
         });
 
-        Functions\when('wp_remote_get')->justReturn(['body' => json_encode($remote), 'response' => ['code' => 200]]);
+        Functions\when('wp_remote_get')->alias(function ($url) use ($remote) {
+            $data = preg_match('~/products/\d+$~', (string) parse_url($url, PHP_URL_PATH)) ? $remote[0] : $remote;
+            return ['body' => json_encode($data), 'response' => ['code' => 200]];
+        });
         Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
         Functions\when('wp_remote_retrieve_body')->alias(fn($r) => $r['body']);
         Functions\when('wp_remote_retrieve_header')->justReturn(0);
