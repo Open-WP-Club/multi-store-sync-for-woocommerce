@@ -108,11 +108,39 @@ test('apply saved profile sends profile_id and handles failure', async () => {
     assert.equal(page.byId('apply').disabled, false);
 });
 
-test('export profile navigates to the AJAX URL with an encoded profile id and the nonce', () => {
+test('export profile posts the profile id and nonce to the export action', () => {
     const page = profilePage();
     page.byId('export').dispatch('click');
-    assert.equal(page.location.href,
-        '/wp-admin/admin-ajax.php?action=wc_mss_export_config&nonce=nonce-main&profile_id=a%20b%26c');
+    assert.equal(page.requests.length, 1);
+    assert.equal(page.requests[0].action, 'wc_mss_export_config');
+    assert.deepEqual(page.requests[0].data, { nonce: 'nonce-main', profile_id: 'a b&c' });
+    assert.equal(page.location.href, 'https://example.test/wp-admin/admin.php?page=wc-mss', 'export must not navigate away');
+});
+
+test('export profile downloads the returned config as pretty-printed JSON and cleans up', async () => {
+    const page = profilePage();
+    page.byId('export').dispatch('click');
+
+    const config = { name: 'Night', note: XSS };
+    await page.ok(page.requests[0], { config, filename: 'wc-mss-profile-5.json' });
+
+    assert.equal(page.downloads.length, 1);
+    const [download] = page.downloads;
+    assert.equal(download.filename, 'wc-mss-profile-5.json');
+    assert.equal(download.attached, true, 'anchor must be in the document when clicked (Firefox)');
+    assert.equal(download.blob.type, 'application/json');
+    assert.equal(download.blob.parts[0], JSON.stringify(config, null, 2));
+    assert.deepEqual(page.revoked, [download.href]);
+    assert.equal(page.qa('a').length, 0, 'temporary anchor is removed');
+});
+
+test('export profile failure shows a safe error and does not download', async () => {
+    const page = profilePage();
+    page.byId('export').dispatch('click');
+    await page.fail(page.requests[0], XSS);
+    assert.equal(page.downloads.length, 0);
+    assert.equal(profileNotice(page).textContent, XSS);
+    assert.ok(noMarkup(page.byId('wc-mss-profiles-notices')));
 });
 
 test('delete profile confirms, removes the row on success and keeps it on failure', async () => {
