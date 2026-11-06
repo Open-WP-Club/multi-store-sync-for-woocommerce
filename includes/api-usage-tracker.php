@@ -410,17 +410,18 @@ class WC_Multi_Store_API_Usage_Tracker {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
-        $sql = $wpdb->prepare(
-            "SELECT *
-            FROM {$table_name}
-            WHERE success = 0 AND error_message IS NOT NULL
-            ORDER BY created_at DESC
-            LIMIT %d",
-            $limit
-        );
-
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
-        return $wpdb->get_results($sql, ARRAY_A);
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT *
+                FROM {$table_name}
+                WHERE success = 0 AND error_message IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT %d",
+                $limit
+            ),
+            ARRAY_A
+        );
     }
 
     /**
