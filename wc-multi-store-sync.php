@@ -12,11 +12,11 @@
  * Text Domain: multi-store-sync-for-woocommerce
  * Domain Path: /languages
  * Requires at least: 5.8
- * Tested up to: 7.1
+ * Tested up to: 7.1.4
  * Requires PHP: 8.3
  * Requires Plugins: woocommerce
  * WC requires at least: 6.0
- * WC tested up to: 11.1
+ * WC tested up to: 11.2.2
  *
  * @package WC_Multi_Store_Sync
  */
