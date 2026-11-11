@@ -189,10 +189,16 @@ class WC_Multi_Store_Webhook_Receiver {
                 );
             }
         } else {
-            // Check if this is an unsigned WooCommerce webhook activation ping (WC_Webhook::deliver_ping).
-            // WooCommerce core sends an unsigned POST with body `webhook_id=<id>` and User-Agent
-            // containing `Hookshot` when a webhook is created or activated in admin.
-            if ($this->is_ping_request($request)) {
+            // Unsigned WooCommerce activation ping (WC_Webhook::deliver_ping): core POSTs
+            // `webhook_id=<id>` with a `Hookshot` User-Agent and no signature when a
+            // webhook is created or activated, and refuses to save the webhook unless
+            // the delivery URL answers 200. Every part of that request is forgeable, so
+            // the exemption is kept as narrow as possible: only the order route (the one
+            // WooCommerce pings), only for a registered store, and the handler answers a
+            // ping with a constant 200 and no side effects (see handle_order_webhook()).
+            // Anything beyond that — anything that reads stock or writes to the
+            // database — must never be reachable through this branch.
+            if ($this->is_ping_request($request) && $this->is_ping_route($request)) {
                 $store_url = (string) $request->get_param('store_url');
                 if ($store_url !== '' && $this->is_store_registered($store_url)) {
                     return true;
@@ -249,8 +255,10 @@ class WC_Multi_Store_Webhook_Receiver {
         // Get store URL from query parameter
         $store_url = $request->get_param('store_url');
 
-        // Handle WooCommerce webhook ping (sent upon webhook creation/activation)
-        // WooCommerce delivers pings as `webhook_id=<id>` in form body or JSON
+        // WooCommerce webhook ping (sent upon webhook creation/activation), delivered
+        // as `webhook_id=<id>` in a form body or as JSON. Pings can reach this handler
+        // unauthenticated (see verify_webhook_signature()), so this branch must stay
+        // free of side effects: no stock access, no database writes, a file-log line only.
         if ($this->is_ping_request($request)) {
             $webhook_id = $request->get_param('webhook_id') ?? ($order_data['webhook_id'] ?? null);
             WC_Multi_Store_Logger::write(sprintf(
@@ -781,6 +789,17 @@ class WC_Multi_Store_Webhook_Receiver {
         $has_ping_header = $request->get_header('x-wc-webhook-event') === 'woocommerce_webhook_ping';
 
         return ($is_hookshot || $has_ping_header) && $has_ping_body;
+    }
+
+    /**
+     * Only the order delivery route is pinged by WooCommerce; the test route
+     * keeps requiring credentials.
+     *
+     * @param WP_REST_Request $request
+     * @return bool
+     */
+    private function is_ping_route(WP_REST_Request $request): bool {
+        return str_ends_with(untrailingslashit((string) $request->get_route()), '/webhook/order');
     }
 
     /**

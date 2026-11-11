@@ -13,6 +13,7 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         parent::setUp();
 
         Functions\when('current_time')->justReturn('2024-06-15 12:00:00');
+        Functions\when('wp_date')->alias(static fn(string $format, ?int $timestamp = null) => date($format, $timestamp ?? time()));
         Functions\when('get_option')->justReturn(0);
         Functions\when('update_option')->justReturn(true);
 

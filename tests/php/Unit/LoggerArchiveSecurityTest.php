@@ -12,6 +12,7 @@ class LoggerArchiveSecurityTest extends WC_Multi_Store_TestCase {
         Functions\when('wp_upload_dir')->justReturn(['basedir' => $this->directory]);
         Functions\when('get_option')->alias(fn($key, $default = false) => $default);
         Functions\when('current_time')->justReturn('2026-10-25 12:00:00');
+        Functions\when('wp_date')->alias(static fn(string $format, ?int $timestamp = null) => date($format, $timestamp ?? time()));
         WC_Multi_Store_Logger::reset_instance();
     }
 

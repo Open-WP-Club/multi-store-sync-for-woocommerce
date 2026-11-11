@@ -556,9 +556,21 @@ foreach ($active_stores as $store_url => $store_config) {
                                 $status_labels = [
                                     'completed' => __('Completed', 'multi-store-sync-for-woocommerce'),
                                     'running' => __('Running', 'multi-store-sync-for-woocommerce'),
+                                    'partial' => __('Partial', 'multi-store-sync-for-woocommerce'),
                                     'failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
                                 ];
                                 echo esc_html(isset($status_labels[$report['status']]) ? $status_labels[$report['status']] : $report['status']);
+                                if ($report['status'] === 'partial') {
+                                    $partial_data = maybe_unserialize($report['report_data'] ?? '');
+                                    $failed_batch_count = is_array($partial_data) ? count((array) ($partial_data['failed_batches'] ?? [])) : 0;
+                                    if ($failed_batch_count > 0) {
+                                        echo '<br><small>' . esc_html(sprintf(
+                                            /* translators: %d: number of verification batches that failed. */
+                                            _n('%d batch failed; its products were not verified', '%d batches failed; their products were not verified', $failed_batch_count, 'multi-store-sync-for-woocommerce'),
+                                            $failed_batch_count
+                                        )) . '</small>';
+                                    }
+                                }
                                 ?>
                             </td>
                         </tr>

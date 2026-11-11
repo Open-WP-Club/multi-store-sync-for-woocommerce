@@ -277,8 +277,10 @@ class WC_Multi_Store_Queue_Table {
         $sql .= " ORDER BY priority ASC, store_url ASC, created_at ASC LIMIT %d";
         $params[] = $limit;
 
-        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- The placeholders are dynamically generated %s tokens; values are passed to prepare().
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
+        // InterpolatedNotPrepared and UnfinishedPrepare are disabled file-wide (see the top of
+        // this file); only NotPrepared needs a local exception for the assembled $sql string.
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- The placeholders are dynamically generated %s tokens; values are passed to prepare().
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition. The SQL is assembled from the trusted table name, fixed literals and a dynamically sized list of %s placeholders whose values are bound by prepare().
         $items = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
         // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 

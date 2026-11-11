@@ -853,6 +853,10 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             'field_mismatches' => $progress['field_mismatches'] ?? 0,
             'details' => [...$progress['details'], ...$ghost_details],
             'status' => empty($progress['failed_batches']) ? 'completed' : 'partial',
+            // Batch numbers (0-indexed) whose products stayed unverified; persisted
+            // with the report (report_data) so the reports screen and the email can
+            // say how much of the catalog a 'partial' run actually covered.
+            'failed_batches' => array_values(array_map('intval', (array) ($progress['failed_batches'] ?? []))),
         ];
 
         // Calculate duration
@@ -867,20 +871,32 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         WC_Multi_Store_Weekly_Verification_Report_Repository::save_report($report);
 
         WC_Multi_Store_Logger::write(sprintf(
-            'Async verification completed: %d products checked, %d discrepancies found in %d seconds',
+            'Async verification %s: %d products checked, %d discrepancies found in %d seconds%s',
+            $report['status'],
             $report['products_checked'],
             $report['discrepancies_found'],
-            $report['duration_seconds']
-        ));
+            $report['duration_seconds'],
+            $report['failed_batches'] === [] ? '' : sprintf(' (%d batch(es) failed: %s)', count($report['failed_batches']), implode(', ', $report['failed_batches']))
+        ), $report['status'] === 'partial' ? 'warning' : 'info');
 
         // Send email notification if enabled
         if ($settings['email_enabled'] && $report['discrepancies_found'] > 0) {
             WC_Multi_Store_Weekly_Verification_Email_Notifier::send_email_notification($report);
         }
 
-        // Auto-correct if enabled
+        // Auto-correct if enabled. A partial run (batches that threw) is not a
+        // trustworthy picture of the catalog — the failure usually means the
+        // remote data was unreliable during the run — so automatic re-syncs wait
+        // for a complete run; the discrepancies are still in the report and email.
         if ($settings['auto_correct'] && $report['discrepancies_found'] > 0) {
-            self::auto_correct_discrepancies($report);
+            if ($report['status'] === 'partial') {
+                WC_Multi_Store_Logger::write(
+                    'Auto-correct skipped: the verification run was partial; corrections wait for a complete run',
+                    'warning'
+                );
+            } else {
+                self::auto_correct_discrepancies($report);
+            }
         }
 
         // Note: We no longer clear term cache here as it causes "No cache yet" in System Health UI

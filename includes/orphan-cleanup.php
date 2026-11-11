@@ -502,6 +502,22 @@ class WC_Multi_Store_Orphan_Cleanup {
 
         $total = count($orphans);
 
+        // The orphan list may come from a scan that ran minutes ago (or from a
+        // stored result the admin is reviewing). Re-check against the current
+        // catalog before deleting: if a local product is mapped to a remote
+        // product again, or carries its SKU/slug again, it was recovered since
+        // the scan and must not be deleted. The snapshots are taken once here —
+        // at the start of the delete loop — rather than once per orphan: that
+        // keeps them as fresh as the loop itself while avoiding full-catalog
+        // queries for every product on a large cleanup.
+        global $wpdb;
+        $local = $this->get_local_product_identifiers();
+        $local_error = $local['error'];
+        $match_by = WC_Multi_Store_Settings::get('match_products_by', 'sku') === 'slug' ? 'slug' : 'sku';
+        $identifiers = $match_by === 'slug' ? $local['slugs'] : $local['skus'];
+        $mapped_by_store = [];
+        $mapping_errors = [];
+
         foreach ($orphans as $orphan) {
             $store_url = $orphan['store_url'];
             $product_id = $orphan['product_id'];
@@ -518,21 +534,15 @@ class WC_Multi_Store_Orphan_Cleanup {
                 continue;
             }
 
-            // The orphan list may come from a scan that ran minutes ago (or from
-            // a stored result the admin is reviewing). Re-check against the
-            // current catalog before deleting: if a local product is mapped to
-            // this remote product again, it was recovered since the scan and
-            // must not be deleted.
-            global $wpdb;
-            $mapped = $this->get_mapped_remote_ids($store_url);
-            $mapping_error = (string) ($wpdb->last_error ?? '');
+            if (!array_key_exists($store_url, $mapped_by_store)) {
+                $mapped_by_store[$store_url] = $this->get_mapped_remote_ids($store_url);
+                $mapping_errors[$store_url] = (string) ($wpdb->last_error ?? '');
+            }
+            $mapped = $mapped_by_store[$store_url];
+            $mapping_error = $mapping_errors[$store_url];
             $api_client = WC_Multi_Store_API_Client::for_store($store_url, $config);
             $remote = $api_client->get_product((int) $product_id);
-            $local = $this->get_local_product_identifiers();
-            $local_error = $local['error'];
-            $match_by = WC_Multi_Store_Settings::get('match_products_by', 'sku') === 'slug' ? 'slug' : 'sku';
             $key = is_array($remote) ? (string) ($remote[$match_by] ?? '') : '';
-            $identifiers = $match_by === 'slug' ? $local['slugs'] : $local['skus'];
 
             if ($mapping_error || $local_error || is_wp_error($remote) || $key === '' || !is_array($identifiers)) {
                 $results['failed']++;

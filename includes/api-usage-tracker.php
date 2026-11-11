@@ -410,7 +410,7 @@ class WC_Multi_Store_API_Usage_Tracker {
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Live API usage aggregates use a custom table and must include the latest buffered writes. Table name is the trusted WordPress prefix plus a fixed plugin suffix; the limit is bound by prepare().
         return $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT *
@@ -507,8 +507,10 @@ class WC_Multi_Store_API_Usage_Tracker {
         // One fixed cutoff for both the SELECT and the DELETE: recomputing NOW() at
         // delete time would drift from the archived snapshot and could delete rows that
         // were never written to the archive file.
+        // created_at is written with current_time('mysql') (site time), so the cutoff
+        // is formatted in site time as well; date() would be UTC under WordPress.
         $cutoff_timestamp = time() - ($days * DAY_IN_SECONDS);
-        $cutoff_date = date('Y-m-d H:i:s', $cutoff_timestamp);
+        $cutoff_date = wp_date('Y-m-d H:i:s', $cutoff_timestamp);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live API usage aggregates use a custom table and must include the latest buffered writes.
         $records = $wpdb->get_results($wpdb->prepare(

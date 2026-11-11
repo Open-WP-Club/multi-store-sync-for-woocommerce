@@ -571,7 +571,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_boundary_at_max_attempts(int|string $attemptsAfterIncrement, bool $final): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = fn(string $sql) => str_contains($sql, 'SELECT attempts') ? $attemptsAfterIncrement : 1;
+        $this->responders['get_var'] = fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (str_contains($sql, 'SELECT attempts') ? $attemptsAfterIncrement : 1);
         $this->responders['get_row'] = fn() => ['id' => 5, 'product_id' => 9, 'store_url' => 'https://a.test', 'sync_type' => 'full_product', 'source' => 'hook', 'attempts' => $attemptsAfterIncrement, 'status' => 'processing'];
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'boom');
@@ -601,7 +601,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_increments_attempts_atomically_in_sql_before_reading_it_back(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 1;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (1);
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'x');
 
@@ -616,7 +616,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
         $times = [];
         foreach ([1, 2] as $attempts) {
             $this->calls = [];
-            $this->responders['get_var'] = static fn(string $sql) => $attempts;
+            $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : ($attempts);
             WC_Multi_Store_Queue_Table::mark_failed(5, 'x');
             $times[$attempts] = strtotime($this->callsOf('update')[0]['data']['scheduled_at']);
         }
@@ -629,7 +629,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_no_retry_goes_dead_on_first_attempt(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 1;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (1);
         $this->responders['get_row'] = static fn() => ['id' => 5, 'product_id' => 9, 'store_url' => 'https://a.test', 'sync_type' => 'full_product', 'source' => 'hook', 'attempts' => 1];
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'Product has no SKU', true);
@@ -644,7 +644,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_for_vanished_row_still_marks_failed_without_dlq_entry(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 3;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (3);
         $this->responders['get_row'] = static fn() => null;
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'late');
@@ -656,7 +656,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_still_updates_queue_row_when_dlq_insert_fails(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 3;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (3);
         $this->responders['get_row'] = static fn() => ['id' => 5, 'product_id' => 9, 'store_url' => 'https://a.test', 'sync_type' => 'full_product', 'attempts' => 3];
         $this->responders['insert'] = static fn() => false;
 
@@ -669,7 +669,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_passes_stored_extra_data_and_started_at_into_dlq(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 3;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (3);
         $this->responders['get_row'] = static fn() => [
             'id' => 5, 'product_id' => 9, 'product_sku' => 'SKU-9', 'store_url' => 'https://a.test',
             'sync_type' => 'delete_product', 'source' => 'product_delete', 'attempts' => 3,

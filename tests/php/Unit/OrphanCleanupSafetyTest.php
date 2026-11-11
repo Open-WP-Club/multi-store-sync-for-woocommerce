@@ -883,6 +883,36 @@ class OrphanCleanupSafetyTest extends WC_Multi_Store_TestCase
         $this->assertSame([], $this->delete_urls);
     }
 
+    public function test_cleanup_takes_catalog_snapshots_once_per_run_not_once_per_orphan(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->last_error = '';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn(string $q, ...$args) => vsprintf(str_replace(['%d', '%s'], "'%s'", $q), $args));
+        $queries = [];
+        $wpdb->shouldReceive('get_col')->andReturnUsing(function (string $sql) use (&$queries) {
+            $queries[] = $sql;
+            return [];
+        });
+        $this->stubRemoteDelete();
+
+        $result = (new WC_Multi_Store_Orphan_Cleanup())->cleanup_orphans([
+            ['store_url' => 'https://store1.com', 'product_id' => 1],
+            ['store_url' => 'https://store1.com', 'product_id' => 2],
+            ['store_url' => 'https://store2.com/', 'product_id' => 3],
+            ['store_url' => 'https://store1.com', 'product_id' => 4],
+        ]);
+
+        $this->assertSame(4, $result['deleted']);
+        $mapping_queries = array_filter($queries, static fn(string $sql): bool => str_contains($sql, '_mss_remote_id_'));
+        $catalog_queries = array_filter($queries, static fn(string $sql): bool => !str_contains($sql, '_mss_remote_id_'));
+        $this->assertCount(2, $mapping_queries, 'one mapping lookup per store, not per orphan');
+        $this->assertCount(3, $catalog_queries, 'ids, skus and slugs are read once per cleanup run');
+    }
+
     public function test_cleanup_orphans_trash_mode_never_sends_force_true(): void
     {
         $this->stubRemoteDelete();

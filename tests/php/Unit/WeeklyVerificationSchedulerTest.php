@@ -569,7 +569,7 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $method->invoke(null);
     }
 
-    private function mockGhostScanDependencies(): void
+    private function mockGhostScanDependencies(?callable $onInsert = null): void
     {
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
@@ -577,7 +577,12 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
         $wpdb->shouldReceive('get_col')->andReturn([]);
-        $wpdb->shouldReceive('insert')->andReturn(1);
+        $wpdb->shouldReceive('insert')->andReturnUsing(function (string $table, array $data) use ($onInsert) {
+            if ($onInsert !== null) {
+                $onInsert($table, $data);
+            }
+            return 1;
+        });
 
         $api_client_mock = \Mockery::mock('WC_Multi_Store_API_Client');
         $api_client_mock->shouldReceive('stream_products')
@@ -734,6 +739,102 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $this->callFinalizeAsyncVerification();
 
         $this->addToAssertionCount(1); // Mockery's shouldReceive()->with() above is the real assertion.
+    }
+
+    public function test_finalize_async_verification_partial_run_records_failed_batches_and_skips_auto_correct(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $saved = null;
+        $this->mockGhostScanDependencies(function (string $table, array $data) use (&$saved): void {
+            $saved = $data;
+        });
+        Functions\when('maybe_serialize')->alias(fn($v) => serialize($v));
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_weekly_verification') {
+                return ['email_enabled' => false, 'auto_correct' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['sync_type_default' => 'full_product'];
+            }
+            return $default;
+        });
+
+        $qm = \Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        $qm->shouldReceive('add_product')->never();
+        WC_Multi_Store_Sync::instance()->queue_manager = $qm;
+
+        $progress = [
+            'status' => 'running',
+            'started_at' => '2024-01-15 10:00:00',
+            'processed_products' => 4,
+            'stores_checked' => 1,
+            'discrepancies_found' => 1,
+            'missing_products' => 0,
+            'orphan_products' => 0,
+            'stock_mismatches' => 1,
+            'price_mismatches' => 0,
+            'category_mismatches' => 0,
+            'field_mismatches' => 0,
+            'failed_batches' => [1, 3],
+            'details' => [
+                ['product_id' => 55, 'discrepancies' => [['type' => 'stock']]],
+            ],
+        ];
+
+        Functions\when('get_transient')->alias(function ($key) use ($progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:05:00');
+
+        $captured = null;
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
+                $captured = $value;
+            }
+            return true;
+        });
+
+        $this->callFinalizeAsyncVerification();
+
+        $this->assertSame('partial', $captured['status']);
+        $this->assertNotNull($saved, 'the report must still be saved');
+        $this->assertSame('partial', $saved['status']);
+        $report_data = unserialize($saved['report_data']);
+        $this->assertSame([1, 3], $report_data['failed_batches'],
+            'the reports screen and the email need to know which batches were skipped');
+    }
+
+    public function test_finalize_async_verification_complete_run_stores_an_empty_failed_batch_list(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $saved = null;
+        $this->mockGhostScanDependencies(function (string $table, array $data) use (&$saved): void {
+            $saved = $data;
+        });
+        Functions\when('maybe_serialize')->alias(fn($v) => serialize($v));
+
+        $progress = [
+            'status' => 'running',
+            'started_at' => '2024-01-15 10:00:00',
+            'processed_products' => 5,
+            'stores_checked' => 1,
+            'discrepancies_found' => 0,
+            'missing_products' => 0,
+            'orphan_products' => 0,
+            'stock_mismatches' => 0,
+            'price_mismatches' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(function ($key) use ($progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:05:00');
+
+        $this->callFinalizeAsyncVerification();
+
+        $this->assertSame('completed', $saved['status']);
+        $this->assertSame([], unserialize($saved['report_data'])['failed_batches']);
     }
 
     // ── process_verification_batch ────────────────────────────────

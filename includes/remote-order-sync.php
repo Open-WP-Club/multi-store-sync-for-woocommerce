@@ -40,8 +40,30 @@ class WC_Multi_Store_Remote_Order_Sync {
 
     /**
      * Per-store option holding failed order IDs for transient retry
+     * (remote order ID => number of failed attempts).
      */
     private const FAILED_ORDERS_OPTION_PREFIX = 'wc_mss_remote_order_failed_';
+
+    /**
+     * A failed order is retried on this many runs before it is dropped from the
+     * retry list; without a bound, an order deleted on the remote store would be
+     * requested on every run forever and the list would only ever grow.
+     */
+    private const MAX_FAILED_ORDER_ATTEMPTS = 5;
+
+    /**
+     * Upper bound on the retry list; the oldest entries are dropped first.
+     */
+    private const MAX_FAILED_ORDERS = 500;
+
+    /**
+     * Per-store option that lets a cursor-managed run continue at the page where
+     * the previous run's page budget ran out while the cursor could not move
+     * (more than one budget's worth of orders sharing one date_modified second,
+     * e.g. after a bulk status change). Value: ['filter' => <modified_after
+     * sent>, 'page' => <next page>]; ignored as soon as the cursor moves on.
+     */
+    private const RESUME_OPTION_PREFIX = 'wc_mss_remote_order_resume_';
 
     /**
      * Constructor
@@ -125,21 +147,22 @@ class WC_Multi_Store_Remote_Order_Sync {
         // Create a per-store API client with proper credentials
         $api = WC_Multi_Store_API_Client::for_store($store_url, $store);
 
-        // Only runs that walk the stream from its head with default filters manage the
-        // cursor: an explicit upper bound (`before`), manual status filter, or starting
-        // page is a one-off query, and letting it move the cursor could skip orders.
+        // Only an unfiltered walk of the stream manages the cursor. An explicit date
+        // window (`after`, `modified_after`), an upper bound (`before`), a status
+        // filter or a starting page is a one-off query: `after` walks are sorted by
+        // date_created and the other filters cover only part of the stream, so their
+        // high-water mark says nothing about which orders modified before it have
+        // been imported — persisting it could skip orders for good.
         $cursor_option = self::CURSOR_OPTION_PREFIX . md5($store_url);
+        $resume_option = self::RESUME_OPTION_PREFIX . md5($store_url);
         $failed_option = self::FAILED_ORDERS_OPTION_PREFIX . md5($store_url);
         $stored_cursor = (string) get_option($cursor_option, '');
 
-        $after_timestamp = !empty($args['after']) ? strtotime((string) $args['after']) : null;
-        $stored_timestamp = $stored_cursor !== '' ? strtotime($stored_cursor) : null;
-        $jumps_ahead = $after_timestamp !== null && $stored_timestamp !== null && $after_timestamp > $stored_timestamp;
-
         $manages_cursor = $args['before'] === null
+            && empty($args['after'])
+            && empty($args['modified_after'])
             && (empty($args['status']) || $args['status'] === 'any')
-            && (int) $args['page'] <= 1
-            && !$jumps_ahead;
+            && (int) $args['page'] <= 1;
 
         if (!empty($args['modified_after'])) {
             $modified_after_filter = (string) $args['modified_after'];
@@ -158,36 +181,64 @@ class WC_Multi_Store_Remote_Order_Sync {
         $synced = 0;
         $updated = 0;
         $errors = 0;
-        $page = $args['page'];
+        $page = max(1, (int) $args['page']);
+        $pages_fetched = 0;
         $has_more = true;
         $max_seen = '';
         $natural_end = false;
         $truncated = false;
 
+        // Continue where the previous run's page budget ran out, but only while the
+        // request is identical (same cursor-derived filter): once the cursor moves,
+        // page numbers refer to a different result set and the walk restarts at 1.
+        $resume = $manages_cursor ? get_option($resume_option, []) : [];
+        $had_resume = is_array($resume) && !empty($resume);
+        if ($had_resume
+            && ($resume['filter'] ?? null) === $modified_after_filter
+            && (int) ($resume['page'] ?? 0) > 1
+        ) {
+            $page = (int) $resume['page'];
+            WC_Multi_Store_Logger::write(sprintf(
+                'Order sync for %s resumes at page %d (the previous run exhausted its page budget without moving the cursor)',
+                $store_url,
+                $page
+            ));
+        }
+
         // Retry previously failed orders (transient failure recovery)
         $failed_orders = (array) get_option($failed_option, []);
         if (!empty($failed_orders)) {
             $retry_ids = array_slice(array_keys($failed_orders), 0, 100);
-                $retry_response = $api->get_orders(['include' => $retry_ids, 'per_page' => 100]);
-                if (is_array($retry_response)) {
-                    foreach ($retry_response as $retry_order) {
-                        if (!is_array($retry_order) || empty($retry_order['id'])) {
-                            continue;
+            $retry_response = $api->get_orders(['include' => $retry_ids, 'per_page' => 100]);
+            if (is_array($retry_response)) {
+                $returned = [];
+                foreach ($retry_response as $retry_order) {
+                    if (!is_array($retry_order) || empty($retry_order['id'])) {
+                        continue;
+                    }
+                    $roid = (int) $retry_order['id'];
+                    $returned[$roid] = true;
+                    try {
+                        $retry_result = $this->process_order($retry_order, $store_url);
+                        unset($failed_orders[$roid]);
+                        if ($retry_result === 'created') {
+                            $synced++;
+                        } elseif ($retry_result === 'updated') {
+                            $updated++;
                         }
-                        $roid = (int) $retry_order['id'];
-                        try {
-                            $retry_result = $this->process_order($retry_order, $store_url);
-                            unset($failed_orders[$roid]);
-                            if ($retry_result === 'created') {
-                                $synced++;
-                            } elseif ($retry_result === 'updated') {
-                                $updated++;
-                            }
-                        } catch (\Throwable $e) {
-                            $failed_orders[$roid] = ((int) ($failed_orders[$roid] ?? 0)) + 1;
-                        }
+                    } catch (\Throwable $e) {
+                        $failed_orders[$roid] = ((int) ($failed_orders[$roid] ?? 0)) + 1;
                     }
                 }
+                // An ID the store no longer returns (deleted or trashed remotely) is a
+                // failed attempt too, so it ages out below instead of being requested
+                // on every run forever. A transport error is not counted.
+                foreach ($retry_ids as $retry_id) {
+                    if (!isset($returned[$retry_id]) && isset($failed_orders[$retry_id])) {
+                        $failed_orders[$retry_id] = ((int) $failed_orders[$retry_id]) + 1;
+                    }
+                }
+            }
             // Move attempted IDs to the end so one permanently failing group
             // cannot prevent later entries from ever being retried.
             foreach ($retry_ids as $retry_id) {
@@ -197,6 +248,7 @@ class WC_Multi_Store_Remote_Order_Sync {
                     $failed_orders[$retry_id] = $attempts;
                 }
             }
+            $failed_orders = $this->prune_failed_orders($failed_orders, $store_url);
         }
 
         while ($has_more) {
@@ -226,6 +278,7 @@ class WC_Multi_Store_Remote_Order_Sync {
 
             // Fetch orders from remote store
             $response = $api->get_orders($params);
+            $pages_fetched++;
 
             if (is_wp_error($response)) {
                 WC_Multi_Store_Logger::write(
@@ -291,6 +344,7 @@ class WC_Multi_Store_Remote_Order_Sync {
 
             // Save retry IDs before moving the cursor: a worker crash must not
             // strand failed orders behind an already persisted high-water mark.
+            $failed_orders = $this->prune_failed_orders($failed_orders, $store_url);
             update_option($failed_option, $failed_orders, false);
 
             // Persist progress after every page: only advance forward
@@ -310,7 +364,7 @@ class WC_Multi_Store_Remote_Order_Sync {
 
             // Work budget: stop after MAX_PAGES_PER_RUN pages. The cursor keeps the
             // un-imported tail reachable, so this postpones work instead of losing it.
-            if ($page > self::MAX_PAGES_PER_RUN) {
+            if ($has_more && $pages_fetched >= self::MAX_PAGES_PER_RUN) {
                 $truncated = true;
                 WC_Multi_Store_Logger::write(
                     sprintf('Order sync for %s paused after %d pages; the remainder continues on the next run', $store_url, self::MAX_PAGES_PER_RUN),
@@ -336,12 +390,19 @@ class WC_Multi_Store_Remote_Order_Sync {
             }
         }
 
-        // Keep failures until a subsequent retry actually succeeds.
-        if (!empty($failed_orders)) {
-            update_option($failed_option, $failed_orders, false);
-        } else {
-            update_option($failed_option, [], false);
+        // Remember where a truncated run stopped; a run that reached the end of the
+        // stream clears the marker. After a transport error the marker is left as it
+        // was, so an interrupted resume does not fall back to page 1.
+        if ($manages_cursor) {
+            if ($truncated) {
+                update_option($resume_option, ['filter' => $modified_after_filter, 'page' => $page], false);
+            } elseif ($natural_end && $had_resume) {
+                delete_option($resume_option);
+            }
         }
+
+        // Keep failures until a subsequent retry actually succeeds.
+        update_option($failed_option, $this->prune_failed_orders($failed_orders, $store_url), false);
 
         return [
             'success' => true,
@@ -351,6 +412,44 @@ class WC_Multi_Store_Remote_Order_Sync {
             'truncated' => $truncated,
             'message' => $message,
         ];
+    }
+
+    /**
+     * Bound the per-store retry list: drop orders that have failed on
+     * MAX_FAILED_ORDER_ATTEMPTS runs and keep at most MAX_FAILED_ORDERS entries
+     * (newest last, oldest dropped first).
+     *
+     * @param array<int, int> $failed_orders Remote order ID => failed attempts
+     * @param string          $store_url     Store URL (for the log line)
+     * @return array<int, int>
+     */
+    private function prune_failed_orders(array $failed_orders, string $store_url): array {
+        $dropped = [];
+        foreach ($failed_orders as $order_id => $attempts) {
+            if ((int) $attempts >= self::MAX_FAILED_ORDER_ATTEMPTS) {
+                $dropped[] = (int) $order_id;
+                unset($failed_orders[$order_id]);
+            }
+        }
+
+        $overflow = count($failed_orders) - self::MAX_FAILED_ORDERS;
+        if ($overflow > 0) {
+            $dropped = array_merge($dropped, array_map('intval', array_slice(array_keys($failed_orders), 0, $overflow)));
+            $failed_orders = array_slice($failed_orders, $overflow, null, true);
+        }
+
+        if ($dropped !== []) {
+            WC_Multi_Store_Logger::write(sprintf(
+                'Dropped %d remote order(s) from the retry list for %s (failed on %d runs, or the list exceeded %d entries): #%s',
+                count($dropped),
+                $store_url,
+                self::MAX_FAILED_ORDER_ATTEMPTS,
+                self::MAX_FAILED_ORDERS,
+                implode(', #', array_slice($dropped, 0, 20))
+            ), 'warning');
+        }
+
+        return $failed_orders;
     }
 
     /**

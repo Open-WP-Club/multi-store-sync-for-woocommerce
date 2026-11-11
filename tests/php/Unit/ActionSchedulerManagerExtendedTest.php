@@ -98,6 +98,7 @@ class ActionSchedulerManagerExtendedTest extends WC_Multi_Store_TestCase
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
+        Functions\when('wp_date')->alias(static fn(string $format, ?int $timestamp = null) => date($format, $timestamp ?? time()));
     }
 
     // ── process_queue_action ─────────────────────────────────────

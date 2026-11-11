@@ -46,7 +46,9 @@ class DeadLetterQueueTest extends WC_Multi_Store_TestCase
         $wpdb->prefix = 'wp_';
         $wpdb->insert_id = 42;
         $wpdb->shouldReceive('insert')->once()->andReturn(1);
-        // maybe_notify_admin_threshold counts dead items — return 0 to skip notification
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn(string $q, ...$args) => vsprintf(str_replace('%d', '%s', $q), $args));
+        // The open-entry lookup finds nothing and maybe_notify_admin_threshold
+        // counts dead items — return 0 for both.
         $wpdb->shouldReceive('get_var')->andReturn('0');
 
         $queue_item = [
@@ -64,6 +66,63 @@ class DeadLetterQueueTest extends WC_Multi_Store_TestCase
 
         $result = WC_Multi_Store_Dead_Letter_Queue::add_from_queue($queue_item);
         $this->assertEquals(42, $result);
+    }
+
+    public function test_add_from_queue_refreshes_the_open_entry_for_the_same_queue_row(): void
+    {
+        // mark_failed() and reset_stuck_items() can both park the same queue row
+        // (or a retry can re-park it after the status update failed). The DLQ
+        // must keep one open entry per queue row instead of listing it twice.
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $lookups = [];
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn(string $q, ...$args) => vsprintf(str_replace('%d', '%s', $q), $args));
+        $wpdb->shouldReceive('get_var')->andReturnUsing(function (string $sql) use (&$lookups) {
+            $lookups[] = $sql;
+            return str_contains($sql, 'original_queue_id') ? '7' : '0';
+        });
+        $wpdb->shouldReceive('insert')->never();
+        $wpdb->shouldReceive('update')->once()->with(
+            'wp_wc_mss_dead_letter_queue',
+            \Mockery::on(fn(array $data) => $data['attempts'] === 4
+                && $data['last_error'] === 'Stuck in processing'
+                && $data['failed_at'] === '2026-01-01 12:00:00'),
+            ['id' => 7],
+            \Mockery::any(),
+            \Mockery::any()
+        )->andReturn(1);
+
+        $result = WC_Multi_Store_Dead_Letter_Queue::add_from_queue([
+            'id' => 10,
+            'product_id' => 100,
+            'store_url' => 'https://shop2.example.com',
+            'sync_type' => 'full_product',
+            'attempts' => 4,
+            'last_error' => 'Stuck in processing',
+        ]);
+
+        $this->assertSame(7, $result);
+        $this->assertCount(1, $lookups);
+        $this->assertStringContainsString("original_queue_id = 10 AND status = 'dead'", $lookups[0]);
+    }
+
+    public function test_add_from_queue_without_a_queue_id_never_looks_for_an_open_entry(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->insert_id = 3;
+        $wpdb->shouldReceive('prepare')->never();
+        $wpdb->shouldReceive('insert')->once()->andReturn(1);
+        $wpdb->shouldReceive('get_var')->once()->andReturn('0'); // threshold count only
+
+        $result = WC_Multi_Store_Dead_Letter_Queue::add_from_queue([
+            'product_id' => 100,
+            'store_url' => 'https://shop2.example.com',
+        ]);
+
+        $this->assertSame(3, $result);
     }
 
     public function test_add_from_queue_returns_false_on_failure(): void

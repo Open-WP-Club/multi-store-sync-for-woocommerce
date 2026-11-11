@@ -31,8 +31,9 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
             return false;
         }
         $subject = sprintf(
-            '[%s] Weekly Sync Verification: %d discrepancies found',
+            '[%s] Weekly Sync Verification%s: %d discrepancies found',
             get_bloginfo('name'),
+            ($report['status'] ?? '') === 'partial' ? ' (partial run)' : '',
             $report['discrepancies_found']
         );
 
@@ -93,6 +94,14 @@ class WC_Multi_Store_Weekly_Verification_Email_Notifier {
                         <span class="summary-label">Duration:</span> <?php echo esc_html($report['duration_seconds']); ?>s
                     </div>
                 </div>
+
+                <?php if (($report['status'] ?? '') === 'partial'): ?>
+                    <div class="discrepancy">
+                        <strong>Partial run:</strong>
+                        <?php echo esc_html((string) count((array) ($report['failed_batches'] ?? []))); ?> batch(es) failed and their products were not verified.
+                        Automatic corrections were not applied for this run.
+                    </div>
+                <?php endif; ?>
 
                 <h2>Breakdown</h2>
                 <ul>
