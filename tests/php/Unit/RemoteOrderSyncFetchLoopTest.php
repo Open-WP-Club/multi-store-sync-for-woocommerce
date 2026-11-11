@@ -35,13 +35,20 @@ class RemoteOrderSyncFetchLoopTest extends WC_Multi_Store_TestCase
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
+        // sync_store_orders() persists the per-store import cursor between runs.
+        Functions\when('update_option')->justReturn(true);
         Functions\when('wp_parse_args')->alias(function ($args, $defaults) {
             return array_merge($defaults, (array) $args);
         });
         Functions\when('add_query_arg')->alias(function () {
             $args = func_get_args();
             if (count($args) === 2 && is_array($args[0])) {
-                return $args[1] . '?' . http_build_query($args[0]);
+                // Merge like the real add_query_arg(): the auth query string is
+                // already on the URL, so blindly appending '?' would swallow the
+                // first new parameter into the previous value.
+                [$base, $existing] = array_pad(explode('?', $args[1], 2), 2, '');
+                parse_str($existing, $query);
+                return $base . '?' . http_build_query(array_merge($query, $args[0]));
             }
             return $args[count($args) - 1] ?? '';
         });

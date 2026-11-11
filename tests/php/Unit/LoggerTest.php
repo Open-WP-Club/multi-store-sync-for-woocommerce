@@ -12,6 +12,9 @@ class LoggerTest extends WC_Multi_Store_TestCase
     {
         parent::setUp();
 
+        // Archive cutoffs are formatted in site time.
+        Functions\when('wp_date')->alias(static fn(string $format, ?int $timestamp = null) => date($format, $timestamp ?? time()));
+
         // Reset the singleton so this test always constructs a fresh Logger instance.
         WC_Multi_Store_Logger::reset_instance();
 

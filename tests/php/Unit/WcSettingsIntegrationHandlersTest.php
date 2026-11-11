@@ -28,6 +28,11 @@ class WcSettingsIntegrationHandlersTest extends WC_Multi_Store_TestCase
         Functions\when('add_filter')->justReturn(true);
         Functions\when('remove_action')->justReturn(true);
         Functions\when('current_time')->justReturn('2024-06-15 12:00:00');
+        // calculate_next_run_time()/schedule_verification() read the site clock via
+        // current_datetime() and render the log line with wp_date(); stub both so
+        // scheduling tests don't hit the (UTC-pinned) real wall clock.
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('now'));
+        Functions\when('wp_date')->alias(fn($format, $timestamp = null) => date($format, $timestamp ?? time()));
         Functions\when('current_user_can')->justReturn(true);
         Functions\when('esc_html')->alias(fn($t) => htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8'));
         Functions\when('esc_html_e')->alias(function ($t, $d = 'default') {
@@ -558,5 +563,144 @@ class WcSettingsIntegrationHandlersTest extends WC_Multi_Store_TestCase
 
         $this->assertSame([], $checked, 'No nonce check or handler should run for a mismatched section');
         $this->assertNull($this->updated('wc_multi_store_sync_weekly_verification'));
+    }
+
+    // ─── handle_update_store rename safety ─────────
+
+    /** Register the URL/redirect stubs handle_update_store() needs. */
+    private function storeFormEnv(bool $success_path = false): void
+    {
+        Functions\when('esc_url_raw')->alias(fn($v) => $v);
+        Functions\when('wp_parse_url')->alias(fn($url, $component = -1) => parse_url($url, $component));
+        // Write through to the simulated options table so later writes in the
+        // same request (rename = save new entry, then delete old one) see the
+        // earlier ones, like real update_option() would.
+        Functions\when('update_option')->alias(function ($key, $value) {
+            $this->updates[] = [$key, $value];
+            $this->options[$key] = $value;
+            return true;
+        });
+        if ($success_path) {
+            Functions\when('remove_query_arg')->justReturn('/wp-admin/admin.php');
+            Functions\when('as_schedule_single_action')->justReturn(0);
+            // wp_safe_redirect() is followed by exit — throw to stop before it.
+            Functions\when('wp_safe_redirect')->alias(function () {
+                throw new RuntimeException('wp_safe_redirect called — stopping before exit');
+            });
+        }
+    }
+
+    private function seedExistingStore(): void
+    {
+        $this->options['wc_multi_store_sync_stores'] = [
+            'https://old-store.com' => [
+                'consumer_key'    => 'ck_existing_key_1234567890',
+                'consumer_secret' => 'cs_existing_secret_1234567890',
+                'status'          => 'active',
+                'added_date'      => '2026-01-01 00:00:00',
+            ],
+        ];
+    }
+
+    private function renamePost(string $store_url): void
+    {
+        $_POST = [
+            'original_store_url' => 'https://old-store.com',
+            'store_url'          => $store_url,
+            'consumer_key'       => 'ck_new_key_1234567890',
+            'consumer_secret'    => 'cs_new_secret_1234567890',
+            'status'             => 'active',
+            'wp_username'        => '',
+            'wp_app_password'    => '',
+            'cache_purge_url'    => '',
+            'cache_purge_method' => 'GET',
+        ];
+    }
+
+    public function test_rename_keeps_existing_store_when_new_url_is_rejected(): void
+    {
+        $this->storeFormEnv();
+        $this->seedExistingStore();
+        // Passes the handler's FILTER_VALIDATE_URL check but fails the HTTPS
+        // rule inside update_store()/validate_store_url().
+        $this->renamePost('http://insecure-store.com');
+
+        $this->call('handle_update_store');
+
+        $this->assertNull(
+            $this->updated('wc_multi_store_sync_stores'),
+            'A rejected URL must not trigger any store write — the old entry must survive untouched'
+        );
+        $errors = WC_Admin_Settings::get_errors();
+        $this->assertNotEmpty($errors);
+        $this->assertStringContainsString('HTTPS', $errors[0]);
+    }
+
+    public function test_rename_keeps_existing_store_when_the_save_write_fails(): void
+    {
+        $this->storeFormEnv();
+        $this->seedExistingStore();
+        $this->renamePost('https://new-store.com');
+        Functions\when('update_option')->alias(function ($key, $value) {
+            $this->updates[] = [$key, $value];
+            return false;
+        });
+
+        $this->call('handle_update_store');
+
+        foreach ($this->updates as [$key, $value]) {
+            if ($key === 'wc_multi_store_sync_stores') {
+                $this->assertArrayHasKey(
+                    'https://old-store.com',
+                    $value,
+                    'A failing save must never remove the existing store entry (rename is delete-after-save)'
+                );
+            }
+        }
+        $this->assertNotEmpty(WC_Admin_Settings::get_errors());
+    }
+
+    public function test_rename_saves_new_entry_and_only_then_removes_the_old_one(): void
+    {
+        $this->storeFormEnv(true);
+        $this->seedExistingStore();
+        $this->renamePost('https://new-store.com');
+
+        try {
+            $this->call('handle_update_store');
+        } catch (RuntimeException $e) {
+            // Expected — handle_update_store redirects after saving.
+        }
+
+        $stores = $this->updated('wc_multi_store_sync_stores');
+        $this->assertIsArray($stores);
+        $this->assertArrayHasKey('https://new-store.com', $stores);
+        $this->assertArrayNotHasKey('https://old-store.com', $stores);
+        $this->assertSame('ck_new_key_1234567890', $stores['https://new-store.com']['consumer_key']);
+        $this->assertSame(['Store updated successfully.'], WC_Admin_Settings::get_messages());
+    }
+
+    public function test_rename_that_only_normalizes_the_url_does_not_delete_the_saved_entry(): void
+    {
+        $this->storeFormEnv(true);
+        $this->seedExistingStore();
+        // Only a trailing slash changes: update_store() normalizes the key back
+        // to the original URL, so the "old" entry is the one just saved.
+        $this->renamePost('https://old-store.com/');
+
+        try {
+            $this->call('handle_update_store');
+        } catch (RuntimeException $e) {
+            // Expected — handle_update_store redirects after saving.
+        }
+
+        $stores = $this->updated('wc_multi_store_sync_stores');
+        $this->assertIsArray($stores);
+        $this->assertArrayHasKey(
+            'https://old-store.com',
+            $stores,
+            'A pure normalization (trailing slash) must not delete the saved entry'
+        );
+        $this->assertSame('ck_new_key_1234567890', $stores['https://old-store.com']['consumer_key']);
     }
 }

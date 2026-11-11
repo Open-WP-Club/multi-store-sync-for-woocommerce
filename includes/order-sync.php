@@ -28,6 +28,15 @@ class WC_Multi_Store_Order_Sync {
     const int DEBOUNCE_TIMEOUT = 30;
 
     /**
+     * Extra lifetime for the debounce transient, on top of the debounce delay.
+     *
+     * The transient must outlive the scheduled action: Action Scheduler runs
+     * at or after its scheduled time, so a TTL equal to the delay makes the
+     * handler read an already-expired transient and drop the payload silently.
+     */
+    const int DEBOUNCE_TTL_GRACE = 3600;
+
+    /**
      * Initialize order sync
      */
     public function __construct() {
@@ -181,8 +190,9 @@ class WC_Multi_Store_Order_Sync {
             ));
         }
 
-        // Store products in transient
-        set_transient($debounce_key, $product_ids, $debounce_timeout);
+        // Store products in transient (TTL outlives the scheduled action by
+        // DEBOUNCE_TTL_GRACE — see the constant's docblock).
+        set_transient($debounce_key, $product_ids, $debounce_timeout + self::DEBOUNCE_TTL_GRACE);
 
         // Use Action Scheduler for debouncing
         WC_Multi_Store_Action_Scheduler_Manager::schedule_debounced_order($order_id, $debounce_timeout);
@@ -198,6 +208,11 @@ class WC_Multi_Store_Order_Sync {
         $product_ids = get_transient($debounce_key);
 
         if ($product_ids === false || empty($product_ids)) {
+            // Should not happen with the TTL grace; never lose the signal silently.
+            WC_Multi_Store_Logger::write(sprintf(
+                'Order #%d: debounced payload missing or expired before processing — no products were queued.',
+                $order_id
+            ), 'warning');
             return;
         }
 

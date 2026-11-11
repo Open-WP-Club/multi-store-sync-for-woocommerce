@@ -673,6 +673,51 @@ class ConfigManagerImportHardeningTest extends WC_Multi_Store_TestCase
         $this->assertMatchesRegularExpression('/^wc-mss-config-\d{4}-\d{2}-\d{2}-\d{6}\.json$/', $out['success']['filename']);
     }
 
+    // ── profile export (the profiles table's Export button) ───────
+
+    public function test_ajax_export_with_profile_id_exports_the_profile_not_the_config(): void
+    {
+        $out = $this->captureAjax();
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('wp_json_encode')->alias(fn($data, $flags = 0) => json_encode($data, $flags));
+        $this->options['wc_mss_sync_profiles'] = [
+            'profile_aabbccdd' => [
+                'name' => 'Store B profile',
+                'description' => 'nightly quantity sync',
+                'stores' => ['https://secret.example.com' => ['consumer_key' => 'ck_LEAK']],
+                'sync_settings' => ['sync_type' => 'quantity'],
+            ],
+        ];
+        // A full config with live credentials exists too — a profile export
+        // must never fall back to (or mix in) the full-config payload.
+        $this->options['wc_multi_store_sync_stores'] = ['https://a.example.com' => $this->validStore(['consumer_key' => 'ck_AAA'])];
+        $_POST = ['profile_id' => 'profile_aabbccdd', 'include_keys' => '1'];
+
+        WC_Multi_Store_Config_Manager::ajax_export();
+
+        $this->assertNotNull($out['success']);
+        $this->assertNull($out['error']);
+        $this->assertSame('Store B profile', $out['success']['config']['name']);
+        $this->assertSame('quantity', $out['success']['config']['sync_settings']['sync_type']);
+        $this->assertArrayNotHasKey('stores', $out['success']['config'], 'profile export must strip store credentials');
+        $this->assertStringNotContainsString('ck_LEAK', json_encode($out['success']));
+        $this->assertStringNotContainsString('ck_AAA', json_encode($out['success']), 'the full config must not leak into a profile export');
+        $this->assertMatchesRegularExpression('/^wc-mss-profile-profile_aabbccdd-\d{4}-\d{2}-\d{2}-\d{6}\.json$/', $out['success']['filename']);
+    }
+
+    public function test_ajax_export_with_unknown_profile_id_reports_not_found(): void
+    {
+        $out = $this->captureAjax();
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('wp_json_encode')->alias(fn($data, $flags = 0) => json_encode($data, $flags));
+        $_POST = ['profile_id' => 'profile_missing'];
+
+        WC_Multi_Store_Config_Manager::ajax_export();
+
+        $this->assertNull($out['success']);
+        $this->assertSame('Profile not found.', $out['error']['message']);
+    }
+
     // ── regressions: atomic validation, per-field redaction, conformed sections ──
 
     public function test_export_redacts_the_application_password_but_keeps_the_username(): void

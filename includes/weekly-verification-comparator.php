@@ -75,7 +75,22 @@ class WC_Multi_Store_Weekly_Verification_Comparator {
         }
 
         $sku = $product->get_sku();
-        if (empty($sku)) {
+
+        // Fetched once (cached in-memory by WC_Multi_Store_Settings) and reused
+        // below instead of re-fetching once per store inside the loop — it's a
+        // constant for the whole verify_product() call, not per-store data.
+        $sync_settings = WC_Multi_Store_Settings::get_settings();
+
+        // Skip only products that lack the configured match identifier. In
+        // slug mode a product without SKU is matched by its slug like any
+        // other (get_remote_product() honors the same match_products_by), so
+        // it must not be silently excluded from the audit.
+        $match_by = (string) ($sync_settings['match_products_by'] ?? 'sku');
+        if ($match_by === 'slug') {
+            if ($product->get_slug() === '') {
+                return null; // No identifier to match the remote copies by.
+            }
+        } elseif (empty($sku)) {
             return null; // Skip products without SKU
         }
 
@@ -89,11 +104,6 @@ class WC_Multi_Store_Weekly_Verification_Comparator {
         $main_stock = $product->get_stock_quantity();
         $main_regular_price = $product->get_regular_price();
         $main_sale_price = $product->get_sale_price();
-
-        // Fetched once (cached in-memory by WC_Multi_Store_Settings) and reused
-        // below instead of re-fetching once per store inside the loop — it's a
-        // constant for the whole verify_product() call, not per-store data.
-        $sync_settings = WC_Multi_Store_Settings::get_settings();
 
         // Get local category identifiers for category verification
         // Uses the same matching method as the main sync (from main sync settings)

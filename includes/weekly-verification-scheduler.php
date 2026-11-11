@@ -28,6 +28,14 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
     const string ASYNC_PROGRESS_TRANSIENT = 'wc_mss_async_verification_progress';
 
     /**
+     * Option holding the product-ID list of the current async verification.
+     * Kept out of ASYNC_PROGRESS_TRANSIENT because that transient is fully
+     * re-serialized on every batch update — up to 50 000 IDs must not ride
+     * along in those per-batch writes. Written once at schedule time.
+     */
+    const string ASYNC_PRODUCTS_OPTION = 'wc_mss_async_verification_products';
+
+    /**
      * Action hook for batch processing
      */
     const string ASYNC_BATCH_HOOK = 'wc_mss_async_verification_batch';
@@ -51,39 +59,28 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             $settings['product_limit'] = $limit_override;
         }
 
-        // Check if verification is already running (prevent concurrent runs)
-        $lock_data = get_option(self::VERIFICATION_LOCK_OPTION, 0);
-        if (!$lock_data) {
-            // Honour a lock left by an older plugin version during deployment.
-            $lock_data = get_transient(self::VERIFICATION_LOCK);
-        }
-        if ($lock_data) {
-            // Check if it's a stale lock (running for more than 1 hour)
-            $lock_time = is_numeric($lock_data) ? (int) $lock_data : 0;
-            $time_running = $lock_time > 0 ? (time() - $lock_time) : HOUR_IN_SECONDS + 1;
-
-            if ($time_running > HOUR_IN_SECONDS) {
-                // Stale lock detected, clear it
-                WC_Multi_Store_Logger::write(sprintf(
-                    'Clearing stale verification lock (running for %d minutes)',
-                    round($time_running / 60)
-                ), 'warning');
-                self::release_verification_lock();
-            } else {
-                WC_Multi_Store_Logger::write('Verification already running, skipping', 'warning');
-                return ['error' => 'Verification already running'];
-            }
+        // A manual async verification may be mid-flight between batches without
+        // holding the sync lock; refuse so the two paths don't audit the catalog
+        // concurrently and clobber each other's report.
+        $async_progress = get_transient(self::ASYNC_PROGRESS_TRANSIENT);
+        if (
+            is_array($async_progress)
+            && ($async_progress['status'] ?? '') === 'running'
+            && (time() - (int) ($async_progress['last_activity'] ?? 0)) < 30 * MINUTE_IN_SECONDS
+        ) {
+            WC_Multi_Store_Logger::write('Async verification already running, skipping', 'warning');
+            return ['error' => 'Verification already running'];
         }
 
-        // add_option() is a single INSERT against a unique key, so only one of
-        // two concurrent requests can acquire the lock.
-        $lock_time = time();
-        if (!add_option(self::VERIFICATION_LOCK_OPTION, $lock_time, '', false)) {
+        // Take the shared lock (atomically handles stale lock recovery)
+        if (!self::acquire_verification_lock()) {
             WC_Multi_Store_Logger::write('Verification already running, skipping', 'warning');
             return ['error' => 'Verification already running'];
         }
-        set_transient(self::VERIFICATION_LOCK, $lock_time, 2 * HOUR_IN_SECONDS);
 
+        // Everything below runs under the lock; the finally guarantees release
+        // even if a product lookup or remote call throws mid-run.
+        try {
         $start_time = microtime(true);
 
         WC_Multi_Store_Logger::write('Starting weekly sync verification audit');
@@ -99,7 +96,6 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         if (empty($active_stores)) {
             WC_Multi_Store_Logger::write('No active stores found for verification', 'warning');
-            self::release_verification_lock();
             return ['error' => 'No active stores'];
         }
 
@@ -108,7 +104,6 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         if (empty($products)) {
             WC_Multi_Store_Logger::write('No products found for verification');
-            self::release_verification_lock();
             return ['error' => 'No products to verify'];
         }
 
@@ -191,9 +186,6 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         // Clear API client pool to free memory
         WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::clear_api_client_pool();
 
-        // Clear verification lock
-        self::release_verification_lock();
-
         // Store report in database
         WC_Multi_Store_Weekly_Verification_Report_Repository::save_report($report);
 
@@ -215,12 +207,70 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         }
 
         return $report;
+        } finally {
+            self::release_verification_lock();
+        }
     }
 
     /** Release both the atomic lock and its backwards-compatible transient. */
     private static function release_verification_lock(): void {
         delete_option(self::VERIFICATION_LOCK_OPTION);
         delete_transient(self::VERIFICATION_LOCK);
+    }
+
+    /**
+     * Whether a fresh sync/async run currently holds the shared lock.
+     * A stale lock (> 1 hour, e.g. after a crash) reads as not held so a new
+     * run can reclaim it.
+     */
+    private static function is_verification_lock_held(): bool {
+        $lock_data = get_option(self::VERIFICATION_LOCK_OPTION, 0);
+        if (!$lock_data) {
+            $lock_data = get_transient(self::VERIFICATION_LOCK);
+        }
+        if (!$lock_data) {
+            return false;
+        }
+        $lock_time = is_numeric($lock_data) ? (int) $lock_data : 0;
+        $time_running = $lock_time > 0 ? (time() - $lock_time) : HOUR_IN_SECONDS + 1;
+        return $time_running <= HOUR_IN_SECONDS;
+    }
+
+    /**
+     * Atomically take the shared lock (the same one run_verification() takes).
+     * add_option() is a single INSERT against a unique key, so only one of two
+     * concurrent requests can win. If a stale lock (> 1 hour) exists, it is
+     * atomically reclaimed. Returns false when another run holds an active lock.
+     */
+    private static function acquire_verification_lock(): bool {
+        $now = time();
+
+        $lock_data = get_option(self::VERIFICATION_LOCK_OPTION, 0);
+        if (!$lock_data) {
+            $lock_data = get_transient(self::VERIFICATION_LOCK);
+        }
+
+        if ($lock_data) {
+            $lock_time = is_numeric($lock_data) ? (int) $lock_data : 0;
+            $time_running = $lock_time > 0 ? ($now - $lock_time) : HOUR_IN_SECONDS + 1;
+
+            if ($time_running > HOUR_IN_SECONDS) {
+                WC_Multi_Store_Logger::write(sprintf(
+                    'Clearing stale verification lock (running for %d minutes)',
+                    round($time_running / 60)
+                ), 'warning');
+                self::release_verification_lock();
+            } else {
+                return false;
+            }
+        }
+
+        if (!add_option(self::VERIFICATION_LOCK_OPTION, $now, '', false)) {
+            return false;
+        }
+
+        set_transient(self::VERIFICATION_LOCK, $now, 2 * HOUR_IN_SECONDS);
+        return true;
     }
 
     /**
@@ -381,7 +431,8 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         WC_Multi_Store_Logger::write(sprintf(
             'Weekly verification scheduled for %s',
-            date('Y-m-d H:i:s', $next_run)
+            // wp_date() renders in the site timezone; date() would print UTC.
+            wp_date('Y-m-d H:i:s', $next_run)
         ));
     }
 
@@ -408,7 +459,10 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         $time_of_day = $settings['time_of_day'] ?? '02:00';
         [$hour, $minute] = array_map('intval', explode(':', $time_of_day));
 
-        $now = new DateTimeImmutable('now');
+        // current_datetime() is a DateTimeImmutable in the site timezone;
+        // plain 'now' would be UTC (WordPress pins PHP's default timezone),
+        // firing the run at the wrong instant for non-UTC sites.
+        $now = current_datetime();
         $days_until_target = ($day_of_week - (int) $now->format('w') + 7) % 7;
 
         $next_occurrence = $now->modify("+{$days_until_target} days")->setTime($hour, $minute, 0);
@@ -456,33 +510,51 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         // Check if verification is already running
         $progress = self::get_verification_progress();
-        if ($progress && $progress['status'] === 'running') {
+        if ($progress && ($progress['status'] ?? '') === 'running') {
             // Check if it's stale (no activity for more than 30 minutes)
             // Use last_activity if available (more accurate), otherwise fall back to started_at
             $last_activity = $progress['last_activity'] ?? strtotime($progress['started_at'] ?? 'now');
             $time_since_activity = time() - $last_activity;
             $max_stale_time = 30 * MINUTE_IN_SECONDS;
 
-            if ($time_since_activity > $max_stale_time) {
-                // Stale verification detected, clear it
-                WC_Multi_Store_Logger::write(sprintf(
-                    'Clearing stale async verification (no activity for %d minutes, processed %d/%d products)',
-                    round($time_since_activity / 60),
-                    $progress['processed_products'] ?? 0,
-                    $progress['total_products'] ?? 0
-                ), 'warning');
-                delete_transient(self::ASYNC_PROGRESS_TRANSIENT);
-
-                // Also cancel any pending batch actions
-                if (function_exists('as_unschedule_all_actions')) {
-                    as_unschedule_all_actions(self::ASYNC_BATCH_HOOK, null, 'wc_multi_store_sync');
-                }
-            } else {
+            if ($time_since_activity <= $max_stale_time) {
+                // A fresh async run is still working — refuse.
                 WC_Multi_Store_Logger::write('Verification already running, aborting');
                 return [
                     'success' => false,
                     'message' => __('Verification is already running.', 'multi-store-sync-for-woocommerce'),
                 ];
+            }
+        }
+
+        // A shared lock held by a live sync or async run blocks a new async run too.
+        // Refuse BEFORE reclaiming any stale progress below: that "stale" run may
+        // belong to the lock holder (each batch refreshes the lock), and clearing it
+        // would yank the state out from under a run that is still going.
+        if (self::is_verification_lock_held()) {
+            WC_Multi_Store_Logger::write('Verification already running, aborting');
+            return [
+                'success' => false,
+                'message' => __('Verification is already running.', 'multi-store-sync-for-woocommerce'),
+            ];
+        }
+
+        // Nothing holds the lock now, so any leftover async progress is genuinely
+        // dead and safe to reclaim.
+        if ($progress && ($progress['status'] ?? '') === 'running') {
+            // Stale verification detected, clear it
+            $last_activity = $progress['last_activity'] ?? strtotime($progress['started_at'] ?? 'now');
+            WC_Multi_Store_Logger::write(sprintf(
+                'Clearing stale async verification (no activity for %d minutes, processed %d/%d products)',
+                round((time() - $last_activity) / 60),
+                $progress['processed_products'] ?? 0,
+                $progress['total_products'] ?? 0
+            ), 'warning');
+            delete_transient(self::ASYNC_PROGRESS_TRANSIENT);
+
+            // Also cancel any pending batch actions
+            if (function_exists('as_unschedule_all_actions')) {
+                as_unschedule_all_actions(self::ASYNC_BATCH_HOOK, null, 'wc_multi_store_sync');
             }
         }
 
@@ -523,6 +595,16 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
 
         WC_Multi_Store_Logger::write(sprintf('Found %d products for verification', count($products)));
 
+        // Take the shared lock so run_verification() and this async run can never
+        // audit the catalog at the same time. Atomic: only one caller wins.
+        if (!self::acquire_verification_lock()) {
+            WC_Multi_Store_Logger::write('Verification already running, aborting');
+            return [
+                'success' => false,
+                'message' => __('Verification is already running.', 'multi-store-sync-for-woocommerce'),
+            ];
+        }
+
         // Get batch size at start time (stays consistent throughout verification)
         $batch_size = self::get_async_batch_size();
 
@@ -545,31 +627,41 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             'field_mismatches' => 0,
             'stores_checked' => count($active_stores),
             'details' => [],
-            'product_ids' => $products,
         ];
 
-        set_transient(self::ASYNC_PROGRESS_TRANSIENT, $progress_data, HOUR_IN_SECONDS);
+        try {
+            // The product IDs live in their own option (written once) so the
+            // per-batch progress updates below stay small.
+            update_option(self::ASYNC_PRODUCTS_OPTION, $products, false);
 
-        WC_Multi_Store_Logger::write(sprintf(
-            'Async verification scheduled: %d products in %d batches (batch size: %d)',
-            count($products),
-            $progress_data['total_batches'],
-            $batch_size
-        ));
+            set_transient(self::ASYNC_PROGRESS_TRANSIENT, $progress_data, HOUR_IN_SECONDS);
 
-        // Schedule first batch immediately
-        // Use positional array for Action Scheduler compatibility
-        $action_id = as_schedule_single_action(
-            time(),
-            self::ASYNC_BATCH_HOOK,
-            [0], // batch number as positional argument
-            'wc_multi_store_sync'
-        );
+            WC_Multi_Store_Logger::write(sprintf(
+                'Async verification scheduled: %d products in %d batches (batch size: %d)',
+                count($products),
+                $progress_data['total_batches'],
+                $batch_size
+            ));
 
-        WC_Multi_Store_Logger::write(sprintf(
-            'Scheduled async verification batch action (ID: %s)',
-            $action_id ?: 'unknown'
-        ));
+            // Schedule first batch immediately
+            // Use positional array for Action Scheduler compatibility
+            $action_id = as_schedule_single_action(
+                time(),
+                self::ASYNC_BATCH_HOOK,
+                [0], // batch number as positional argument
+                'wc_multi_store_sync'
+            );
+
+            WC_Multi_Store_Logger::write(sprintf(
+                'Scheduled async verification batch action (ID: %s)',
+                $action_id ?: 'unknown'
+            ));
+        } catch (\Throwable $e) {
+            self::release_verification_lock();
+            delete_option(self::ASYNC_PRODUCTS_OPTION);
+            delete_transient(self::ASYNC_PROGRESS_TRANSIENT);
+            throw $e;
+        }
 
         return [
             'success' => true,
@@ -603,6 +695,12 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             return;
         }
 
+        // Refresh the shared lock so its 1-hour staleness recovery cannot steal a
+        // live multi-batch run while the batches are still working.
+        if (get_option(self::VERIFICATION_LOCK_OPTION) !== false) {
+            update_option(self::VERIFICATION_LOCK_OPTION, time(), false);
+        }
+
         $settings = self::get_settings();
 
         // Use cached active stores
@@ -611,7 +709,15 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         // Get products for this batch (use stored batch size for consistency)
         $batch_size = (int) ($progress['batch_size'] ?? self::get_async_batch_size());
         $offset = $batch_number * $batch_size;
-        $batch_products = array_slice($progress['product_ids'], $offset, $batch_size);
+        // Current runs keep the IDs in their own option (written once at
+        // schedule time); fall back to the progress payload so a run that was
+        // scheduled by an older plugin version still completes.
+        $product_ids = get_option(self::ASYNC_PRODUCTS_OPTION, []);
+        if (empty($product_ids) && !empty($progress['product_ids'])) {
+            $product_ids = $progress['product_ids'];
+            update_option(self::ASYNC_PRODUCTS_OPTION, $product_ids, false);
+        }
+        $batch_products = array_slice((array) $product_ids, $offset, $batch_size);
 
         if (empty($batch_products)) {
             // No more products, finalize
@@ -645,6 +751,10 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         $progress['current_batch'] = $batch_number + 1;
         $progress['last_activity'] = time(); // Update activity timestamp
 
+        // Legacy runs carry the product-ID list in the progress payload — it
+        // must never be written back (per-batch updates stay small).
+        unset($progress['product_ids']);
+
         // Save progress with extended expiry
         set_transient(self::ASYNC_PROGRESS_TRANSIENT, $progress, 2 * HOUR_IN_SECONDS);
 
@@ -659,6 +769,50 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             );
         } else {
             // All batches done, finalize
+            self::finalize_async_verification();
+        }
+    }
+
+    /**
+     * Continue an async verification after one batch threw an exception.
+     * Advances to the next batch (or finalizes on the last one) instead of
+     * abandoning the remaining batches — one poisoned batch must not cancel
+     * a whole multi-batch run. The failed batch's products stay unverified.
+     *
+     * @param int $batch_number Batch number (0-indexed) that failed
+     */
+    public static function continue_after_failed_batch(int $batch_number): void {
+        $progress = get_transient(self::ASYNC_PROGRESS_TRANSIENT);
+
+        if (!$progress || ($progress['status'] ?? '') !== 'running') {
+            return;
+        }
+
+        $progress['current_batch'] = $batch_number + 1;
+        $progress['last_activity'] = time();
+        $progress['failed_batches'] = array_values(array_unique([
+            ...($progress['failed_batches'] ?? []),
+            $batch_number,
+        ]));
+        if (!empty($progress['product_ids'])) {
+            $existing_ids = get_option(self::ASYNC_PRODUCTS_OPTION, []);
+            if (empty($existing_ids)) {
+                update_option(self::ASYNC_PRODUCTS_OPTION, $progress['product_ids'], false);
+            }
+        }
+        unset($progress['product_ids']); // Never rewrite the product-ID list (see process_verification_batch).
+        set_transient(self::ASYNC_PROGRESS_TRANSIENT, $progress, 2 * HOUR_IN_SECONDS);
+
+        $next_batch = $batch_number + 1;
+        if ($next_batch < (int) ($progress['total_batches'] ?? 0)) {
+            as_schedule_single_action(
+                time(),
+                self::ASYNC_BATCH_HOOK,
+                [$next_batch], // batch number as positional argument
+                'wc_multi_store_sync'
+            );
+        } else {
+            // The failed batch was the last one — still produce the report.
             self::finalize_async_verification();
         }
     }
@@ -698,7 +852,11 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
             'category_mismatches' => $progress['category_mismatches'] ?? 0,
             'field_mismatches' => $progress['field_mismatches'] ?? 0,
             'details' => [...$progress['details'], ...$ghost_details],
-            'status' => 'completed',
+            'status' => empty($progress['failed_batches']) ? 'completed' : 'partial',
+            // Batch numbers (0-indexed) whose products stayed unverified; persisted
+            // with the report (report_data) so the reports screen and the email can
+            // say how much of the catalog a 'partial' run actually covered.
+            'failed_batches' => array_values(array_map('intval', (array) ($progress['failed_batches'] ?? []))),
         ];
 
         // Calculate duration
@@ -713,20 +871,32 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         WC_Multi_Store_Weekly_Verification_Report_Repository::save_report($report);
 
         WC_Multi_Store_Logger::write(sprintf(
-            'Async verification completed: %d products checked, %d discrepancies found in %d seconds',
+            'Async verification %s: %d products checked, %d discrepancies found in %d seconds%s',
+            $report['status'],
             $report['products_checked'],
             $report['discrepancies_found'],
-            $report['duration_seconds']
-        ));
+            $report['duration_seconds'],
+            $report['failed_batches'] === [] ? '' : sprintf(' (%d batch(es) failed: %s)', count($report['failed_batches']), implode(', ', $report['failed_batches']))
+        ), $report['status'] === 'partial' ? 'warning' : 'info');
 
         // Send email notification if enabled
         if ($settings['email_enabled'] && $report['discrepancies_found'] > 0) {
             WC_Multi_Store_Weekly_Verification_Email_Notifier::send_email_notification($report);
         }
 
-        // Auto-correct if enabled
+        // Auto-correct if enabled. A partial run (batches that threw) is not a
+        // trustworthy picture of the catalog — the failure usually means the
+        // remote data was unreliable during the run — so automatic re-syncs wait
+        // for a complete run; the discrepancies are still in the report and email.
         if ($settings['auto_correct'] && $report['discrepancies_found'] > 0) {
-            self::auto_correct_discrepancies($report);
+            if ($report['status'] === 'partial') {
+                WC_Multi_Store_Logger::write(
+                    'Auto-correct skipped: the verification run was partial; corrections wait for a complete run',
+                    'warning'
+                );
+            } else {
+                self::auto_correct_discrepancies($report);
+            }
         }
 
         // Note: We no longer clear term cache here as it causes "No cache yet" in System Health UI
@@ -734,8 +904,10 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         // during normal sync operations before the next maintenance run
 
         // Update progress to completed
-        $progress['status'] = 'completed';
+        $progress['status'] = $report['status'];
         $progress['completed_at'] = $report['completed_at'];
+        delete_option(self::ASYNC_PRODUCTS_OPTION);
+        self::release_verification_lock();
         set_transient(self::ASYNC_PROGRESS_TRANSIENT, $progress, 5 * MINUTE_IN_SECONDS);
     }
 
@@ -769,6 +941,8 @@ class WC_Multi_Store_Weekly_Verification_Scheduler {
         // Update progress to cancelled
         $progress['status'] = 'cancelled';
         $progress['cancelled_at'] = current_time('mysql');
+        delete_option(self::ASYNC_PRODUCTS_OPTION);
+        self::release_verification_lock();
         set_transient(self::ASYNC_PROGRESS_TRANSIENT, $progress, 5 * MINUTE_IN_SECONDS);
 
         WC_Multi_Store_Logger::write('Async verification cancelled by user');

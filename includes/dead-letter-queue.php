@@ -88,6 +88,45 @@ class WC_Multi_Store_Dead_Letter_Queue {
         $product_id = (int) ($queue_item['product_id'] ?? 0);
         $store_url  = $queue_item['store_url'] ?? '';
         $sync_type  = $queue_item['sync_type'] ?? 'unknown';
+        $original_id = (int) ($queue_item['id'] ?? 0);
+
+        // The queue→DLQ move is two statements (this insert, then the queue row's
+        // status update) and the same row can be parked twice — by mark_failed()
+        // and by reset_stuck_items() racing a worker, or by a retry after the
+        // update failed. Keep one open dead entry per queue row: refresh it
+        // instead of inserting a duplicate the dead-letter screen would list twice.
+        if ($original_id > 0) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Dead-letter state uses a custom table; retry and resolution checks require current queue state. Table name is the trusted WordPress prefix plus a fixed plugin suffix; the queue id is bound by prepare().
+            $existing_id = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$table_name} WHERE original_queue_id = %d AND status = 'dead' ORDER BY id DESC LIMIT 1",
+                $original_id
+            ));
+
+            if ($existing_id > 0) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
+                $wpdb->update(
+                    $table_name,
+                    [
+                        'attempts' => (int) ($queue_item['attempts'] ?? 0),
+                        'last_error' => $queue_item['last_error'] ?? null,
+                        'failed_at' => current_time('mysql'),
+                    ],
+                    ['id' => $existing_id],
+                    ['%d', '%s', '%s'],
+                    ['%d']
+                );
+
+                WC_Multi_Store_Logger::write(sprintf(
+                    'Dead letter queue: Refreshed existing entry %d for queue item %d (product %d, store %s) instead of adding a duplicate',
+                    $existing_id,
+                    $original_id,
+                    $product_id,
+                    $store_url
+                ));
+
+                return $existing_id;
+            }
+        }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Dead-letter state uses a custom table; retry and resolution checks require current queue state.
         $result = $wpdb->insert(
@@ -101,7 +140,7 @@ class WC_Multi_Store_Dead_Letter_Queue {
                 'attempts' => (int) ($queue_item['attempts'] ?? 0),
                 'last_error' => $queue_item['last_error'] ?? null,
                 'extra_data' => $queue_item['extra_data'] ?? null,
-                'original_queue_id' => (int) ($queue_item['id'] ?? 0),
+                'original_queue_id' => $original_id,
                 'first_failed_at' => $queue_item['started_at'] ?? current_time('mysql'),
                 'failed_at' => current_time('mysql'),
                 'status' => 'dead',

@@ -11,6 +11,7 @@ class AdminResultsRenderingTest extends WC_Multi_Store_TestCase {
         Functions\when('esc_url')->alias(static fn($value) => htmlspecialchars((string) $value, ENT_QUOTES));
         Functions\when('admin_url')->alias(static fn($path) => 'https://primary.test/wp-admin/' . $path);
         Functions\when('absint')->alias(static fn($value) => abs((int) $value));
+        Functions\when('wp_nonce_field')->justReturn(null);
     }
 
     /** Include the real view and render through its registered column callback. */
@@ -71,5 +72,81 @@ class AdminResultsRenderingTest extends WC_Multi_Store_TestCase {
         $this->assertStringContainsString('&lt;svg onload=alert(1)&gt;', $html);
         $this->assertStringNotContainsString('<script>', $html);
         $this->assertStringNotContainsString('<svg', $html);
+    }
+
+    /** Render one deletion-audit row from a DB-shaped log row (JSON columns intact). */
+    private function renderDeletionAuditRow(array $row): string {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(static fn($sql) => $sql);
+        $wpdb->shouldReceive('get_results')->andReturn([$row]);
+        $wpdb->shouldReceive('get_var')->andReturn(1);
+
+        Functions\when('sanitize_sql_orderby')->alias(static fn($orderby) => preg_match('/^[a-z_]+ (ASC|DESC)$/i', $orderby) ? $orderby : '');
+        Functions\when('selected')->alias(static function ($selected, $current = true, $echo = true) {
+            $result = ((string) $selected === (string) $current) ? " selected='selected'" : '';
+            if ($echo) {
+                echo $result;
+            }
+            return $result;
+        });
+        Functions\when('mysql2date')->alias(static fn($format, $date) => (string) $date);
+        Functions\when('_n')->alias(static fn($single, $plural, $number) => ((int) $number === 1) ? $single : $plural);
+
+        $_GET = [];
+        $_REQUEST = [];
+        ob_start();
+        try {
+            include WC_MSS_PLUGIN_DIR . 'admin/views/deletion-audit.php';
+            ob_clean();
+            $list_table->single_row($list_table->items[0]);
+            return ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+    }
+
+    private function deletionAuditRow(string $storesAffectedJson): array {
+        return [
+            'id' => 5,
+            'product_id' => 100,
+            'product_sku' => 'SKU-1',
+            'product_name' => 'Widget',
+            'user_id' => 1,
+            'user_name' => 'admin',
+            'deletion_type' => 'manual',
+            'status' => 'completed',
+            'deleted_at' => '2026-01-01 12:00:00',
+            'completed_at' => '2026-01-01 12:00:01',
+            'stores_affected' => $storesAffectedJson,
+            'error_message' => '',
+            'product_data_before' => 'null',
+            'product_data_after' => 'null',
+        ];
+    }
+
+    public function test_deletion_audit_renders_store_urls_from_the_indexed_list(): void {
+        // log_deletion() stores an indexed list of store URLs (hooks.php passes
+        // array_keys($stores_to_delete_from)); the details pane must render
+        // those URLs — iterating the list as a map used to print "0", "1", …
+        // instead of the stores.
+        $html = $this->renderDeletionAuditRow(
+            $this->deletionAuditRow(json_encode(['https://a.example.com', 'https://b.example.com']))
+        );
+
+        $this->assertStringContainsString('<strong>https://a.example.com</strong>', $html);
+        $this->assertStringContainsString('<strong>https://b.example.com</strong>', $html);
+        $this->assertStringNotContainsString('<strong>0</strong>', $html);
+        $this->assertStringNotContainsString('<strong>1</strong>', $html);
+    }
+
+    public function test_deletion_audit_renders_the_map_shape_with_store_names(): void {
+        $html = $this->renderDeletionAuditRow(
+            $this->deletionAuditRow(json_encode(['https://a.example.com' => ['name' => 'Main Shop']]))
+        );
+
+        $this->assertStringContainsString('<strong>Main Shop</strong>', $html);
+        $this->assertStringContainsString('<small>https://a.example.com</small>', $html);
     }
 }

@@ -131,10 +131,13 @@ class WC_Multi_Store_API_Client {
     /**
      * Sanitize error message to remove potential sensitive data like API keys
      *
+     * Public and static so every layer that persists or forwards error text
+     * (queue table, sync history, notifications) can redact secrets too.
+     *
      * @param string $message Error message
      * @return string Sanitized message
      */
-    private function sanitize_error_message(string $message): string {
+    public static function sanitize_error_message(string $message): string {
         // Redact anything that looks like an API key (16+ alphanumeric characters)
         $message = preg_replace('/\b[a-zA-Z0-9_]{16,}\b/', '[REDACTED]', $message);
 
@@ -146,6 +149,23 @@ class WC_Multi_Store_API_Client {
         $message = preg_replace('/Basic\s+[A-Za-z0-9+\/=]+/', 'Basic [REDACTED]', $message);
 
         return $message;
+    }
+
+    /**
+     * Return a copy of a WP_Error with its message redacted. Transport errors
+     * (cURL timeouts etc.) embed the full request URL, which carries the
+     * consumer key and secret when auth_method is query_string — those must
+     * never leave the client.
+     *
+     * @param WP_Error $error Error to redact
+     * @return WP_Error Copy with a sanitized message, same code and data
+     */
+    private function redact_error(WP_Error $error): WP_Error {
+        return new WP_Error(
+            $error->get_error_code(),
+            self::sanitize_error_message($error->get_error_message()),
+            $error->get_error_data()
+        );
     }
 
     /**
@@ -212,7 +232,7 @@ class WC_Multi_Store_API_Client {
 
         if (is_wp_error($response)) {
             $result['success'] = false;
-            $result['error_message'] = $this->sanitize_error_message($response->get_error_message());
+            $result['error_message'] = self::sanitize_error_message($response->get_error_message());
             $error_data = $response->get_error_data();
             if (is_array($error_data) && isset($error_data['status'])) {
                 $result['status_code'] = $error_data['status'];
@@ -522,7 +542,7 @@ class WC_Multi_Store_API_Client {
      */
     private function process_response(array|\WP_Error $response): array|\WP_Error {
         if (is_wp_error($response)) {
-            return $response;
+            return $this->redact_error($response);
         }
 
         $code = wp_remote_retrieve_response_code($response);
@@ -547,7 +567,9 @@ class WC_Multi_Store_API_Client {
 
             return new WP_Error(
                 $error_code,
-                $message,
+                // The message can come from the remote response body and
+                // reflect the request URL — redact before returning it.
+                self::sanitize_error_message($message),
                 [
                     'status' => $code,
                     'data' => $data,
@@ -685,7 +707,7 @@ class WC_Multi_Store_API_Client {
             // Check if error is retryable
             if (!$this->is_transient_error($response)) {
                 // Permanent error - don't retry
-                return $response;
+                return $this->redact_error($response);
             }
 
             // Last attempt - return error
@@ -698,7 +720,7 @@ class WC_Multi_Store_API_Client {
                 $error_data['retry_attempts'] = $attempt;
                 return new WP_Error(
                     $response->get_error_code(),
-                    $response->get_error_message() . ' (after ' . $attempt . ' attempts)',
+                    self::sanitize_error_message($response->get_error_message()) . ' (after ' . $attempt . ' attempts)',
                     $error_data
                 );
             }
@@ -716,7 +738,7 @@ class WC_Multi_Store_API_Client {
                 $attempt,
                 $this->max_retries,
                 $total_delay,
-                $this->sanitize_error_message($response->get_error_message())
+                self::sanitize_error_message($response->get_error_message())
             ), 'warning');
 
             // Sleep before retry
@@ -1190,7 +1212,7 @@ class WC_Multi_Store_API_Client {
 
             if (is_wp_error($raw_response)) {
                 $this->track_request($endpoint, 'GET', $start_time, $raw_response);
-                return $raw_response;
+                return $this->redact_error($raw_response);
             }
 
             $code = wp_remote_retrieve_response_code($raw_response);

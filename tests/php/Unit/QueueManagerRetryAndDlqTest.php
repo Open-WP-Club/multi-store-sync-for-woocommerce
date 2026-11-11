@@ -197,6 +197,15 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
         $db->shouldReceive('get_results')->andReturnUsing(function (string $sql) {
             $this->log[] = $sql;
+            if (str_contains($sql, 'attempts + 1 >= 3') && str_contains($sql, "status = 'processing'")) {
+                // reset_stuck_items()'s pre-read of rows about to be parked as failed.
+                preg_match("/started_at < '([^']+)'/", $sql, $m);
+                return array_values(array_filter($this->rows, static fn(array $r): bool =>
+                    $r['status'] === 'processing'
+                    && $r['started_at'] !== null
+                    && $r['started_at'] < $m[1]
+                    && $r['attempts'] + 1 >= 3));
+            }
             if (!str_contains($sql, 'ORDER BY priority ASC, store_url ASC, created_at ASC')) {
                 return [];
             }
@@ -209,6 +218,10 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
                 $r['status'] === 'pending'
                 && ($r['scheduled_at'] === null || $r['scheduled_at'] <= $now[1])
                 && (int) $r['attempts'] < 3);
+            if (preg_match('/store_url NOT IN \(([^)]+)\)/', $sql, $not_in)) {
+                $excluded = array_map(fn($s) => trim($s, "' "), explode(',', $not_in[1]));
+                $due = array_filter($due, fn(array $r): bool => !in_array($r['store_url'], $excluded, true));
+            }
             uasort($due, static fn(array $a, array $b): int =>
                 [$a['priority'], $a['store_url'], $a['id']] <=> [$b['priority'], $b['store_url'], $b['id']]);
             return array_slice(array_values($due), 0, max(0, (int) $lim[1]));
@@ -535,13 +548,14 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
     public function test_item_that_keeps_crashing_the_worker_is_parked_as_failed_after_three_resets(): void
     {
-        // Each run: the worker claims the row and dies (simulated by leaving it processing and old).
+        // Each recovery cycle: a worker claims the row and dies before finishing,
+        // leaving it 'processing' and old. Crash recovery runs under the processor
+        // lock, so each cycle is driven the way the lock holder resets it.
         $this->seed(1, ['status' => 'processing', 'started_at' => date('Y-m-d H:i:s', time() - 3600), 'attempts' => 0]);
         $this->engine->shouldNotReceive('sync_product_to_store');
-        $this->lockResult = 0; // another runner holds the lock; only the stuck reset runs
 
         for ($i = 1; $i <= 3; $i++) {
-            WC_MSS()->queue_manager->process_queue(10);
+            WC_Multi_Store_Queue_Table::reset_stuck_items(5);
             $this->assertSame($i, $this->rows[1]['attempts']);
             if ($i < 3) {
                 $this->assertSame('pending', $this->rows[1]['status']);
@@ -552,8 +566,12 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
         $this->assertSame('failed', $this->rows[1]['status'], 'Third strike must stop the crash loop.');
         $this->assertNotNull($this->rows[1]['completed_at'], 'Parked rows need completed_at so cleanup() can purge them.');
-        $this->lockResult = 1;
         $this->assertSame('empty', WC_MSS()->queue_manager->process_queue(10)['status']);
+
+        $this->assertCount(1, $this->dlq, 'The third-strike park must also copy the item to the dead-letter queue.');
+        $this->assertSame(1, $this->dlq[0]['original_queue_id']);
+        $this->assertSame(3, $this->dlq[0]['attempts']);
+        $this->assertSame('dead', $this->dlq[0]['status']);
     }
 
     public function test_recently_started_processing_row_is_not_stolen_or_double_processed(): void
@@ -613,15 +631,18 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
         ))[0]);
     }
 
-    public function test_stuck_rows_are_reset_even_when_lock_is_held_by_someone_else(): void
+    public function test_stuck_rows_are_left_for_the_lock_holder_while_lock_is_held_elsewhere(): void
     {
+        // The lock holder may still be working on this row; resetting it from
+        // outside would let Queue_Table::add() merge new requests into it, and
+        // the holder would then complete the row without ever syncing them.
         $this->seed(1, ['status' => 'processing', 'started_at' => date('Y-m-d H:i:s', time() - 3600)]);
         $this->lockResult = 0;
 
         WC_MSS()->queue_manager->process_queue(10);
 
-        $this->assertSame('pending', $this->rows[1]['status']);
-        $this->assertSame(1, $this->rows[1]['attempts']);
+        $this->assertSame('processing', $this->rows[1]['status']);
+        $this->assertSame(0, $this->rows[1]['attempts']);
     }
 
     public function test_empty_queue_returns_empty_and_still_releases_lock(): void
@@ -964,7 +985,7 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('inactiveStatuses')]
-    public function test_item_for_non_active_store_is_failed_without_retry_and_dead_lettered(string $status): void
+    public function test_item_for_non_active_store_is_skipped_and_stays_pending(string $status): void
     {
         $this->stores['https://store1.com']['status'] = $status;
         $this->seed(1);
@@ -972,11 +993,11 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
         $result = WC_MSS()->queue_manager->process_queue(10);
 
-        $this->assertSame(1, $result['errors']);
-        $this->assertSame('failed', $this->rows[1]['status'], 'No retry: the store will not become active by waiting.');
-        $this->assertSame('Store is not active', $this->rows[1]['last_error']);
-        $this->assertSame(1, $this->rows[1]['attempts']);
-        $this->assertCount(1, $this->dlq);
+        $this->assertSame(0, $result['errors'] ?? 0);
+        $this->assertSame('pending', $this->rows[1]['status'], 'A maintenance window must not dead-letter the store backlog.');
+        $this->assertNull($this->rows[1]['last_error']);
+        $this->assertSame(0, $this->rows[1]['attempts'], 'Skipping must not burn retry budget.');
+        $this->assertCount(0, $this->dlq);
     }
 
     public function test_store_without_status_key_is_treated_as_inactive(): void
@@ -987,7 +1008,24 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
 
         WC_MSS()->queue_manager->process_queue(10);
 
-        $this->assertSame('Store is not active', $this->rows[1]['last_error']);
+        $this->assertSame('pending', $this->rows[1]['status']);
+        $this->assertCount(0, $this->dlq);
+    }
+
+    public function test_items_skipped_for_inactive_store_resume_when_store_is_reactivated(): void
+    {
+        $this->stores['https://store1.com']['status'] = 'inactive';
+        $this->seed(1);
+        $this->engine->shouldReceive('sync_product_to_store')->once()->andReturn(['success' => true]);
+
+        WC_MSS()->queue_manager->process_queue(10);
+        $this->assertSame('pending', $this->rows[1]['status']);
+
+        $this->stores['https://store1.com']['status'] = 'active';
+        $result = WC_MSS()->queue_manager->process_queue(10);
+
+        $this->assertSame(1, $result['processed']);
+        $this->assertSame('completed', $this->rows[1]['status'], 'The backlog must flush once the store is active again.');
     }
 
     public function test_inactive_store_does_not_block_active_store_items_in_same_batch(): void
@@ -1002,9 +1040,10 @@ class QueueManagerRetryAndDlqTest extends WC_Multi_Store_TestCase
             $events[$e['item_id']] = [$e['status'], $e['message']];
         });
 
-        $this->assertSame(['error', 'Store is not active'], $events[1]);
+        $this->assertArrayNotHasKey(1, $events, 'Inactive store items are excluded at the query level and not fetched.');
+        $this->assertSame('pending', $this->rows[1]['status']);
         $this->assertSame(['success', ''], $events[2]);
-        $this->assertSame(2, $result['processed']);
+        $this->assertSame(1, $result['processed']);
         $this->assertSame('completed', $this->rows[2]['status']);
     }
 

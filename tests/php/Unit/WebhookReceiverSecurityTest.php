@@ -277,7 +277,7 @@ class WebhookReceiverSecurityTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_transient')->justReturn(50); // Under 100
 
-        $result = $this->invoke('check_rate_limit');
+        $result = $this->invoke('check_rate_limit', [true]);
 
         $this->assertTrue($result);
 
@@ -290,7 +290,7 @@ class WebhookReceiverSecurityTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_transient')->justReturn(100); // Exactly at limit
 
-        $result = $this->invoke('check_rate_limit');
+        $result = $this->invoke('check_rate_limit', [true]);
 
         $this->assertInstanceOf(WP_Error::class, $result);
         $this->assertEquals('rate_limit_exceeded', $result->get_error_code());
@@ -304,7 +304,7 @@ class WebhookReceiverSecurityTest extends WC_Multi_Store_TestCase
 
         Functions\when('get_transient')->justReturn(200); // Way over limit
 
-        $result = $this->invoke('check_rate_limit');
+        $result = $this->invoke('check_rate_limit', [true]);
 
         $this->assertInstanceOf(WP_Error::class, $result);
 

@@ -156,6 +156,17 @@ class SyncEngineInternalsTest extends WC_Multi_Store_TestCase
         $this->assertCount(1, $this->remoteCalls);
     }
 
+    public function test_purge_never_follows_redirects(): void
+    {
+        // wp_remote_* follows up to 5 redirects by default, each hop dialing a
+        // target is_safe_remote_url() never saw (e.g. a public URL redirecting
+        // to a cloud-metadata address). The purge request must not follow any.
+        $this->invoke('maybe_purge_remote_cache', [$this->product(), 'https://s.com', ['cache_purge_url' => self::SAFE_PURGE], 1]);
+
+        $this->assertCount(1, $this->remoteCalls);
+        $this->assertSame(0, $this->remoteCalls[0][2]['redirection'] ?? null, 'Purge requests must set redirection => 0');
+    }
+
     // ---- log_operation_history / log_sync_history -------------------------
 
     private function historyDb(?array &$captured): \Mockery\MockInterface
@@ -217,6 +228,29 @@ class SyncEngineInternalsTest extends WC_Multi_Store_TestCase
         $this->assertSame('Deleted thing', $row['product_name']);
         $this->assertSame('error', $row['status']);
         $this->assertNull($row['remote_product_id']);
+    }
+
+    public function test_log_operation_history_redacts_credentials_in_failure_messages(): void
+    {
+        Functions\when('absint')->alias(fn($v) => abs((int) $v));
+        Functions\when('sanitize_textarea_field')->returnArg();
+        Functions\when('esc_url_raw')->returnArg();
+        $row = null;
+        $this->historyDb($row);
+
+        $this->invoke('log_operation_history', [[
+            'product_id' => 5, 'product_sku' => 'GONE', 'product_name' => 'Deleted thing',
+            'store_url' => 'https://s.com', 'sync_type' => 'full_product', 'sync_source' => 'hook',
+            'status' => 'error',
+            'message' => 'cURL error for https://s.com/wp-json/wc/v3/products'
+                . '?consumer_key=ck_supersecret1234567890&consumer_secret=cs_supersecret1234567890',
+            'start_time' => microtime(true), 'start_memory' => memory_get_usage(true), 'api_calls' => 1,
+        ]]);
+
+        $this->assertStringNotContainsString('ck_supersecret1234567890', $row['message']);
+        $this->assertStringNotContainsString('cs_supersecret1234567890', $row['message']);
+        $this->assertStringContainsString('consumer_key=[REDACTED]', $row['message']);
+        $this->assertStringContainsString('consumer_secret=[REDACTED]', $row['message']);
     }
 
     // ---- queue_full_sync_for_missing_product ------------------------------

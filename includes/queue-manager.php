@@ -700,11 +700,6 @@ class WC_Multi_Store_Queue_Manager {
      * @return array Processing results
      */
     public function process_queue($batch_size = 0, ?callable $item_callback = null): array {
-        // Always reset stuck items first, even before checking processing flag
-        // This ensures items don't stay stuck indefinitely if the processor crashed
-        // Use shorter timeout (5 min) to be more aggressive about recovery
-        WC_Multi_Store_Queue_Table::reset_stuck_items(5);
-
         global $wpdb;
 
         // Acquire a MySQL advisory lock (atomic, no race conditions).
@@ -742,8 +737,17 @@ class WC_Multi_Store_Queue_Manager {
      * @return array Results
      */
     private function do_process_queue($batch_size, ?callable $item_callback = null): array {
+        // Reset stuck items only while holding the processor lock. Running the
+        // reset before the lock (or when the lock is held by someone else) would
+        // flip rows that a live worker is processing right now back to 'pending',
+        // where Queue_Table::add() merges new requests into them — and the live
+        // worker then completes the row, silently dropping those requests. A
+        // crashed worker releases the advisory lock with its connection, so the
+        // next lock holder recovers its rows here just the same.
+        // Use a shorter timeout (5 min) to be more aggressive about recovery.
+        WC_Multi_Store_Queue_Table::reset_stuck_items(5);
+
         // Secondary reset for items stuck longer (10 min threshold)
-        // Primary reset with 5 min threshold runs in process_queue() before flag check
         WC_Multi_Store_Queue_Table::reset_stuck_items(10);
 
         // Get batch size from time manager if not specified
@@ -751,8 +755,17 @@ class WC_Multi_Store_Queue_Manager {
             $batch_size = WC_Multi_Store_Time_Manager::get_batch_size();
         }
 
-        // Get next batch from queue table
-        $queue_items = WC_Multi_Store_Queue_Table::get_next_batch($batch_size);
+        // Fetch stores once before batch fetch to avoid N+1 queries and exclude inactive stores
+        $stores = WC_Multi_Store_Settings::get_stores();
+        $inactive_stores = [];
+        foreach ($stores as $url => $config) {
+            if (($config['status'] ?? '') !== 'active') {
+                $inactive_stores[] = $url;
+            }
+        }
+
+        // Get next batch from queue table, excluding inactive stores so they do not starve the queue
+        $queue_items = WC_Multi_Store_Queue_Table::get_next_batch($batch_size, $inactive_stores);
 
         $time_period = WC_Multi_Store_Time_Manager::get_time_period();
 
@@ -769,8 +782,6 @@ class WC_Multi_Store_Queue_Manager {
             $time_period
         ));
 
-        // Fetch stores once before loop to avoid N+1 query pattern
-        $stores = WC_Multi_Store_Settings::get_stores();
         $sync_engine = WC_MSS()->sync_engine;
 
         $processed = 0;
@@ -821,6 +832,14 @@ class WC_Multi_Store_Queue_Manager {
                 continue;
             }
 
+            // A store disabled for maintenance must not burn attempts or be
+            // dead-lettered: skip before claiming so the row stays pending and
+            // resumes automatically once the store is active again.
+            if (isset($stores[$store_url]) && ($stores[$store_url]['status'] ?? '') !== 'active') {
+                if ($notify) $notify('skipped', 'Store is not active — resumes when the store is reactivated');
+                continue;
+            }
+
             // Claim the item. The update only matches rows that are still pending, so if another
             // runner got there first nothing changes and we must not process it a second time.
             if (!WC_Multi_Store_Queue_Table::mark_processing($item_id)) {
@@ -840,13 +859,6 @@ class WC_Multi_Store_Queue_Manager {
                 }
 
                 $store_config = $stores[$store_url];
-                if (($store_config['status'] ?? '') !== 'active') {
-                    WC_Multi_Store_Queue_Table::mark_failed($item_id, 'Store is not active', true);
-                    $error_count++;
-                    $processed++;
-                    if ($notify) $notify('error', 'Store is not active');
-                    continue;
-                }
                 $result = null;
                 $transient_key = null; // Track transient for cleanup on success only
 
@@ -1074,7 +1086,11 @@ class WC_Multi_Store_Queue_Manager {
                         delete_transient($transient_key);
                     }
                 } else {
-                    $error_message = $result['message'] ?? 'Unknown error';
+                    // Redact API credentials that transport errors embed in
+                    // request URLs before persisting or forwarding the text.
+                    $error_message = WC_Multi_Store_API_Client::sanitize_error_message(
+                        (string) ($result['message'] ?? 'Unknown error')
+                    );
 
                     // Don't retry if product not found on remote store or has no SKU - retrying is pointless
                     $no_retry = str_contains($error_message, 'Product not found on remote store')
@@ -1098,21 +1114,22 @@ class WC_Multi_Store_Queue_Manager {
 
             } catch (\Throwable $e) {
                 $result = null;
-                WC_Multi_Store_Queue_Table::mark_failed($item_id, $e->getMessage());
+                $exception_message = WC_Multi_Store_API_Client::sanitize_error_message($e->getMessage());
+                WC_Multi_Store_Queue_Table::mark_failed($item_id, $exception_message);
                 $error_count++;
                 $processed++;
-                WC_Multi_Store_Email_Notifications::trigger_sync_failed($product_id, $store_url, $e->getMessage());
+                WC_Multi_Store_Email_Notifications::trigger_sync_failed($product_id, $store_url, $exception_message);
                 WC_Multi_Store_Circuit_Breaker::record_failure($store_url);
                 if (WC_Multi_Store_Circuit_Breaker::is_open($store_url)) {
-                    WC_Multi_Store_Email_Notifications::trigger_api_error($store_url, $e->getMessage());
+                    WC_Multi_Store_Email_Notifications::trigger_api_error($store_url, $exception_message);
                 }
-                if ($notify) $notify('error', $e->getMessage());
+                if ($notify) $notify('error', $exception_message);
 
                 WC_Multi_Store_Logger::write(sprintf(
                     'Exception processing queue item %d (Product ID %d): %s in %s:%d',
                     $item_id,
                     $product_id,
-                    $e->getMessage(),
+                    $exception_message,
                     $e->getFile(),
                     $e->getLine()
                 ), 'error');

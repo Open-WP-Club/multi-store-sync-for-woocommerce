@@ -201,12 +201,20 @@ class WC_Multi_Store_Logger extends AbstractLogger {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wc_mss_sync_history';
 
-        // Get records to archive (older than $days_to_keep days)
+        // Get records to archive (older than $days_to_keep days). One fixed cutoff is
+        // computed here and reused for BOTH the SELECT and the DELETE below: recomputing
+        // NOW() at delete time would drift from the snapshot just archived and could
+        // delete rows that were never written to the archive file.
+        // created_at is written with current_time('mysql') (site time), so the cutoff
+        // is formatted in site time as well; date() would be UTC under WordPress.
+        $cutoff_timestamp = time() - ($days_to_keep * DAY_IN_SECONDS);
+        $cutoff_date = wp_date('Y-m-d H:i:s', $cutoff_timestamp);
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Archive and remove current records from the custom history table; cached rows could omit newly completed syncs. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $records = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM {$table_name} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY) ORDER BY created_at ASC",
-                $days_to_keep
+                "SELECT * FROM {$table_name} WHERE created_at < %s ORDER BY created_at ASC",
+                $cutoff_date
             ),
             ARRAY_A
         );
@@ -243,12 +251,13 @@ class WC_Multi_Store_Logger extends AbstractLogger {
             ];
         }
 
-        // Delete archived records from database
+        // Delete archived records from database using the SAME fixed cutoff as the
+        // SELECT so the deleted set exactly matches the archived set.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Archive and remove current records from the custom history table; cached rows could omit newly completed syncs. Table name is the trusted WordPress prefix plus a fixed plugin suffix; runtime values are passed separately to prepare().
         $deleted = $wpdb->query(
             $wpdb->prepare(
-                "DELETE FROM {$table_name} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",
-                $days_to_keep
+                "DELETE FROM {$table_name} WHERE created_at < %s",
+                $cutoff_date
             )
         );
 

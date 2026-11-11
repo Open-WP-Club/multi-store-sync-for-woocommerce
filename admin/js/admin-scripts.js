@@ -1064,9 +1064,28 @@
                 // Export profile
                 $(document).on('click', '.wc-mss-export-profile', function() {
                     var profileId = $(this).data('id');
-                    // Trigger a download via a hidden form (avoids pop-up blockers)
-                    var url = ajaxurl + '?action=wc_mss_export_config&nonce=' + wcMssAdmin.nonce + '&profile_id=' + encodeURIComponent(profileId);
-                    window.location.href = url;
+
+                    wcMssAdminUI.response(new URLSearchParams({
+                            action: 'wc_mss_export_config',
+                            nonce: wcMssAdmin.nonce,
+                            profile_id: profileId
+                        }))
+                        .then(function (response) {
+                            if (!response.success) {
+                                showNotice(response.data.message || i18n.error_exporting_profile, 'error');
+                                return;
+                            }
+                            // Download as file (same envelope as the full-config export)
+                            var blob = new Blob([JSON.stringify(response.data.config, null, 2)], {type: 'application/json'});
+                            var url = URL.createObjectURL(blob);
+                            var a = document.createElement('a');
+                            a.href = url;
+                            a.download = response.data.filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        });
                 });
 
                 // Delete profile

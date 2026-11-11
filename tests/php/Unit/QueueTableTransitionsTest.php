@@ -571,7 +571,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_boundary_at_max_attempts(int|string $attemptsAfterIncrement, bool $final): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = fn(string $sql) => str_contains($sql, 'SELECT attempts') ? $attemptsAfterIncrement : 1;
+        $this->responders['get_var'] = fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (str_contains($sql, 'SELECT attempts') ? $attemptsAfterIncrement : 1);
         $this->responders['get_row'] = fn() => ['id' => 5, 'product_id' => 9, 'store_url' => 'https://a.test', 'sync_type' => 'full_product', 'source' => 'hook', 'attempts' => $attemptsAfterIncrement, 'status' => 'processing'];
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'boom');
@@ -601,7 +601,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_increments_attempts_atomically_in_sql_before_reading_it_back(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 1;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (1);
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'x');
 
@@ -616,7 +616,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
         $times = [];
         foreach ([1, 2] as $attempts) {
             $this->calls = [];
-            $this->responders['get_var'] = static fn(string $sql) => $attempts;
+            $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : ($attempts);
             WC_Multi_Store_Queue_Table::mark_failed(5, 'x');
             $times[$attempts] = strtotime($this->callsOf('update')[0]['data']['scheduled_at']);
         }
@@ -629,7 +629,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_no_retry_goes_dead_on_first_attempt(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 1;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (1);
         $this->responders['get_row'] = static fn() => ['id' => 5, 'product_id' => 9, 'store_url' => 'https://a.test', 'sync_type' => 'full_product', 'source' => 'hook', 'attempts' => 1];
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'Product has no SKU', true);
@@ -644,7 +644,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_for_vanished_row_still_marks_failed_without_dlq_entry(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 3;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (3);
         $this->responders['get_row'] = static fn() => null;
 
         WC_Multi_Store_Queue_Table::mark_failed(5, 'late');
@@ -656,7 +656,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_still_updates_queue_row_when_dlq_insert_fails(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 3;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (3);
         $this->responders['get_row'] = static fn() => ['id' => 5, 'product_id' => 9, 'store_url' => 'https://a.test', 'sync_type' => 'full_product', 'attempts' => 3];
         $this->responders['insert'] = static fn() => false;
 
@@ -669,7 +669,7 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
     public function test_mark_failed_passes_stored_extra_data_and_started_at_into_dlq(): void
     {
         $this->fakeDb();
-        $this->responders['get_var'] = static fn(string $sql) => 3;
+        $this->responders['get_var'] = static fn(string $sql) => str_contains($sql, 'original_queue_id') ? null : (3);
         $this->responders['get_row'] = static fn() => [
             'id' => 5, 'product_id' => 9, 'product_sku' => 'SKU-9', 'store_url' => 'https://a.test',
             'sync_type' => 'delete_product', 'source' => 'product_delete', 'attempts' => 3,
@@ -786,6 +786,62 @@ class QueueTableTransitionsTest extends WC_Multi_Store_TestCase
         $this->fakeDb();
         $this->responders['query'] = static fn() => false;
         $this->assertFalse(WC_Multi_Store_Queue_Table::reset_stuck_items(5));
+    }
+
+    public function test_reset_stuck_items_copies_third_strike_rows_into_the_dead_letter_queue(): void
+    {
+        // A row parked as 'failed' by the third reset is exactly the situation
+        // mark_failed() handles — it must land in the dead-letter queue too,
+        // or crashed-worker items stay invisible there and retry_item() has no
+        // DLQ entry to mark as retried.
+        $this->fakeDb();
+        $this->responders['get_results'] = static fn(string $sql): array => [[
+            'id' => 77, 'product_id' => 42, 'product_sku' => 'SKU-77', 'store_url' => 'https://a.test',
+            'sync_type' => 'full_product', 'source' => 'hook', 'attempts' => 2,
+            'extra_data' => '{"x":1}', 'started_at' => '2024-06-15 11:00:00', 'last_error' => null,
+        ]];
+        $this->responders['query'] = static fn() => 1;
+
+        WC_Multi_Store_Queue_Table::reset_stuck_items(10);
+
+        $dlq = $this->callsOf('insert');
+        $this->assertCount(1, $dlq);
+        $this->assertSame('wp_wc_mss_dead_letter_queue', $dlq[0]['table']);
+        $this->assertSame(77, $dlq[0]['data']['original_queue_id']);
+        $this->assertSame(3, $dlq[0]['data']['attempts'], 'DLQ copy must record the incremented attempt count.');
+        $this->assertSame('dead', $dlq[0]['data']['status']);
+        $this->assertSame('2024-06-15 11:00:00', $dlq[0]['data']['first_failed_at']);
+        $this->assertSame('{"x":1}', $dlq[0]['data']['extra_data']);
+        $this->assertStringContainsString('stuck', strtolower((string) $dlq[0]['data']['last_error']));
+    }
+
+    public function test_reset_stuck_items_dead_letter_select_targets_only_stuck_rows_over_the_attempt_limit(): void
+    {
+        $this->fakeDb();
+
+        WC_Multi_Store_Queue_Table::reset_stuck_items(5);
+
+        $select = $this->callsOf('get_results')[0]['sql'] ?? '';
+        $this->assertStringContainsString("status = 'processing'", $select);
+        $this->assertStringContainsString('attempts + 1 >= 3', $select);
+        $this->assertStringContainsString('started_at <', $select);
+    }
+
+    public function test_reset_stuck_items_makes_no_dlq_entry_when_the_reset_update_fails(): void
+    {
+        // The DLQ copy must follow the status transition, not precede it:
+        // if the UPDATE fails the rows are still 'processing' and will be
+        // caught again on the next round.
+        $this->fakeDb();
+        $this->responders['get_results'] = static fn(string $sql): array => [[
+            'id' => 77, 'product_id' => 42, 'product_sku' => 'SKU-77', 'store_url' => 'https://a.test',
+            'sync_type' => 'full_product', 'source' => 'hook', 'attempts' => 2,
+            'extra_data' => null, 'started_at' => '2024-06-15 11:00:00', 'last_error' => null,
+        ]];
+        $this->responders['query'] = static fn() => false;
+
+        $this->assertFalse(WC_Multi_Store_Queue_Table::reset_stuck_items(5));
+        $this->assertSame([], $this->callsOf('insert'));
     }
 
     public function test_cleanup_only_removes_completed_and_failed_rows_older_than_cutoff(): void

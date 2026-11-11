@@ -280,18 +280,27 @@ class WC_Multi_Store_Orphan_Cleanup {
         // PERFORMANCE FIX: Get local products ONCE before loop instead of inside
         $local_products = $this->get_local_product_identifiers();
 
-        // A failed or empty local SKU query would classify every remote product as an orphan,
+        // Orphans are detected with the same identity the plugin uses to pair
+        // products with their remote copies, so a local SKU or slug rename does
+        // not flag the live copy as garbage.
+        $match_by = (string) WC_Multi_Store_Settings::get('match_products_by', 'sku');
+        if ($match_by !== 'slug') {
+            $match_by = 'sku';
+        }
+        $local_match_values = $match_by === 'slug' ? $local_products['slugs'] : $local_products['skus'];
+
+        // A failed or empty local identifier query would classify every remote product as an orphan,
         // and auto-trash would then delete them all. Refuse to scan instead.
-        if (!is_array($local_products['skus']) || $local_products['skus'] === []) {
-            WC_Multi_Store_Logger::write('Orphan scan aborted: local SKU list is empty or could not be read.', 'error');
+        if (!is_array($local_match_values) || $local_match_values === []) {
+            WC_Multi_Store_Logger::write(sprintf('Orphan scan aborted: local %s list is empty or could not be read.', $match_by), 'error');
             return [
                 'success' => false,
-                'message' => __('Could not read local product SKUs, so the orphan scan was aborted to avoid deleting valid remote products.', 'multi-store-sync-for-woocommerce'),
+                'message' => __('Could not read local product identifiers, so the orphan scan was aborted to avoid deleting valid remote products.', 'multi-store-sync-for-woocommerce'),
             ];
         }
 
         // Convert to set for O(1) lookup instead of O(n) in_array
-        $local_skus_set = array_flip($local_products['skus']);
+        $local_match_set = array_flip($local_match_values);
 
         $results = [];
 
@@ -320,22 +329,37 @@ class WC_Multi_Store_Orphan_Cleanup {
 
             $store_result['total_remote'] = count($remote_products);
 
+            // Remote products currently mapped from a local product are managed
+            // copies even when their SKU/slug drifted from the local value (a
+            // rename awaiting re-sync): they are never orphans.
+            $mapped_remote_ids = array_flip($this->get_mapped_remote_ids($url));
+
             // Find orphans using the pre-fetched local products
             foreach ($remote_products as $remote_product) {
-                // Match by SKU if available
-                if (!empty($remote_product['sku'])) {
-                    // PERFORMANCE FIX: Use isset() for O(1) lookup instead of in_array() O(n)
-                    if (!isset($local_skus_set[$remote_product['sku']])) {
-                        $store_result['orphans'][] = [
-                            'id' => $remote_product['id'],
-                            'name' => $remote_product['name'],
-                            'sku' => $remote_product['sku'],
-                            'price' => $remote_product['price'] ?? '',
-                            'stock' => $remote_product['stock_quantity'] ?? '',
-                        ];
-                    }
+                $remote_id = isset($remote_product['id']) ? (int) $remote_product['id'] : 0;
+                if ($remote_id <= 0 || isset($mapped_remote_ids[$remote_id])) {
+                    continue;
                 }
-                // Skip products without SKU to avoid false positives
+
+                // Match by the configured identity if available
+                $match_value = $match_by === 'slug'
+                    ? (string) ($remote_product['slug'] ?? '')
+                    : (string) ($remote_product['sku'] ?? '');
+                if ($match_value === '') {
+                    // Skip products without the match key to avoid false positives
+                    continue;
+                }
+
+                // PERFORMANCE FIX: Use isset() for O(1) lookup instead of in_array() O(n)
+                if (!isset($local_match_set[$match_value])) {
+                    $store_result['orphans'][] = [
+                        'id' => $remote_product['id'],
+                        'name' => $remote_product['name'],
+                        'sku' => $remote_product['sku'] ?? '',
+                        'price' => $remote_product['price'] ?? '',
+                        'stock' => $remote_product['stock_quantity'] ?? '',
+                    ];
+                }
             }
 
             $store_result['total_orphans'] = count($store_result['orphans']);
@@ -370,10 +394,10 @@ class WC_Multi_Store_Orphan_Cleanup {
     }
 
     /**
-     * Get local product identifiers (SKUs and IDs)
+     * Get local product identifiers (SKUs, slugs and IDs)
      * Uses direct database query to avoid loading product objects into memory
      *
-     * @return array Array with 'skus' and 'ids' keys
+     * @return array Array with 'skus', 'slugs' and 'ids' keys
      */
     private function get_local_product_identifiers(): array {
         global $wpdb;
@@ -386,6 +410,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             WHERE post_type IN ('product', 'product_variation')
             AND post_status != 'trash'
         ");
+        $ids_error = (string) ($wpdb->last_error ?? '');
 
         // Get all SKUs directly from postmeta - much more memory efficient
         // than loading each product object
@@ -399,11 +424,53 @@ class WC_Multi_Store_Orphan_Cleanup {
             AND p.post_type IN ('product', 'product_variation')
             AND p.post_status != 'trash'
         ");
+        $skus_error = (string) ($wpdb->last_error ?? '');
+
+        // Product slugs (the match identity when match_products_by is 'slug')
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh catalog snapshot for orphan detection; stale product IDs could cause incorrect deletions.
+        $slugs = $wpdb->get_col("
+            SELECT DISTINCT post_name
+            FROM {$wpdb->posts}
+            WHERE post_type = 'product'
+            AND post_status != 'trash'
+            AND post_name != ''
+        ");
+        $slugs_error = (string) ($wpdb->last_error ?? '');
 
         return [
             'skus' => $skus,
+            'slugs' => $slugs,
             'ids' => $ids,
+            'error' => $ids_error !== '' || $skus_error !== '' || $slugs_error !== '',
         ];
+    }
+
+    /**
+     * Get the remote product IDs of a store that are mapped from a live local
+     * product (WC_Multi_Store_Remote_Product_Manager's stored remote IDs).
+     * These are managed copies and must never be treated as orphans.
+     *
+     * @param string $store_url Store URL
+     * @return array<int, int> Remote product IDs
+     */
+    private function get_mapped_remote_ids(string $store_url): array {
+        global $wpdb;
+
+        $meta_key = '_mss_remote_id_' . md5($store_url);
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read a fresh mapping snapshot for orphan detection; stale mappings could cause incorrect deletions.
+        $ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT pm.meta_value
+            FROM {$wpdb->postmeta} pm
+            INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+            WHERE pm.meta_key = %s
+            AND pm.meta_value != ''
+            AND p.post_type IN ('product', 'product_variation')
+            AND p.post_status != 'trash'",
+            $meta_key
+        ));
+
+        return array_map('intval', is_array($ids) ? $ids : []);
     }
 
     /**
@@ -412,8 +479,9 @@ class WC_Multi_Store_Orphan_Cleanup {
      * @param array $orphans Array of orphan products to delete
      * @param bool $force Permanently delete (true, the manual "Delete Selected" behavior) or move to trash (false, used by the auto-trash job)
      * @param callable|null $on_progress Optional callback invoked after each product as
-     *                                   fn(int $deleted, int $failed, int $total), so a background
-     *                                   runner can surface live progress instead of only a final result.
+     *                                   fn(int $deleted, int $failed, int $total, int $skipped = 0), so a
+     *                                   background runner can surface live progress instead of only a
+     *                                   final result.
      * @return array Results
      */
     public function cleanup_orphans(array $orphans, bool $force = true, ?callable $on_progress = null): array {
@@ -428,10 +496,27 @@ class WC_Multi_Store_Orphan_Cleanup {
             'success' => true,
             'deleted' => 0,
             'failed' => 0,
+            'skipped' => 0,
             'errors' => [],
         ];
 
         $total = count($orphans);
+
+        // The orphan list may come from a scan that ran minutes ago (or from a
+        // stored result the admin is reviewing). Re-check against the current
+        // catalog before deleting: if a local product is mapped to a remote
+        // product again, or carries its SKU/slug again, it was recovered since
+        // the scan and must not be deleted. The snapshots are taken once here —
+        // at the start of the delete loop — rather than once per orphan: that
+        // keeps them as fresh as the loop itself while avoiding full-catalog
+        // queries for every product on a large cleanup.
+        global $wpdb;
+        $local = $this->get_local_product_identifiers();
+        $local_error = $local['error'];
+        $match_by = WC_Multi_Store_Settings::get('match_products_by', 'sku') === 'slug' ? 'slug' : 'sku';
+        $identifiers = $match_by === 'slug' ? $local['slugs'] : $local['skus'];
+        $mapped_by_store = [];
+        $mapping_errors = [];
 
         foreach ($orphans as $orphan) {
             $store_url = $orphan['store_url'];
@@ -449,8 +534,39 @@ class WC_Multi_Store_Orphan_Cleanup {
                 continue;
             }
 
-            // Delete product from remote store
+            if (!array_key_exists($store_url, $mapped_by_store)) {
+                $mapped_by_store[$store_url] = $this->get_mapped_remote_ids($store_url);
+                $mapping_errors[$store_url] = (string) ($wpdb->last_error ?? '');
+            }
+            $mapped = $mapped_by_store[$store_url];
+            $mapping_error = $mapping_errors[$store_url];
             $api_client = WC_Multi_Store_API_Client::for_store($store_url, $config);
+            $remote = $api_client->get_product((int) $product_id);
+            $key = is_array($remote) ? (string) ($remote[$match_by] ?? '') : '';
+
+            if ($mapping_error || $local_error || is_wp_error($remote) || $key === '' || !is_array($identifiers)) {
+                $results['failed']++;
+                $results['errors'][] = sprintf('Could not verify remote product %d before cleanup.', $product_id);
+                if ($on_progress) {
+                    $on_progress($results['deleted'], $results['failed'], $total, $results['skipped']);
+                }
+                continue;
+            }
+
+            if (in_array((int) $product_id, $mapped, true) || in_array($key, $identifiers, true)) {
+                $results['skipped']++;
+                WC_Multi_Store_Logger::write(sprintf(
+                    'Orphan product ID %d from %s skipped: it is mapped from a local product again',
+                    $product_id,
+                    $store_url
+                ));
+                if ($on_progress) {
+                    $on_progress($results['deleted'], $results['failed'], $total, $results['skipped']);
+                }
+                continue;
+            }
+
+            // Delete product from remote store
             $response = $api_client->delete_product($product_id, $force);
 
             if (is_wp_error($response)) {
@@ -480,7 +596,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             }
 
             if ($on_progress) {
-                $on_progress($results['deleted'], $results['failed'], $total);
+                $on_progress($results['deleted'], $results['failed'], $total, $results['skipped']);
             }
         }
 
@@ -607,8 +723,8 @@ class WC_Multi_Store_Orphan_Cleanup {
         // with no feedback for the minutes a large batch can take. Throttled to
         // every 5 products (still always fires on the last one) to avoid
         // hammering wp_options on very large batches.
-        $on_progress = function (int $deleted, int $failed, int $total) {
-            $processed = $deleted + $failed;
+        $on_progress = function (int $deleted, int $failed, int $total, int $skipped = 0) {
+            $processed = $deleted + $failed + $skipped;
             if ($processed % 5 !== 0 && $processed !== $total) {
                 return;
             }
@@ -619,6 +735,7 @@ class WC_Multi_Store_Orphan_Cleanup {
             $status['processed'] = $processed;
             $status['deleted']   = $deleted;
             $status['failed']    = $failed;
+            $status['skipped']   = $skipped;
             update_option(self::CLEANUP_STATUS_OPTION, $status, false);
         };
 
@@ -629,14 +746,16 @@ class WC_Multi_Store_Orphan_Cleanup {
             $status['finished_at'] = current_time('mysql');
             $status['deleted']     = $results['deleted'] ?? 0;
             $status['failed']      = $results['failed'] ?? 0;
-            $status['processed']   = ($results['deleted'] ?? 0) + ($results['failed'] ?? 0);
+            $status['skipped']     = $results['skipped'] ?? 0;
+            $status['processed']   = ($results['deleted'] ?? 0) + ($results['failed'] ?? 0) + ($results['skipped'] ?? 0);
             $status['errors']      = $results['errors'] ?? [];
             $status['message']     = $results['success']
                 ? sprintf(
-                    /* translators: 1: deleted products, 2: failed products. */
-                    __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
+                    /* translators: 1: deleted products, 2: failed products, 3: skipped products. */
+                    __('Cleanup complete: %1$d deleted, %2$d failed, %3$d skipped (recovered since the scan).', 'multi-store-sync-for-woocommerce'),
                     $results['deleted'],
-                    $results['failed']
+                    $results['failed'],
+                    $results['skipped'] ?? 0
                 )
                 : ($results['message'] ?? '');
             update_option(self::CLEANUP_STATUS_OPTION, $status, false);
@@ -999,10 +1118,11 @@ class WC_Multi_Store_Orphan_Cleanup {
             if ($results['success']) {
                 wp_send_json_success([
                     'message' => sprintf(
-                        /* translators: 1: deleted products, 2: failed products. */
-                        __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
+                        /* translators: 1: deleted products, 2: failed products, 3: skipped products. */
+                        __('Cleanup complete: %1$d deleted, %2$d failed, %3$d skipped (recovered since the scan).', 'multi-store-sync-for-woocommerce'),
                         $results['deleted'],
-                        $results['failed']
+                        $results['failed'],
+                        $results['skipped'] ?? 0
                     ),
                     'results' => $results,
                 ]);
@@ -1149,10 +1269,11 @@ class WC_Multi_Store_Orphan_Cleanup {
                                 $cleanup_total
                             ),
                             'done'      => $cleanup_status['message'] ?? sprintf(
-                                /* translators: 1: deleted products, 2: failed products. */
-                                __('Cleanup complete: %1$d deleted, %2$d failed.', 'multi-store-sync-for-woocommerce'),
+                                /* translators: 1: deleted products, 2: failed products, 3: skipped products. */
+                                __('Cleanup complete: %1$d deleted, %2$d failed, %3$d skipped (recovered since the scan).', 'multi-store-sync-for-woocommerce'),
                                 (int) ($cleanup_status['deleted'] ?? 0),
-                                (int) ($cleanup_status['failed'] ?? 0)
+                                (int) ($cleanup_status['failed'] ?? 0),
+                                (int) ($cleanup_status['skipped'] ?? 0)
                             ),
                             'failed'    => sprintf(/* translators: %s: cleanup error message. */ __('Cleanup failed: %s', 'multi-store-sync-for-woocommerce'), esc_html($cleanup_status['error'] ?? $cleanup_status['message'] ?? '')),
                             default     => '',

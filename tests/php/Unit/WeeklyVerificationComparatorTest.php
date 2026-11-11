@@ -798,4 +798,93 @@ class WeeklyVerificationComparatorTest extends WC_Multi_Store_TestCase
         $this->assertEquals('error', $result['discrepancies'][0]['type']);
         $this->assertStringContainsString('Connection timeout', $result['discrepancies'][0]['message']);
     }
+
+    // ── verify_product: identifier matching (match_products_by) ──
+
+    public function test_verify_product_verifies_skuless_product_when_matching_by_slug(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'match_products_by' => 'slug',
+                    'category_match_by' => 'slug',
+                ];
+            }
+            return $default;
+        });
+
+        Functions\when('wc_get_product')->alias(function ($id) {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_id')->andReturn($id);
+            $product->shouldReceive('get_sku')->andReturn(''); // e.g. a service/digital product
+            $product->shouldReceive('get_slug')->andReturn('service-product');
+            $product->shouldReceive('get_name')->andReturn('Service Product');
+            $product->shouldReceive('get_stock_quantity')->andReturn(10);
+            $product->shouldReceive('get_regular_price')->andReturn('10.00');
+            $product->shouldReceive('get_sale_price')->andReturn('');
+            $product->shouldReceive('get_category_ids')->andReturn([]);
+            $product->shouldReceive('get_tag_ids')->andReturn([]);
+            return $product;
+        });
+
+        $mock_api = \Mockery::mock('WC_Multi_Store_API_Client');
+        $mock_api->shouldReceive('get_products')
+            ->once()
+            ->with('service-product', 'slug')
+            ->andReturn([
+                [
+                    'id' => 100,
+                    'sku' => '',
+                    'stock_quantity' => 7, // Mismatch: local=10
+                    'regular_price' => '10.00',
+                    'sale_price' => '',
+                    'categories' => [],
+                ],
+            ]);
+
+        $ref = new ReflectionClass('WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher');
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $mock_api]);
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $result = $method->invoke(null, 42, ['https://store1.com' => ['consumer_key' => 'ck', 'consumer_secret' => 'cs']], [
+            'check_stock' => true,
+            'check_prices' => false,
+            'check_categories' => false,
+        ]);
+
+        $this->assertNotNull($result, 'In slug mode a product without SKU must still be verified against its remote copies.');
+        $types = array_column($result['discrepancies'], 'type');
+        $this->assertContains('stock', $types, 'The remote copy must have been fetched by slug and compared.');
+    }
+
+    public function test_verify_product_skips_product_without_slug_when_matching_by_slug(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['match_products_by' => 'slug', 'category_match_by' => 'slug'];
+            }
+            return $default;
+        });
+
+        Functions\when('wc_get_product')->alias(function () {
+            $product = \Mockery::mock('WC_Product');
+            $product->shouldReceive('get_sku')->andReturn('');
+            $product->shouldReceive('get_slug')->andReturn('');
+            return $product;
+        });
+
+        $method = new ReflectionMethod(WC_Multi_Store_Weekly_Verification_Comparator::class, 'verify_product');
+
+        $result = $method->invoke(null, 42, ['https://store1.com' => []], [
+            'check_stock' => true,
+            'check_prices' => true,
+            'check_categories' => false,
+        ]);
+
+        $this->assertNull($result, 'A product without any matchable identifier cannot be verified.');
+    }
 }

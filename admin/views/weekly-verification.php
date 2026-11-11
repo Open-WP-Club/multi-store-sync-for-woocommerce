@@ -459,6 +459,12 @@ foreach ($active_stores as $store_url => $store_config) {
                             <h3><?php esc_html_e('Reported Discrepancies', 'multi-store-sync-for-woocommerce'); ?></h3>
                             <form method="post">
                             <?php
+                            // Row and bulk actions are verified against 'bulk-wc-mss-<type>' in
+                            // process_bulk_action(); emit the nonce here so the form works even
+                            // though the list table's bulk toolbar is not its only renderer.
+                            wp_nonce_field('bulk-wc-mss-verification');
+                            ?>
+                            <?php
                             $list_table = new WC_Multi_Store_Admin_List_Table('verification', [
                                 'product' => __('Product', 'multi-store-sync-for-woocommerce'),
                                 'sku' => __('SKU', 'multi-store-sync-for-woocommerce'),
@@ -550,9 +556,21 @@ foreach ($active_stores as $store_url => $store_config) {
                                 $status_labels = [
                                     'completed' => __('Completed', 'multi-store-sync-for-woocommerce'),
                                     'running' => __('Running', 'multi-store-sync-for-woocommerce'),
+                                    'partial' => __('Partial', 'multi-store-sync-for-woocommerce'),
                                     'failed' => __('Failed', 'multi-store-sync-for-woocommerce'),
                                 ];
                                 echo esc_html(isset($status_labels[$report['status']]) ? $status_labels[$report['status']] : $report['status']);
+                                if ($report['status'] === 'partial') {
+                                    $partial_data = maybe_unserialize($report['report_data'] ?? '');
+                                    $failed_batch_count = is_array($partial_data) ? count((array) ($partial_data['failed_batches'] ?? [])) : 0;
+                                    if ($failed_batch_count > 0) {
+                                        echo '<br><small>' . esc_html(sprintf(
+                                            /* translators: %d: number of verification batches that failed. */
+                                            _n('%d batch failed; its products were not verified', '%d batches failed; their products were not verified', $failed_batch_count, 'multi-store-sync-for-woocommerce'),
+                                            $failed_batch_count
+                                        )) . '</small>';
+                                    }
+                                }
                                 ?>
                             </td>
                         </tr>

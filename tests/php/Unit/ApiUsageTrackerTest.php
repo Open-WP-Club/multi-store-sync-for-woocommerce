@@ -13,6 +13,7 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         parent::setUp();
 
         Functions\when('current_time')->justReturn('2024-06-15 12:00:00');
+        Functions\when('wp_date')->alias(static fn(string $format, ?int $timestamp = null) => date($format, $timestamp ?? time()));
         Functions\when('get_option')->justReturn(0);
         Functions\when('update_option')->justReturn(true);
 
@@ -446,10 +447,13 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
 
+        $cutoffs = [];
         $wpdb->shouldReceive('prepare')
             ->twice()
-            ->with(\Mockery::type('string'), 90)
-            ->andReturn('DELETE ...');
+            ->andReturnUsing(function ($sql, $cutoff) use (&$cutoffs) {
+                $cutoffs[] = $cutoff;
+                return 'SQL';
+            });
 
         $wpdb->shouldReceive('get_results')
             ->once()
@@ -462,6 +466,11 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $deleted = WC_Multi_Store_API_Usage_Tracker::cleanup_old_data();
 
         $this->assertEquals(25, $deleted);
+        // SELECT and DELETE must share ONE fixed cutoff (~90 days ago) instead of
+        // re-evaluating NOW() and drifting apart between the archive and the delete.
+        $this->assertCount(2, $cutoffs);
+        $this->assertSame($cutoffs[0], $cutoffs[1], 'SELECT and DELETE must use the identical cutoff');
+        $this->assertEqualsWithDelta(strtotime('-90 days'), strtotime($cutoffs[0]), 5);
     }
 
     public function test_cleanup_old_data_custom_days(): void
@@ -470,10 +479,13 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $wpdb = \Mockery::mock('wpdb');
         $wpdb->prefix = 'wp_';
 
+        $cutoffs = [];
         $wpdb->shouldReceive('prepare')
             ->twice()
-            ->with(\Mockery::type('string'), 30)
-            ->andReturn('DELETE ...');
+            ->andReturnUsing(function ($sql, $cutoff) use (&$cutoffs) {
+                $cutoffs[] = $cutoff;
+                return 'SQL';
+            });
 
         $wpdb->shouldReceive('get_results')
             ->once()
@@ -486,6 +498,9 @@ class ApiUsageTrackerTest extends WC_Multi_Store_TestCase
         $deleted = WC_Multi_Store_API_Usage_Tracker::cleanup_old_data(30);
 
         $this->assertEquals(5, $deleted);
+        $this->assertCount(2, $cutoffs);
+        $this->assertSame($cutoffs[0], $cutoffs[1], 'SELECT and DELETE must use the identical cutoff');
+        $this->assertEqualsWithDelta(strtotime('-30 days'), strtotime($cutoffs[0]), 5);
     }
 
     public function test_cleanup_old_data_archives_records_before_deleting(): void

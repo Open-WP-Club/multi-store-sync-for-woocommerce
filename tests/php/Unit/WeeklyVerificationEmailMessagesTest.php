@@ -85,6 +85,34 @@ class WeeklyVerificationEmailMessagesTest extends WC_Multi_Store_TestCase
 
     // ─── send_email_notification ───────────────────
 
+    public function test_partial_run_is_flagged_in_subject_and_body(): void
+    {
+        $this->useRecipients('ops@site.test');
+        $this->captureMail();
+
+        WC_Multi_Store_Weekly_Verification_Email_Notifier::send_email_notification(
+            $this->report(['status' => 'partial', 'failed_batches' => [2, 5]])
+        );
+
+        $this->assertCount(1, $this->mails);
+        $this->assertStringContainsString('(partial run)', $this->mails[0][1]);
+        $this->assertStringContainsString('2 batch(es) failed', $this->mails[0][2]);
+        $this->assertStringContainsString('Automatic corrections were not applied', $this->mails[0][2]);
+    }
+
+    public function test_complete_run_is_not_flagged_as_partial(): void
+    {
+        $this->useRecipients('ops@site.test');
+        $this->captureMail();
+
+        WC_Multi_Store_Weekly_Verification_Email_Notifier::send_email_notification(
+            $this->report(['status' => 'completed', 'failed_batches' => []])
+        );
+
+        $this->assertStringNotContainsString('partial', $this->mails[0][1]);
+        $this->assertStringNotContainsString('Partial run', $this->mails[0][2]);
+    }
+
     public function test_returns_false_and_sends_nothing_when_no_recipients(): void
     {
         $this->useRecipients('');

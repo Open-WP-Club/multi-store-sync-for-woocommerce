@@ -502,10 +502,13 @@ if (!class_exists('WP_Query')) {
         /** @var array<int,array<int,mixed>>|null Queue of results for successive WP_Query instantiations; null = default empty behavior. */
         public static ?array $resultsQueue = null;
         public array $posts = [];
+        /** Read by WC_Multi_Store_Settings::get_sync_product_count() (stores view). */
+        public int $found_posts = 0;
         public function __construct(array $args = []) {
             if (self::$resultsQueue !== null) {
                 $this->posts = array_shift(self::$resultsQueue) ?? [];
             }
+            $this->found_posts = count($this->posts);
         }
     }
 }
@@ -687,6 +690,19 @@ if (!class_exists('WP_REST_Request')) {
         private array $params = [];
         private array $headers = [];
         private string $body = '';
+        private string $route;
+
+        public function __construct(string $method = '', string $route = '') {
+            $this->route = $route;
+        }
+
+        public function get_route(): string {
+            return $this->route;
+        }
+
+        public function set_route(string $route): void {
+            $this->route = $route;
+        }
 
         public function get_param(string $key): mixed {
             return $this->params[$key] ?? null;

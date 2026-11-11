@@ -320,7 +320,7 @@ class OrderSyncTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Order_Sync::process_debounced_order(42);
 
         $this->assertSame(0, $deleted);
-        $this->assertSame([], $this->loggedMessages());
+        $this->assertStringContainsString('expired before processing', implode("\n", $this->loggedMessages()), 'A dropped payload must leave a trace.');
         $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 
@@ -338,7 +338,7 @@ class OrderSyncTest extends WC_Multi_Store_TestCase
         WC_Multi_Store_Order_Sync::process_debounced_order(42);
 
         $this->assertSame(0, $deleted);
-        $this->assertSame([], $this->loggedMessages());
+        $this->assertStringContainsString('expired before processing', implode("\n", $this->loggedMessages()), 'A dropped payload must leave a trace.');
         $this->addToAssertionCount(\Mockery::getContainer()->mockery_getExpectationCount());
     }
 

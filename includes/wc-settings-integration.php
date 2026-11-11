@@ -479,6 +479,30 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
         $stores = WC_Multi_Store_Settings::get_stores();
         $existing_store = $stores[$original_url] ?? [];
 
+        $origin = static function (string $url): string {
+            $parts = wp_parse_url($url);
+            if (!is_array($parts) || empty($parts['host']) || empty($parts['scheme'])) {
+                return '';
+            }
+            $scheme = strtolower($parts['scheme']);
+            $port = $parts['port'] ?? ($scheme === 'https' ? 443 : 80);
+            return $scheme . '://' . strtolower($parts['host']) . ':' . $port;
+        };
+        $old_origin = $origin($original_url);
+        $new_origin = $origin($store_url);
+        $host_changed = $old_origin !== '' && $new_origin !== '' && $old_origin !== $new_origin;
+        if ($host_changed && ($consumer_key === '' || $consumer_secret === ''
+            || (!empty($existing_store['wp_app_password']) && $wp_app_password === ''))) {
+            WC_Admin_Settings::add_error(__('Enter new credentials when changing the store host.', 'multi-store-sync-for-woocommerce'));
+            return;
+        }
+
+        $normalized_url = WC_Multi_Store_Settings::validate_store_url($store_url);
+        if (!is_wp_error($normalized_url) && $normalized_url !== $original_url && isset($stores[$normalized_url])) {
+            WC_Admin_Settings::add_error(__('A store with that URL already exists.', 'multi-store-sync-for-woocommerce'));
+            return;
+        }
+
         // Blank key/secret on edit means "keep the saved one" — the view uses the
         // placeholder pattern so credentials are never embedded in the DOM.
         if (empty($consumer_key)) {
@@ -511,12 +535,22 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
             'updated_date' => current_time('mysql'),
         ]);
 
-        // If URL changed, delete old entry first
-        if ($original_url !== $store_url) {
-            WC_Multi_Store_Settings::delete_store($original_url);
-        }
-
+        // On rename, save the new entry first and only then drop the old one.
+        // Deleting first loses the store (and its credentials) whenever
+        // update_store() rejects the URL or the write fails underneath.
         $result = WC_Multi_Store_Settings::update_store($store_url, $store_config);
+        // The store is saved even when only cache invalidation failed
+        // (update_store() says so in its error); complete the rename then.
+        $saved = $result === true
+            || (is_wp_error($result) && $result->get_error_code() === 'cache_invalidation_failed');
+        if ($saved && $original_url !== $store_url) {
+            // update_store() normalizes the key (trailing slash): never delete
+            // the entry that was just saved under that normalized URL.
+            $new_url = WC_Multi_Store_Settings::validate_store_url($store_url);
+            if (!is_wp_error($new_url) && $new_url !== $original_url) {
+                WC_Multi_Store_Settings::delete_store($original_url);
+            }
+        }
         if (is_wp_error($result)) {
             WC_Admin_Settings::add_error($result->get_error_message());
             return;
@@ -981,6 +1015,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                 'discrepancies' => __('Discrepancies', 'multi-store-sync-for-woocommerce'),
                 'completed' => __('Verification completed!', 'multi-store-sync-for-woocommerce'),
                 'completed_results' => __('Verification completed. Refresh page to see results.', 'multi-store-sync-for-woocommerce'),
+                'partial' => __('Verification was incomplete because a batch failed. Run it again.', 'multi-store-sync-for-woocommerce'),
                 'cancelled' => __('Verification cancelled', 'multi-store-sync-for-woocommerce'),
                 'waiting' => __('Waiting for background process...', 'multi-store-sync-for-woocommerce'),
                 'background' => __('The verification is running in the background. Refresh this page to check progress.', 'multi-store-sync-for-woocommerce'),
@@ -1113,6 +1148,7 @@ class WC_Multi_Store_Settings_Integration extends WC_Settings_Page {
                     /* translators: %s: profile name. */
                     'confirm_apply_profile' => __('Apply profile "%s"? This will overwrite your current settings.', 'multi-store-sync-for-woocommerce'),
                     'error_applying_profile' => __('Error applying profile.', 'multi-store-sync-for-woocommerce'),
+                    'error_exporting_profile' => __('Error exporting profile.', 'multi-store-sync-for-woocommerce'),
                     /* translators: %s: profile name. */
                     'confirm_delete_profile' => __('Delete profile "%s"? This cannot be undone.', 'multi-store-sync-for-woocommerce'),
                     'error_deleting_profile' => __('Error deleting profile.', 'multi-store-sync-for-woocommerce'),

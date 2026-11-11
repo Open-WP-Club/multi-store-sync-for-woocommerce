@@ -12,6 +12,7 @@ class LoggerArchiveSecurityTest extends WC_Multi_Store_TestCase {
         Functions\when('wp_upload_dir')->justReturn(['basedir' => $this->directory]);
         Functions\when('get_option')->alias(fn($key, $default = false) => $default);
         Functions\when('current_time')->justReturn('2026-10-25 12:00:00');
+        Functions\when('wp_date')->alias(static fn(string $format, ?int $timestamp = null) => date($format, $timestamp ?? time()));
         WC_Multi_Store_Logger::reset_instance();
     }
 
@@ -56,6 +57,34 @@ class LoggerArchiveSecurityTest extends WC_Multi_Store_TestCase {
         $this->assertSame(0, proc_close($process));
         $this->assertSame('', $output);
         $this->assertSame('', $errors);
+    }
+
+    public function test_archive_and_delete_share_one_fixed_cutoff(): void {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+
+        $cutoffs = [];
+        $wpdb->shouldReceive('prepare')
+            ->twice()
+            ->andReturnUsing(function ($sql, $cutoff) use (&$cutoffs) {
+                $cutoffs[] = $cutoff;
+                return 'SQL';
+            });
+        $wpdb->shouldReceive('get_results')->once()->andReturn([
+            ['created_at' => '2026-01-01 00:00:00', 'message' => 'old'],
+        ]);
+        $wpdb->shouldReceive('query')->once()->andReturn(1);
+
+        $result = WC_Multi_Store_Logger::archive_database_history();
+
+        $this->assertTrue($result['success']);
+        // The DELETE must use the same fixed cutoff as the SELECT that snapshotted
+        // the archive; re-evaluating NOW() would let rows drift out of the archive
+        // and still be deleted from the database.
+        $this->assertCount(2, $cutoffs);
+        $this->assertSame($cutoffs[0], $cutoffs[1], 'SELECT and DELETE must use the identical cutoff');
+        $this->assertEqualsWithDelta(strtotime('-7 days'), strtotime($cutoffs[0]), 5);
     }
 
     public function test_legacy_archives_migrate_even_when_database_has_no_old_rows(): void {

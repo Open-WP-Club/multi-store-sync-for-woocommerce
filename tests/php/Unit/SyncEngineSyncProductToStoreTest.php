@@ -1188,8 +1188,12 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
         $wpdb->shouldReceive('update')->andReturn(1);
         $wpdb->insert_id = 1;
 
-        $wpdb->shouldReceive('query')->with('START TRANSACTION')->once()->andReturn(1);
-        $wpdb->shouldReceive('query')->with('ROLLBACK')->once()->andReturn(1);
+        // perform_post_sync_operations() runs remote calls, so it belongs to the
+        // HTTP phase — before any transaction is opened. A failure there must
+        // not start, roll back, or commit a transaction (rolling back here could
+        // even abort an outer request-level transaction we never opened).
+        $wpdb->shouldReceive('query')->with('START TRANSACTION')->never();
+        $wpdb->shouldReceive('query')->with('ROLLBACK')->never();
         $wpdb->shouldReceive('query')->with('COMMIT')->never();
 
         // Force perform_post_sync_operations() to throw: it calls
@@ -1235,6 +1239,126 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
 
         $this->assertFalse($result['success']);
         $this->assertStringContainsString('Post-sync transaction failed', $result['message']);
+    }
+
+    public function test_no_mysql_transaction_is_open_while_remote_calls_run(): void
+    {
+        // A slow remote must not hold InnoDB locks while it responds: every
+        // remote call (post-sync operations, verification GET) has to happen
+        // outside the START TRANSACTION … COMMIT window, which may only wrap
+        // the purely local writes.
+        global $wpdb;
+        $events = [];
+
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql) => $sql);
+        $wpdb->shouldReceive('insert')->andReturn(1);
+        $wpdb->shouldReceive('get_var')->andReturn(null);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('get_row')->andReturn(null);
+        $wpdb->shouldReceive('update')->andReturn(1);
+        $wpdb->insert_id = 1;
+        $wpdb->shouldReceive('query')->andReturnUsing(function ($sql) use (&$events) {
+            $events[] = ['db', $sql];
+            return 1;
+        });
+
+        $product = $this->mockPriceQuantityProduct();
+
+        Functions\when('wp_remote_get')->alias(function ($url) use (&$events) {
+            $events[] = ['http', 'GET ' . $url];
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
+        Functions\when('wp_remote_request')->alias(function ($url) use (&$events) {
+            $events[] = ['http', 'REQUEST ' . $url];
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
+            ];
+        });
+
+        $this->expectProductReadback();
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity'
+        );
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+
+        $start = array_search(['db', 'START TRANSACTION'], $events, true);
+        $commit = array_search(['db', 'COMMIT'], $events, true);
+        $this->assertNotFalse($start, 'Expected a START TRANSACTION event');
+        $this->assertNotFalse($commit, 'Expected a COMMIT event');
+
+        foreach (array_slice($events, $start + 1, $commit - $start - 1) as $event) {
+            $this->assertNotSame('http', $event[0], 'Remote call "' . $event[1] . '" ran inside the MySQL transaction');
+        }
+    }
+
+    public function test_exception_during_local_writes_rolls_back_the_transaction(): void
+    {
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($sql) => $sql);
+
+        // One-shot thrower on the first sync-history insert: that write is the
+        // last step of the local-writes phase, so an exception there must roll
+        // the transaction back exactly like before the transaction restructure.
+        $history_inserts = 0;
+        $wpdb->shouldReceive('insert')->andReturnUsing(function ($table) use (&$history_inserts) {
+            if (str_contains((string) $table, 'sync_history') && $history_inserts++ === 0) {
+                throw new \RuntimeException('history insert failed');
+            }
+            return 1;
+        });
+        $wpdb->shouldReceive('get_var')->andReturn(null);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('get_row')->andReturn(null);
+        $wpdb->shouldReceive('update')->andReturn(1);
+        $wpdb->insert_id = 1;
+
+        $wpdb->shouldReceive('query')->with('START TRANSACTION')->once()->andReturn(1);
+        $wpdb->shouldReceive('query')->with('ROLLBACK')->once()->andReturn(1);
+        $wpdb->shouldReceive('query')->with('COMMIT')->never();
+
+        $product = $this->mockPriceQuantityProduct();
+
+        Functions\when('wp_remote_get')->alias(function ($url) {
+            return $this->readbackResponse($url) ?? [
+                'response' => ['code' => 200],
+                'body' => json_encode([['id' => 555, 'sku' => 'SKU-1']]),
+            ];
+        });
+        Functions\when('wp_remote_request')->justReturn([
+            'response' => ['code' => 200],
+            'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish']),
+        ]);
+
+        $this->expectProductReadback();
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity'
+        );
+
+        // The failure must come from the local-write phase (the history
+        // insert), not from some unrelated earlier error.
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('history insert failed', $result['message']);
     }
 
     // ── (f) categories must not be dropped forever after a failed auto-create ──
@@ -1504,6 +1628,354 @@ class SyncEngineSyncProductToStoreTest extends WC_Multi_Store_TestCase
             $sent_tags,
             'Tags must still be skipped when unchanged in name-match mode (remote already has the matching tag by name) — the remote-state guard must not misfire just because format_tags() omits slug in this mode'
         );
+    }
+
+    // ── (g2) renamed terms must travel so ensure_terms_exist() repairs them ──
+
+    public function test_renamed_category_is_resent_and_remote_label_is_repaired(): void
+    {
+        $this->mockWpdbForSyncHistory();
+
+        $product = $this->mockPriceQuantityProduct(['category_ids' => [10]]);
+        $product->shouldReceive('get_status')->andReturn('publish');
+
+        // Local category term 10 is "Shoes" (slug 'shoes').
+        Functions\when('get_terms')->justReturn([
+            (object) ['term_id' => 10, 'name' => 'Shoes', 'slug' => 'shoes', 'parent' => 0],
+        ]);
+
+        // Only the display name was renamed — the term ID set is unchanged,
+        // so the ID-hash reports "unchanged" and the skip guard is a candidate.
+        $unchanged_hash = md5(serialize([10]));
+        Functions\when('get_post_meta')->alias(
+            fn($post_id, $key, $single = false) => str_contains($key, '_mss_cats_hash_') ? $unchanged_hash : ''
+        );
+
+        // Remote category 20 still carries the OLD label "Boots" under the
+        // same slug 'shoes' (a pure display-name rename, invisible to both
+        // the ID hash and the slug-intersection guard).
+        Functions\when('wp_remote_get')->alias(function ($url, $args = []) {
+            if ($response = $this->readbackResponse($url)) {
+                return $response;
+            }
+            if (str_contains($url, 'categories')) {
+                return [
+                    'response' => ['code' => 200],
+                    'body' => json_encode([
+                        ['id' => 1, 'name' => 'Uncategorized', 'slug' => 'uncategorized'],
+                        ['id' => 20, 'name' => 'Boots', 'slug' => 'shoes'],
+                    ]),
+                ];
+            }
+
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode([[
+                    'id' => 555,
+                    'sku' => 'SKU-1',
+                    'categories' => [['id' => 20, 'name' => 'Boots', 'slug' => 'shoes']],
+                ]]),
+            ];
+        });
+
+        $rename_batches = [];
+        Functions\when('wp_remote_post')->alias(function ($url, $args) use (&$rename_batches) {
+            $body = json_decode($args['body'], true);
+            if (isset($body['update'])) {
+                $rename_batches[] = $body['update'];
+            }
+            return ['response' => ['code' => 200], 'body' => json_encode(['update' => []])];
+        });
+
+        $product_body = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$product_body) {
+            $product_body = json_decode($args['body'], true);
+            return ['response' => ['code' => 200], 'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish'])];
+        });
+
+        $this->expectProductReadback();
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity_categories'
+        );
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $this->assertSame(
+            [['id' => 20]],
+            $product_body['categories'] ?? null,
+            'A renamed category (same slug, new label) must not be skipped — sending it is what drives the remote rename repair'
+        );
+        $this->assertSame(
+            [['id' => 20, 'name' => 'Shoes']],
+            $rename_batches[0] ?? null,
+            'The stale remote label "Boots" must be repaired to the local name "Shoes"'
+        );
+    }
+
+    public function test_renamed_tag_is_resent_and_remote_label_is_repaired(): void
+    {
+        $this->mockWpdbForSyncHistory();
+
+        $product = $this->mockPriceQuantityProduct(['tag_ids' => [15]]);
+        $product->shouldReceive('get_status')->andReturn('publish');
+
+        // Local tag term 15 is "Sale" (slug 'sale').
+        Functions\when('get_terms')->justReturn([
+            (object) ['term_id' => 15, 'name' => 'Sale', 'slug' => 'sale', 'parent' => 0],
+        ]);
+
+        $unchanged_hash = md5(serialize([15]));
+        Functions\when('get_post_meta')->alias(
+            fn($post_id, $key, $single = false) => str_contains($key, '_mss_tags_hash_') ? $unchanged_hash : ''
+        );
+
+        // Remote tag 30 still carries the OLD label "Discount" under slug 'sale'.
+        Functions\when('wp_remote_get')->alias(function ($url, $args = []) {
+            if ($response = $this->readbackResponse($url)) {
+                return $response;
+            }
+            if (str_contains($url, 'tags')) {
+                return [
+                    'response' => ['code' => 200],
+                    'body' => json_encode([
+                        ['id' => 2, 'name' => 'Clearance', 'slug' => 'clearance'],
+                        ['id' => 30, 'name' => 'Discount', 'slug' => 'sale'],
+                    ]),
+                ];
+            }
+
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode([[
+                    'id' => 555,
+                    'sku' => 'SKU-1',
+                    'tags' => [['id' => 30, 'name' => 'Discount', 'slug' => 'sale']],
+                ]]),
+            ];
+        });
+
+        $rename_batches = [];
+        Functions\when('wp_remote_post')->alias(function ($url, $args) use (&$rename_batches) {
+            $body = json_decode($args['body'], true);
+            if (isset($body['update'])) {
+                $rename_batches[] = $body['update'];
+            }
+            return ['response' => ['code' => 200], 'body' => json_encode(['update' => []])];
+        });
+
+        $product_body = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$product_body) {
+            $product_body = json_decode($args['body'], true);
+            return ['response' => ['code' => 200], 'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish'])];
+        });
+
+        $this->expectProductReadback();
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity_categories'
+        );
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $this->assertSame(
+            [['id' => 30]],
+            $product_body['tags'] ?? null,
+            'A renamed tag (same slug, new label) must not be skipped — sending it is what drives the remote rename repair'
+        );
+        $this->assertSame(
+            [['id' => 30, 'name' => 'Sale']],
+            $rename_batches[0] ?? null,
+            'The stale remote label "Discount" must be repaired to the local name "Sale"'
+        );
+    }
+
+    public function test_category_slug_drift_repair_is_not_skipped_in_name_match_mode(): void
+    {
+        $this->mockWpdbForSyncHistory();
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_settings') {
+                return [
+                    'enabled' => true,
+                    'sync_type_default' => 'full_product',
+                    'auth_method' => 'query_string',
+                    'match_products_by' => 'sku',
+                    'category_auto_create' => true,
+                    'category_match_by' => 'name',
+                    'auto_create_missing_products' => false,
+                ];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return [
+                    'https://store1.com' => [
+                        'status' => 'active',
+                        'consumer_key' => 'ck_test',
+                        'consumer_secret' => 'cs_test',
+                    ],
+                ];
+            }
+            if ($option === 'wc_multi_store_sync_webhook_settings') {
+                return ['auto_verify' => false];
+            }
+            return $default;
+        });
+
+        $product = $this->mockPriceQuantityProduct(['category_ids' => [10, 11]]);
+        $product->shouldReceive('get_status')->andReturn('publish');
+
+        Functions\when('get_terms')->justReturn([
+            (object) ['term_id' => 10, 'name' => 'Shoes', 'slug' => 'shoes', 'parent' => 0],
+            (object) ['term_id' => 11, 'name' => 'Boots', 'slug' => 'boots', 'parent' => 0],
+        ]);
+
+        $unchanged_hash = md5(serialize([10, 11]));
+        Functions\when('get_post_meta')->alias(
+            fn($post_id, $key, $single = false) => str_contains($key, '_mss_cats_hash_') ? $unchanged_hash : ''
+        );
+
+        // Remote term 21 matched by NAME "Boots" has drifted in its slug
+        // ('boots-renamed'). The slug-intersection guard cannot catch this
+        // (one of the two terms still intersects), and the ID hash is
+        // unchanged — only the name-mode slug-drift check sees it.
+        Functions\when('wp_remote_get')->alias(function ($url, $args = []) {
+            if ($response = $this->readbackResponse($url)) {
+                return $response;
+            }
+            if (str_contains($url, 'categories')) {
+                return [
+                    'response' => ['code' => 200],
+                    'body' => json_encode([
+                        ['id' => 20, 'name' => 'Shoes', 'slug' => 'shoes'],
+                        ['id' => 21, 'name' => 'Boots', 'slug' => 'boots-renamed'],
+                    ]),
+                ];
+            }
+
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode([[
+                    'id' => 555,
+                    'sku' => 'SKU-1',
+                    'categories' => [
+                        ['id' => 20, 'name' => 'Shoes', 'slug' => 'shoes'],
+                        ['id' => 21, 'name' => 'Boots', 'slug' => 'boots-renamed'],
+                    ],
+                ]]),
+            ];
+        });
+
+        $rename_batches = [];
+        Functions\when('wp_remote_post')->alias(function ($url, $args) use (&$rename_batches) {
+            $body = json_decode($args['body'], true);
+            if (isset($body['update'])) {
+                $rename_batches[] = $body['update'];
+            }
+            return ['response' => ['code' => 200], 'body' => json_encode(['update' => []])];
+        });
+
+        $product_body = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$product_body) {
+            $product_body = json_decode($args['body'], true);
+            return ['response' => ['code' => 200], 'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish'])];
+        });
+
+        $this->expectProductReadback();
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity_categories'
+        );
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $this->assertSame(
+            [['id' => 20], ['id' => 21]],
+            $product_body['categories'] ?? null,
+            'A slug-drifted term matched by name must not be skipped in name-match mode'
+        );
+        $this->assertSame(
+            [['id' => 21, 'slug' => 'boots']],
+            $rename_batches[0] ?? null,
+            'The drifted remote slug "boots-renamed" must be repaired to the local slug "boots"'
+        );
+    }
+
+    public function test_category_with_no_drift_is_still_skipped(): void
+    {
+        $this->mockWpdbForSyncHistory();
+
+        $product = $this->mockPriceQuantityProduct(['category_ids' => [10]]);
+        $product->shouldReceive('get_status')->andReturn('publish');
+
+        Functions\when('get_terms')->justReturn([
+            (object) ['term_id' => 10, 'name' => 'Shoes', 'slug' => 'shoes', 'parent' => 0],
+        ]);
+
+        $unchanged_hash = md5(serialize([10]));
+        Functions\when('get_post_meta')->alias(
+            fn($post_id, $key, $single = false) => str_contains($key, '_mss_cats_hash_') ? $unchanged_hash : ''
+        );
+
+        // Steady state: remote name and slug both match the local term.
+        Functions\when('wp_remote_get')->alias(function ($url, $args = []) {
+            if ($response = $this->readbackResponse($url)) {
+                return $response;
+            }
+            if (str_contains($url, 'categories')) {
+                return [
+                    'response' => ['code' => 200],
+                    'body' => json_encode([
+                        ['id' => 20, 'name' => 'Shoes', 'slug' => 'shoes'],
+                    ]),
+                ];
+            }
+
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode([[
+                    'id' => 555,
+                    'sku' => 'SKU-1',
+                    'categories' => [['id' => 20, 'name' => 'Shoes', 'slug' => 'shoes']],
+                ]]),
+            ];
+        });
+
+        $post_calls = 0;
+        Functions\when('wp_remote_post')->alias(function () use (&$post_calls) {
+            $post_calls++;
+            return ['response' => ['code' => 200], 'body' => json_encode(['update' => []])];
+        });
+
+        $product_body = null;
+        Functions\when('wp_remote_request')->alias(function ($url, $args) use (&$product_body) {
+            $product_body = json_decode($args['body'], true);
+            return ['response' => ['code' => 200], 'body' => json_encode(['id' => 555, 'sku' => 'SKU-1', 'status' => 'publish'])];
+        });
+
+        $this->expectProductReadback();
+        $engine = new WC_Multi_Store_Sync_Engine();
+        $result = $engine->sync_product_to_store(
+            $product,
+            'https://store1.com',
+            ['consumer_key' => 'ck', 'consumer_secret' => 'cs'],
+            'price_quantity_categories'
+        );
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $this->assertIsArray($product_body, 'update_product must still be called');
+        $this->assertArrayNotHasKey(
+            'categories',
+            $product_body,
+            'The skip optimization must be preserved when name and slug both match — no drift, no repair'
+        );
+        $this->assertSame(0, $post_calls, 'No rename/creation batch call may fire in a steady state');
     }
 
     // ── (h2) description/short_description skip optimization for full_product ──

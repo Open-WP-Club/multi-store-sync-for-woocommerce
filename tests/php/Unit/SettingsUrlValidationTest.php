@@ -332,6 +332,16 @@ class SettingsUrlValidationTest extends WC_Multi_Store_TestCase
         $this->assertTrue(WC_Multi_Store_Settings::is_safe_remote_url('http://[2606:2800:220:1:248:1893:25c8:1946]/'));
     }
 
+    public function test_is_safe_remote_url_fails_closed_for_unresolvable_hosts(): void
+    {
+        Functions\when('wp_parse_url')->alias(fn($u, $c = -1) => parse_url($u, $c));
+
+        // ".invalid" never resolves (RFC 2606). A host that cannot be resolved
+        // cannot be verified — and could rebind to a blocked address by the
+        // time the request dials — so the guard must refuse it.
+        $this->assertFalse(WC_Multi_Store_Settings::is_safe_remote_url('http://no-such-host.invalid/purge'));
+    }
+
     public function test_validate_url_allows_private_range_ip(): void
     {
         // Private ranges (192.168/16, 10/8) are intentionally allowed — the

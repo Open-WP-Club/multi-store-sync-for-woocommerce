@@ -63,7 +63,13 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         Functions\when('set_transient')->justReturn(true);
         Functions\when('delete_transient')->justReturn(true);
         Functions\when('add_option')->justReturn(true);
+        Functions\when('update_option')->justReturn(true);
         Functions\when('delete_option')->justReturn(true);
+        // Scheduling works in the site timezone via current_datetime()/wp_date();
+        // default to plain wall-clock so tests that don't assert timezone keep
+        // their UTC semantics (PHP's default timezone is UTC in the test env).
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('now'));
+        Functions\when('wp_date')->alias(fn($format, $timestamp = null) => date($format, $timestamp ?? time()));
         Functions\when('current_time')->justReturn('2024-01-15 12:00:00');
         Functions\when('update_option')->justReturn(true);
         Functions\when('wp_parse_args')->alias(function ($args, $defaults) {
@@ -327,8 +333,13 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $now = new DateTimeImmutable('now');
         $target = $now->modify('+1 hour');
 
+        // The weekday is anchored on the TARGET, not on $now: when +1 hour
+        // crosses midnight the target's weekday is tomorrow's, and the next
+        // occurrence is that moment — not a week later. Anchoring on $now's
+        // weekday would describe a time that already passed today and make
+        // this test fail for runs after 23:00.
         $result = $this->callCalculateNextRunTime([
-            'day_of_week' => (int) $now->format('w'),
+            'day_of_week' => (int) $target->format('w'),
             'time_of_day' => $target->format('H:i'),
         ]);
 
@@ -339,12 +350,15 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
     public function test_calculate_next_run_time_earlier_today_rolls_to_next_week(): void
     {
         $now = new DateTimeImmutable('now');
-        // Guard against the sub-second window where "1 hour ago" could roll past midnight
-        // into a different day-of-week than $now — not realistic in a normal test run.
+        // Anchored on the TARGET's weekday (see the test above): when "-1 hour"
+        // crosses midnight into yesterday, the described moment is in the past
+        // and the scheduler must still roll forward to its next occurrence.
+        // Anchoring on $now's weekday would make the same H:i describe a time
+        // later *today* and fail for runs shortly after midnight.
         $target = $now->modify('-1 hour');
 
         $result = $this->callCalculateNextRunTime([
-            'day_of_week' => (int) $now->format('w'),
+            'day_of_week' => (int) $target->format('w'),
             'time_of_day' => $target->format('H:i'),
         ]);
 
@@ -555,7 +569,7 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $method->invoke(null);
     }
 
-    private function mockGhostScanDependencies(): void
+    private function mockGhostScanDependencies(?callable $onInsert = null): void
     {
         global $wpdb;
         $wpdb = \Mockery::mock('wpdb');
@@ -563,7 +577,12 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $wpdb->postmeta = 'wp_postmeta';
         $wpdb->posts = 'wp_posts';
         $wpdb->shouldReceive('get_col')->andReturn([]);
-        $wpdb->shouldReceive('insert')->andReturn(1);
+        $wpdb->shouldReceive('insert')->andReturnUsing(function (string $table, array $data) use ($onInsert) {
+            if ($onInsert !== null) {
+                $onInsert($table, $data);
+            }
+            return 1;
+        });
 
         $api_client_mock = \Mockery::mock('WC_Multi_Store_API_Client');
         $api_client_mock->shouldReceive('stream_products')
@@ -720,6 +739,102 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
         $this->callFinalizeAsyncVerification();
 
         $this->addToAssertionCount(1); // Mockery's shouldReceive()->with() above is the real assertion.
+    }
+
+    public function test_finalize_async_verification_partial_run_records_failed_batches_and_skips_auto_correct(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $saved = null;
+        $this->mockGhostScanDependencies(function (string $table, array $data) use (&$saved): void {
+            $saved = $data;
+        });
+        Functions\when('maybe_serialize')->alias(fn($v) => serialize($v));
+
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_weekly_verification') {
+                return ['email_enabled' => false, 'auto_correct' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['sync_type_default' => 'full_product'];
+            }
+            return $default;
+        });
+
+        $qm = \Mockery::mock(WC_Multi_Store_Queue_Manager::class);
+        $qm->shouldReceive('add_product')->never();
+        WC_Multi_Store_Sync::instance()->queue_manager = $qm;
+
+        $progress = [
+            'status' => 'running',
+            'started_at' => '2024-01-15 10:00:00',
+            'processed_products' => 4,
+            'stores_checked' => 1,
+            'discrepancies_found' => 1,
+            'missing_products' => 0,
+            'orphan_products' => 0,
+            'stock_mismatches' => 1,
+            'price_mismatches' => 0,
+            'category_mismatches' => 0,
+            'field_mismatches' => 0,
+            'failed_batches' => [1, 3],
+            'details' => [
+                ['product_id' => 55, 'discrepancies' => [['type' => 'stock']]],
+            ],
+        ];
+
+        Functions\when('get_transient')->alias(function ($key) use ($progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:05:00');
+
+        $captured = null;
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
+                $captured = $value;
+            }
+            return true;
+        });
+
+        $this->callFinalizeAsyncVerification();
+
+        $this->assertSame('partial', $captured['status']);
+        $this->assertNotNull($saved, 'the report must still be saved');
+        $this->assertSame('partial', $saved['status']);
+        $report_data = unserialize($saved['report_data']);
+        $this->assertSame([1, 3], $report_data['failed_batches'],
+            'the reports screen and the email need to know which batches were skipped');
+    }
+
+    public function test_finalize_async_verification_complete_run_stores_an_empty_failed_batch_list(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $saved = null;
+        $this->mockGhostScanDependencies(function (string $table, array $data) use (&$saved): void {
+            $saved = $data;
+        });
+        Functions\when('maybe_serialize')->alias(fn($v) => serialize($v));
+
+        $progress = [
+            'status' => 'running',
+            'started_at' => '2024-01-15 10:00:00',
+            'processed_products' => 5,
+            'stores_checked' => 1,
+            'discrepancies_found' => 0,
+            'missing_products' => 0,
+            'orphan_products' => 0,
+            'stock_mismatches' => 0,
+            'price_mismatches' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(function ($key) use ($progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:05:00');
+
+        $this->callFinalizeAsyncVerification();
+
+        $this->assertSame('completed', $saved['status']);
+        $this->assertSame([], unserialize($saved['report_data'])['failed_batches']);
     }
 
     // ── process_verification_batch ────────────────────────────────
@@ -881,5 +996,714 @@ class WeeklyVerificationSchedulerTest extends WC_Multi_Store_TestCase
 
         $this->assertNotNull($captured);
         $this->assertSame('completed', $captured['status']);
+    }
+
+    // ── continue_after_failed_batch ──────────────────────────────
+    //
+    // A batch that throws must not abandon the rest of a multi-batch run.
+
+    public function test_continue_after_failed_batch_schedules_the_next_batch(): void
+    {
+        $progress = [
+            'status' => 'running',
+            'batch_size' => 2,
+            'total_batches' => 3,
+            'product_ids' => [1, 2, 3, 4],
+            'processed_products' => 2,
+            'discrepancies_found' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(function ($key) use (&$progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+
+        $scheduled = null;
+        Functions\when('as_schedule_single_action')->alias(function ($ts, $hook, $args) use (&$scheduled) {
+            if ($hook === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_BATCH_HOOK) {
+                $scheduled = $args[0];
+            }
+            return 1;
+        });
+
+        $captured = null;
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured, &$progress) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
+                $captured = $value;
+                $progress = $value;
+            }
+            return true;
+        });
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::continue_after_failed_batch(1);
+
+        $this->assertSame(2, $scheduled, 'the chain must advance past the failed batch');
+        $this->assertNotNull($captured);
+        $this->assertSame('running', $captured['status'], 'the run must keep going');
+        $this->assertSame(2, $captured['current_batch']);
+        $this->assertSame(2, $captured['processed_products'], 'the failed batch must not count as processed');
+    }
+
+    public function test_continue_after_failed_batch_on_the_last_batch_finalizes_the_run(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $this->mockGhostScanDependencies();
+
+        $progress = [
+            'status' => 'running',
+            'batch_size' => 2,
+            'total_batches' => 2,
+            'stores_checked' => 1,
+            'started_at' => '2024-01-15 10:00:00',
+            'product_ids' => [1, 2, 3, 4],
+            'processed_products' => 2,
+            'discrepancies_found' => 0,
+            'missing_products' => 0,
+            'orphan_products' => 0,
+            'stock_mismatches' => 0,
+            'price_mismatches' => 0,
+            'category_mismatches' => 0,
+            'field_mismatches' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(function ($key) use (&$progress) {
+            return $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+        Functions\expect('as_schedule_single_action')->never();
+
+        $captured = null;
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured, &$progress) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
+                $captured = $value;
+                $progress = $value;
+            }
+            return true;
+        });
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::continue_after_failed_batch(1);
+
+        $this->assertNotNull($captured);
+        $this->assertSame('partial', $captured['status'], 'a failed batch must be visible in the final result');
+    }
+
+    public function test_continue_after_failed_batch_without_a_running_verification_does_nothing(): void
+    {
+        Functions\when('get_transient')->justReturn(false);
+        Functions\expect('as_schedule_single_action')->never();
+        Functions\expect('set_transient')->never();
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::continue_after_failed_batch(0);
+
+        $this->addToAssertionCount(1); // Functions\expect()->never() above is the real assertion.
+    }
+
+    // ── async product-ID storage ─────────────────────────────────
+    //
+    // The progress transient is rewritten after every batch, so the full
+    // product-ID list (up to 50 000 entries) must not ride along in it.
+
+    public function test_schedule_async_verification_keeps_product_ids_out_of_the_progress_transient(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        WP_Query::$resultsQueue = [[11, 22, 33]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 3]);
+
+        $transient_payloads = [];
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$transient_payloads) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
+                $transient_payloads[] = $value;
+            }
+            return true;
+        });
+
+        $option_writes = [];
+        Functions\when('update_option')->alias(function ($key, $value) use (&$option_writes) {
+            $option_writes[$key][] = $value;
+            return true;
+        });
+
+        $first_batch = null;
+        Functions\when('as_schedule_single_action')->alias(function ($ts, $hook, $args) use (&$first_batch) {
+            if ($hook === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_BATCH_HOOK) {
+                $first_batch = $args[0];
+            }
+            return 1;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::schedule_async_verification();
+        WP_Query::$resultsQueue = null;
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, $first_batch);
+        $this->assertCount(1, $transient_payloads);
+        $this->assertArrayNotHasKey(
+            'product_ids',
+            $transient_payloads[0],
+            'The progress transient is rewritten every batch — the product-ID list must not ride along'
+        );
+        $this->assertSame(
+            [11, 22, 33],
+            $option_writes['wc_mss_async_verification_products'][0] ?? null,
+            'The product-ID list must be stored once in its own option'
+        );
+        $this->assertCount(
+            1,
+            $option_writes['wc_mss_async_verification_products'] ?? [],
+            'The product-ID option must be written once, not per batch'
+        );
+    }
+
+    public function test_process_verification_batch_reads_product_ids_from_the_products_option(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('wc_get_product')->justReturn(false);
+
+        $progress = [
+            'status' => 'running',
+            'batch_size' => 2,
+            'total_batches' => 2,
+            'processed_products' => 0,
+            'discrepancies_found' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(fn($key) => $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false);
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_mss_async_verification_products') {
+                return [1, 2, 3, 4];
+            }
+            return $default;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+
+        $scheduled = null;
+        Functions\when('as_schedule_single_action')->alias(function ($ts, $hook, $args) use (&$scheduled) {
+            if ($hook === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_BATCH_HOOK) {
+                $scheduled = $args[0];
+            }
+            return 1;
+        });
+        Functions\when('set_transient')->justReturn(true);
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::process_verification_batch(0);
+
+        $this->assertSame(1, $scheduled, 'products stored in the option must drive the batch slicing');
+    }
+
+    public function test_process_verification_batch_progress_updates_do_not_re_serialize_product_ids(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('wc_get_product')->justReturn(false);
+
+        // Legacy in-flight runs carry the IDs in the progress payload; batch
+        // updates must drop them either way.
+        $progress = [
+            'status' => 'running',
+            'batch_size' => 2,
+            'total_batches' => 2,
+            'product_ids' => [1, 2, 3, 4],
+            'processed_products' => 0,
+            'discrepancies_found' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(fn($key) => $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false);
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+
+        Functions\when('as_schedule_single_action')->justReturn(1);
+
+        $captured = null;
+        Functions\when('set_transient')->alias(function ($key, $value) use (&$captured) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT) {
+                $captured = $value;
+            }
+            return true;
+        });
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::process_verification_batch(0);
+
+        $this->assertNotNull($captured);
+        $this->assertArrayNotHasKey(
+            'product_ids',
+            $captured,
+            'Per-batch progress writes must not re-serialize the product-ID list'
+        );
+    }
+
+    public function test_finalize_async_verification_clears_the_products_option(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $this->mockGhostScanDependencies();
+
+        $progress = [
+            'status' => 'running',
+            'batch_size' => 2,
+            'total_batches' => 1,
+            'stores_checked' => 1,
+            'started_at' => '2024-01-15 10:00:00',
+            'processed_products' => 1,
+            'discrepancies_found' => 0,
+            'missing_products' => 0,
+            'orphan_products' => 0,
+            'stock_mismatches' => 0,
+            'price_mismatches' => 0,
+            'category_mismatches' => 0,
+            'field_mismatches' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(fn($key) => $key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false);
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+        Functions\when('set_transient')->justReturn(true);
+
+        $deleted = [];
+        Functions\when('delete_option')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+
+        $this->callFinalizeAsyncVerification();
+
+        $this->assertContains('wc_mss_async_verification_products', $deleted, 'the stored product-ID list must not outlive the run');
+    }
+
+    // ── run_verification: lock lifetime ──────────────────────────
+
+    public function test_run_verification_releases_the_lock_when_the_run_throws(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+
+        WP_Query::$resultsQueue = [[123]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 1]);
+        Functions\when('wc_get_product')->alias(static function () {
+            throw new RuntimeException('product lookup exploded');
+        });
+
+        global $wpdb;
+        $wpdb = \Mockery::mock('wpdb');
+        $wpdb->prefix = 'wp_';
+        $wpdb->postmeta = 'wp_postmeta';
+        $wpdb->posts = 'wp_posts';
+        $wpdb->shouldReceive('get_col')->andReturn([]);
+        $wpdb->shouldReceive('get_results')->andReturn([]);
+        $wpdb->shouldReceive('prepare')->andReturnUsing(fn($query, ...$args) => $query);
+        $wpdb->shouldReceive('insert')->andReturn(1);
+
+        $api_client_mock = \Mockery::mock('WC_Multi_Store_API_Client');
+        $api_client_mock->shouldReceive('stream_products')->andReturn(new WP_Error('http_error', 'timeout'));
+        $ref = new ReflectionClass(WC_Multi_Store_Weekly_Verification_Remote_Data_Fetcher::class);
+        $pool = $ref->getProperty('api_client_pool');
+        $pool->setValue(null, ['https://store1.com' => $api_client_mock]);
+
+        $deleted = [];
+        Functions\when('delete_option')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+
+        $thrown = false;
+        try {
+            WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
+        } catch (RuntimeException $e) {
+            $thrown = true;
+        }
+        WP_Query::$resultsQueue = null;
+
+        $this->assertTrue($thrown, 'the exception must still propagate to the caller');
+        $this->assertContains(
+            'wc_mss_verification_lock',
+            $deleted,
+            'the lock must be released even when the run blows up mid-loop'
+        );
+    }
+
+    public function test_run_verification_refuses_while_a_fresh_async_verification_is_running(): void
+    {
+        Functions\when('get_transient')->alias(function ($key) {
+            return $key === 'wc_mss_async_verification_progress'
+                ? ['status' => 'running', 'last_activity' => time()]
+                : false;
+        });
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 0]);
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
+
+        $this->assertSame('Verification already running', $result['error'] ?? null);
+    }
+
+    public function test_run_verification_ignores_stale_async_progress(): void
+    {
+        Functions\when('get_transient')->alias(function ($key) {
+            return $key === 'wc_mss_async_verification_progress'
+                ? ['status' => 'running', 'last_activity' => time() - 40 * MINUTE_IN_SECONDS]
+                : false;
+        });
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 0]);
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::run_verification();
+
+        $this->assertSame('No products to verify', $result['error'] ?? null);
+    }
+
+    // ── schedule_async_verification: shared lock ─────────────────
+
+    public function test_schedule_async_verification_refuses_when_a_verification_lock_is_held(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        WP_Query::$resultsQueue = [[11, 22]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 2]);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_mss_verification_lock') {
+                return time(); // a sync or async run is mid-flight
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'name' => 'S']];
+            }
+            return $default;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::schedule_async_verification();
+        WP_Query::$resultsQueue = null;
+
+        $this->assertFalse($result['success'] ?? null, 'a held lock must block the async path too');
+        $this->assertSame('Verification is already running.', $result['message'] ?? null);
+    }
+
+    public function test_schedule_async_verification_does_not_clear_stale_progress_while_the_lock_is_held(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        WP_Query::$resultsQueue = [[11]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 1]);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+
+        $deleted = [];
+        Functions\when('delete_transient')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+        Functions\when('get_transient')->alias(function ($key) {
+            return $key === 'wc_mss_async_verification_progress'
+                ? ['status' => 'running', 'last_activity' => time() - 40 * MINUTE_IN_SECONDS]
+                : false;
+        });
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_mss_verification_lock') {
+                return time(); // someone else's live run holds it
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs', 'name' => 'S']];
+            }
+            return $default;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::schedule_async_verification();
+        WP_Query::$resultsQueue = null;
+
+        $this->assertFalse($result['success'] ?? null);
+        $this->assertSame('Verification is already running.', $result['message'] ?? null);
+        $this->assertNotContains(
+            'wc_mss_async_verification_progress',
+            $deleted,
+            'stale-progress cleanup must not run while another run holds the lock'
+        );
+    }
+
+    public function test_schedule_async_verification_replaces_a_stale_run_when_nothing_else_holds_the_lock(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        WP_Query::$resultsQueue = [[11]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 1]);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+        // The stale-progress cleanup path cancels pending batch actions; stub it so
+        // this test is order-independent (function_exists() can report true here if an
+        // earlier test in the suite mocked it).
+        Functions\when('as_unschedule_all_actions')->justReturn(0);
+
+        $deleted = [];
+        Functions\when('delete_transient')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+        Functions\when('get_transient')->alias(function ($key) {
+            return $key === 'wc_mss_async_verification_progress'
+                ? ['status' => 'running', 'last_activity' => time() - 40 * MINUTE_IN_SECONDS]
+                : false;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::schedule_async_verification();
+        WP_Query::$resultsQueue = null;
+
+        $this->assertTrue($result['success']);
+        $this->assertContains('wc_mss_async_verification_progress', $deleted, 'the dead run must be cleaned up');
+    }
+
+    public function test_schedule_async_verification_acquires_the_shared_verification_lock(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        WP_Query::$resultsQueue = [[11, 22, 33]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 3]);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+
+        $added = [];
+        Functions\when('add_option')->alias(function (...$args) use (&$added) {
+            $added[] = $args;
+            return true;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::schedule_async_verification();
+        WP_Query::$resultsQueue = null;
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(
+            'wc_mss_verification_lock',
+            $added[0][0] ?? null,
+            'the async path must take the same lock as run_verification()'
+        );
+    }
+
+    public function test_finalize_async_verification_releases_the_verification_lock(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $this->mockGhostScanDependencies();
+
+        $progress = [
+            'status' => 'running',
+            'batch_size' => 2,
+            'total_batches' => 1,
+            'stores_checked' => 1,
+            'started_at' => '2024-01-15 10:00:00',
+            'processed_products' => 1,
+            'discrepancies_found' => 0,
+            'missing_products' => 0,
+            'orphan_products' => 0,
+            'stock_mismatches' => 0,
+            'price_mismatches' => 0,
+            'category_mismatches' => 0,
+            'field_mismatches' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(fn($key) => $key === 'wc_mss_async_verification_progress' ? $progress : false);
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+        Functions\when('set_transient')->justReturn(true);
+
+        $deleted = [];
+        Functions\when('delete_option')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+
+        $this->callFinalizeAsyncVerification();
+
+        $this->assertContains('wc_mss_verification_lock', $deleted, 'the shared lock must not outlive the run');
+    }
+
+    public function test_cancel_async_verification_releases_the_verification_lock(): void
+    {
+        Functions\when('get_transient')->alias(fn($key) => $key === 'wc_mss_async_verification_progress'
+            ? ['status' => 'running', 'product_ids' => [1]]
+            : false);
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+        Functions\when('set_transient')->justReturn(true);
+        Functions\when('as_unschedule_all_actions')->justReturn(0);
+
+        $deleted = [];
+        Functions\when('delete_option')->alias(function ($key) use (&$deleted) {
+            $deleted[] = $key;
+            return true;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::cancel_async_verification();
+
+        $this->assertTrue($result);
+        $this->assertContains('wc_mss_verification_lock', $deleted);
+    }
+
+    public function test_process_verification_batch_keeps_the_verification_lock_fresh(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        Functions\when('wc_get_product')->justReturn(false);
+
+        $progress = [
+            'status' => 'running',
+            'batch_size' => 2,
+            'total_batches' => 2,
+            'product_ids' => [1, 2, 3, 4],
+            'processed_products' => 0,
+            'discrepancies_found' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(fn($key) => $key === 'wc_mss_async_verification_progress' ? $progress : false);
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_mss_verification_lock') {
+                return time() - 10; // the run holds the lock
+            }
+            return $default;
+        });
+        Functions\when('current_time')->justReturn('2024-01-15 10:00:00');
+        Functions\when('as_schedule_single_action')->justReturn(1);
+        Functions\when('set_transient')->justReturn(true);
+
+        $updates = [];
+        Functions\when('update_option')->alias(function ($key, $value) use (&$updates) {
+            $updates[$key][] = $value;
+            return true;
+        });
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::process_verification_batch(0);
+
+        $this->assertArrayHasKey(
+            'wc_mss_verification_lock',
+            $updates,
+            'batches must refresh the lock so its 1-hour staleness recovery cannot steal a live multi-batch run'
+        );
+        $this->assertGreaterThan(time() - 5, $updates['wc_mss_verification_lock'][0]);
+    }
+
+    // ── scheduling: site timezone ────────────────────────────────
+    //
+    // WordPress pins PHP's default timezone to UTC, so schedule calculations
+    // must go through current_datetime()/wp_date() (site timezone) — a plain
+    // new DateTimeImmutable('now')/date() pair fires the run at UTC wall time.
+
+    public function test_calculate_next_run_time_uses_the_site_timezone(): void
+    {
+        $tz = new DateTimeZone('America/New_York');
+        // Sunday 20:00 local is already Monday 01:00 UTC: a UTC-based
+        // scheduler would fire "Monday 02:00" at 02:00 UTC = 21:00 Sunday
+        // local, in the middle of the evening instead of the night window.
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('2026-11-01 20:00:00', $tz));
+
+        $result = $this->callCalculateNextRunTime([
+            'day_of_week' => 1, // Monday
+            'time_of_day' => '02:00',
+        ]);
+
+        $expected = (new DateTimeImmutable('2026-11-02 02:00:00', $tz))->getTimestamp();
+        $this->assertSame($expected, $result, 'The run must fire at 02:00 site time, not 02:00 UTC');
+    }
+
+    public function test_calculate_next_run_time_rolls_past_times_to_next_week_in_the_site_timezone(): void
+    {
+        $tz = new DateTimeZone('America/New_York');
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('2026-11-02 20:00:00', $tz)); // Monday evening
+
+        $result = $this->callCalculateNextRunTime([
+            'day_of_week' => 1, // Monday
+            'time_of_day' => '02:00',
+        ]);
+
+        $expected = (new DateTimeImmutable('2026-11-09 02:00:00', $tz))->getTimestamp();
+        $this->assertSame($expected, $result, 'A past time-of-day must roll to next week in the site timezone');
+    }
+
+    public function test_schedule_verification_logs_the_next_run_in_the_site_timezone(): void
+    {
+        $tz = new DateTimeZone('America/New_York');
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('2026-11-01 20:00:00', $tz));
+        Functions\when('wp_date')->alias(fn($format, $ts) => (new DateTimeImmutable('@' . $ts))->setTimezone($tz)->format($format));
+
+        $logged = [];
+        $logger = \Mockery::mock();
+        $logger->shouldReceive('log')->andReturnUsing(function ($level, $message) use (&$logged) {
+            $logged[] = $message;
+        });
+        Functions\when('wc_get_logger')->justReturn($logger);
+
+        Functions\when('as_unschedule_all_actions')->justReturn(0);
+        Functions\when('as_schedule_recurring_action')->justReturn(1);
+        Functions\when('get_option')->alias(function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_weekly_verification') {
+                return ['enabled' => true, 'day_of_week' => 1, 'time_of_day' => '02:00'];
+            }
+            return $default;
+        });
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::schedule_verification();
+
+        $this->assertStringContainsString(
+            '2026-11-02 02:00:00',
+            implode(' | ', $logged),
+            'the log must show the run time in site time'
+        );
+    }
+
+    public function test_async_verification_reclaims_stale_lock(): void
+    {
+        WC_Multi_Store_Settings::clear_static_cache();
+        $stale_time = time() - (2 * HOUR_IN_SECONDS);
+
+        Functions\when('get_option')->alias(function ($option, $default = false) use ($stale_time) {
+            if ($option === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK_OPTION) {
+                return $stale_time;
+            }
+            if ($option === 'wc_multi_store_sync_weekly_verification') {
+                return ['enabled' => true];
+            }
+            if ($option === 'wc_multi_store_sync_settings') {
+                return ['sync_type_default' => 'full_product'];
+            }
+            if ($option === 'wc_multi_store_sync_stores') {
+                return ['https://store1.com' => ['status' => 'active', 'consumer_key' => 'ck', 'consumer_secret' => 'cs']];
+            }
+            return $default;
+        });
+
+        WP_Query::$resultsQueue = [[101, 102]];
+        Functions\when('wp_count_posts')->alias(fn() => (object) ['publish' => 2]);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+
+        $released = false;
+        Functions\when('delete_option')->alias(function ($key) use (&$released) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK_OPTION) {
+                $released = true;
+            }
+            return true;
+        });
+
+        Functions\when('add_option')->alias(function ($key, $val) use (&$released) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::VERIFICATION_LOCK_OPTION) {
+                return $released;
+            }
+            return true;
+        });
+
+        $result = WC_Multi_Store_Weekly_Verification_Scheduler::schedule_async_verification();
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($released, 'Stale lock must be cleared so the async run can acquire it');
+    }
+
+    public function test_process_verification_batch_copies_legacy_product_ids_to_option(): void
+    {
+        $saved_option = null;
+        Functions\when('get_option')->alias(function ($key, $default = false) use (&$saved_option) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PRODUCTS_OPTION) {
+                return $saved_option ?? [];
+            }
+            return $default;
+        });
+        Functions\when('update_option')->alias(function ($key, $val) use (&$saved_option) {
+            if ($key === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PRODUCTS_OPTION) {
+                $saved_option = $val;
+            }
+            return true;
+        });
+
+        $progress = [
+            'status' => 'running',
+            'product_ids' => [1, 2, 3, 4, 5, 6],
+            'batch_size' => 2,
+            'current_batch' => 0,
+            'total_batches' => 3,
+            'processed_products' => 0,
+            'discrepancies_found' => 0,
+            'details' => [],
+        ];
+        Functions\when('get_transient')->alias(fn($k) => $k === WC_Multi_Store_Weekly_Verification_Scheduler::ASYNC_PROGRESS_TRANSIENT ? $progress : false);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+        Functions\when('wc_get_product')->justReturn(false);
+
+        WC_Multi_Store_Weekly_Verification_Scheduler::process_verification_batch(0);
+
+        $this->assertSame([1, 2, 3, 4, 5, 6], $saved_option, 'Legacy product_ids from progress transient must be copied to ASYNC_PRODUCTS_OPTION');
     }
 }

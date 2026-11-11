@@ -245,6 +245,12 @@ class WC_Multi_Store_Settings {
                     $ips[] = $resolved;
                 }
             }
+            if (empty($ips)) {
+                // Unresolvable host: its address cannot be verified and it
+                // could rebind to a blocked target by the time the request
+                // dials — refuse it (fail closed).
+                return false;
+            }
         }
 
         foreach ($ips as $ip) {

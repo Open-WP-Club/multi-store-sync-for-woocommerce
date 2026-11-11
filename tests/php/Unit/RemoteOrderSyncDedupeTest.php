@@ -142,12 +142,22 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
 
         Functions\when('add_action')->justReturn(true);
         Functions\when('get_option')->alias(fn($o, $d = false) => $o === 'wc_multi_store_sync_settings' ? ['auth_method' => 'query_string'] : $d);
+        Functions\when('update_option')->justReturn(true);
+        Functions\when('delete_option')->justReturn(true);
         Functions\when('current_time')->justReturn('2026-03-10 12:00:00');
         Functions\when('get_transient')->justReturn(false);
         Functions\when('set_transient')->justReturn(true);
         Functions\when('add_query_arg')->alias(function () {
             $args = func_get_args();
-            return count($args) === 2 && is_array($args[0]) ? $args[1] . '?' . http_build_query($args[0]) : ($args[count($args) - 1] ?? '');
+            if (count($args) === 2 && is_array($args[0])) {
+                // Merge like the real add_query_arg(): the auth query string is
+                // already on the URL, so blindly appending '?' would swallow the
+                // first new parameter into the previous value.
+                [$base, $existing] = array_pad(explode('?', $args[1], 2), 2, '');
+                parse_str($existing, $query);
+                return $base . '?' . http_build_query(array_merge($query, $args[0]));
+            }
+            return $args[count($args) - 1] ?? '';
         });
         Functions\when('trailingslashit')->alias(fn($s) => rtrim($s, '/') . '/');
         Functions\when('wp_remote_retrieve_response_code')->alias(fn($r) => $r['response']['code'] ?? 200);
@@ -167,14 +177,15 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
 
     private function order(int $id, array $overrides = []): array
     {
+        $created = $overrides['date_created'] ?? '2026-03-01T10:00:00';
         return array_merge([
             'id' => $id,
             'number' => (string) (1000 + $id),
             'status' => 'processing',
             'currency' => 'EUR',
             'total' => '50.00',
-            'date_created' => '2026-03-01T10:00:00',
-            'date_modified' => '2026-03-01T10:00:00',
+            'date_created' => $created,
+            'date_modified' => $overrides['date_modified'] ?? $created,
             'billing' => ['first_name' => 'Ann', 'last_name' => 'Lee', 'email' => 'ann@example.com'],
             'line_items' => [],
         ], $overrides);
@@ -297,13 +308,15 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
         $this->assertLessThanOrEqual(10, count($this->requestedPages));
     }
 
-    public function test_starting_beyond_the_page_cap_fetches_a_single_page(): void
+    public function test_starting_beyond_the_page_cap_still_gets_a_full_page_budget(): void
     {
         $this->pageProvider = fn(int $page) => [$this->order($page)];
 
         $this->sync(self::STORE_A, ['per_page' => 1, 'page' => 11]);
 
-        $this->assertSame([11], $this->requestedPages);
+        // The budget counts pages fetched by this run, not absolute page numbers —
+        // otherwise a run resuming at page 11 could never fetch more than one page.
+        $this->assertSame(range(11, 20), $this->requestedPages);
     }
 
     public function test_exactly_per_page_orders_costs_one_extra_empty_fetch(): void
@@ -357,6 +370,405 @@ class RemoteOrderSyncDedupeTest extends WC_Multi_Store_TestCase
         $this->assertArrayNotHasKey('status', $seen[0]);
         $this->assertSame('completed', $seen[1]['status']);
         $this->assertSame('2026-03-01T00:00:00', $seen[1]['after']);
+    }
+
+    // ── incremental import cursor ─────────────────────────────────
+
+    /**
+     * Bind an `after`-aware fake store: orders STRICTLY newer than the `after`
+     * filter (the conservative server behaviour — WooCommerce's `after` boundary
+     * is not inclusive in every version), filtered results sorted by date_created
+     * (or by date_modified for `orderby=modified`, as the live API does), and
+     * honours `order`/`page`/`per_page`/`include`. Every request's query args are
+     * collected into $requests. $intercept may return a WP_Error for a page to
+     * simulate a failed fetch.
+     */
+    private function fakeCatalog(array $orders, array &$requests, ?callable $intercept = null): void
+    {
+        Functions\when('wp_remote_get')->alias(function ($url) use (&$requests, $orders, $intercept) {
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+            $requests[] = $q;
+
+            $sort_key = (($q['orderby'] ?? 'date') === 'modified') ? 'date_modified' : 'date_created';
+            usort($orders, static fn(array $a, array $b): int =>
+                [$a[$sort_key] ?? $a['date_created'], $a['id']] <=> [$b[$sort_key] ?? $b['date_created'], $b['id']]);
+
+            $page = max(1, (int) ($q['page'] ?? 1));
+            $per_page = max(1, (int) ($q['per_page'] ?? 100));
+
+            if ($intercept !== null) {
+                $blocked = $intercept($page);
+                if ($blocked instanceof \WP_Error) {
+                    return $blocked;
+                }
+            }
+
+            $after = (string) ($q['modified_after'] ?? ($q['after'] ?? ''));
+            $include = isset($q['include']) ? array_map('intval', (array) $q['include']) : null;
+            $matching = array_values(array_filter($orders, static function (array $o) use ($after, $include): bool {
+                if ($include !== null && !in_array((int) $o['id'], $include, true)) {
+                    return false;
+                }
+                $order_date = $o['date_modified'] ?? ($o['date_created'] ?? '');
+                return $after === '' || strtotime($order_date) > strtotime($after);
+            }));
+            if (strtolower((string) ($q['order'] ?? 'asc')) === 'desc') {
+                $matching = array_reverse($matching);
+            }
+
+            return [
+                'response' => ['code' => 200],
+                'body' => json_encode(array_slice($matching, ($page - 1) * $per_page, $per_page)),
+            ];
+        });
+    }
+
+    /**
+     * Let get_option()/update_option() persist across the sync() calls of one test,
+     * so the import cursor a run writes is the one the next run reads.
+     */
+    private function persistentOptions(array &$options): void
+    {
+        Functions\when('get_option')->alias(function ($name, $default = false) use (&$options) {
+            if ($name === 'wc_multi_store_sync_settings') {
+                return ['auth_method' => 'query_string'];
+            }
+            return array_key_exists($name, $options) ? $options[$name] : $default;
+        });
+        Functions\when('update_option')->alias(function ($name, $value) use (&$options) {
+            $options[$name] = $value;
+            return true;
+        });
+        Functions\when('delete_option')->alias(function ($name) use (&$options) {
+            unset($options[$name]);
+            return true;
+        });
+    }
+
+    private function optionByPrefix(array $options, string $prefix): mixed
+    {
+        foreach ($options as $name => $value) {
+            if (str_starts_with($name, $prefix)) {
+                return $value;
+            }
+        }
+        return null;
+    }
+
+    private function failedOptionName(string $store = self::STORE_A): string
+    {
+        return 'wc_mss_remote_order_failed_' . md5($store);
+    }
+
+    private function cursorValue(array $options): ?string
+    {
+        foreach ($options as $name => $value) {
+            if (str_starts_with($name, 'wc_mss_remote_order_cursor_')) {
+                return (string) $value;
+            }
+        }
+        return null;
+    }
+
+    /** @return array<int, array> 25 orders one minute apart */
+    private function catalog25(): array
+    {
+        $orders = [];
+        for ($i = 0; $i < 25; $i++) {
+            $orders[] = $this->order($i + 1, ['date_created' => sprintf('2026-03-01T10:%02d:00', $i)]);
+        }
+        return $orders;
+    }
+
+    public function test_truncated_run_resumes_from_the_cursor_instead_of_losing_the_tail(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $options = [];
+        $this->persistentOptions($options);
+
+        // per_page=2 → the 10-page budget stops after 20 of 25 orders.
+        $first = $this->sync(self::STORE_A, ['per_page' => 2]);
+        $cursor_after_first = $this->cursorValue($options);
+        $second = $this->sync(self::STORE_A, ['per_page' => 2]);
+
+        $this->assertCount(25, $this->db->orders,
+            'orders past the per-run page budget must arrive on a later run, not vanish');
+        $this->assertSame('2026-03-01 10:19:00', $cursor_after_first,
+            'a truncated run must leave the cursor at the newest imported order so the next run resumes there');
+        $this->assertTrue($first['truncated']);
+        $this->assertSame(20, $first['synced']);
+        $this->assertFalse($second['truncated']);
+        $this->assertSame(5, $second['synced']);
+    }
+
+    public function test_completed_run_only_asks_for_orders_after_the_cursor(): void
+    {
+        $requests = [];
+        $this->fakeCatalog([
+            $this->order(1, ['date_created' => '2026-03-01T10:00:00']),
+            $this->order(2, ['date_created' => '2026-03-01T10:01:00']),
+            $this->order(3, ['date_created' => '2026-03-01T10:02:00']),
+        ], $requests);
+        $options = [];
+        $this->persistentOptions($options);
+
+        $this->sync(self::STORE_A);
+        $requests = [];
+        $this->sync(self::STORE_A);
+
+        $this->assertNotEmpty($requests);
+        $filter_key = isset($requests[0]['modified_after']) ? 'modified_after' : 'after';
+        $this->assertArrayHasKey($filter_key, $requests[0],
+            'a follow-up run must not re-download the whole store history');
+        $this->assertEqualsWithDelta(
+            strtotime('2026-03-01T10:02:00') - 2,
+            strtotime((string) $requests[0][$filter_key]),
+            1
+        );
+    }
+
+    public function test_stream_is_walked_oldest_first_so_the_budget_postpones_the_newest_orders(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+
+        $this->sync(self::STORE_A, ['per_page' => 2]);
+
+        $this->assertSame('asc', $requests[0]['order'] ?? null,
+            'the page budget must cut the stream tail (resumable), not its head');
+        $this->assertContains($requests[0]['orderby'] ?? null, ['modified', 'date']);
+    }
+
+    public function test_api_error_mid_stream_resumes_at_the_last_complete_page(): void
+    {
+        $orders = [];
+        for ($i = 0; $i < 6; $i++) {
+            $orders[] = $this->order($i + 1, ['date_created' => sprintf('2026-03-01T10:%02d:00', $i)]);
+        }
+        $requests = [];
+        $failing = true;
+        $this->fakeCatalog($orders, $requests, function (int $page) use (&$failing) {
+            return $failing && $page === 2 ? new \WP_Error('http_request_failed', 'timeout') : null;
+        });
+        $options = [];
+        $this->persistentOptions($options);
+
+        $first = $this->sync(self::STORE_A, ['per_page' => 2]);
+
+        $this->assertSame(2, $first['synced']);
+        $this->assertSame(1, $first['errors']);
+        $this->assertCount(2, $this->db->orders);
+
+        $failing = false;
+        $requests = [];
+        $second = $this->sync(self::STORE_A, ['per_page' => 2]);
+
+        $filter_key = isset($requests[0]['modified_after']) ? 'modified_after' : 'after';
+        $this->assertArrayHasKey($filter_key, $requests[0],
+            'the next run must resume where the failed run stopped instead of re-fetching the history');
+        $this->assertEqualsWithDelta(
+            strtotime('2026-03-01T10:01:00') - 2,
+            strtotime((string) $requests[0][$filter_key]),
+            1
+        );
+        $this->assertSame(4, $second['synced']);
+        $this->assertCount(6, $this->db->orders);
+    }
+
+    public function test_truncated_rescan_leaves_the_unimported_tail_reachable(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $options = [];
+        $this->persistentOptions($options);
+
+        // A manual "rescan from the beginning" that runs out of page budget.
+        $this->sync(self::STORE_A, ['per_page' => 2, 'after' => '2026-03-01T09:59:59']);
+        $this->assertCount(20, $this->db->orders);
+        $this->assertNull($this->cursorValue($options),
+            'a date-filtered walk is a one-off query and must not write the cursor');
+
+        // The scheduled runs (no filters) must pick up the 5 the rescan could not reach.
+        $synced = 0;
+        for ($run = 0; $run < 5; $run++) {
+            $result = $this->sync(self::STORE_A, ['per_page' => 2]);
+            $synced += $result['synced'];
+            if (!$result['truncated']) {
+                break;
+            }
+        }
+
+        $this->assertCount(25, $this->db->orders,
+            'a rescan that hits the page budget must not orphan the rest of its window');
+        $this->assertSame(5, $synced);
+    }
+
+    public function test_a_date_filtered_walk_never_moves_the_cursor(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $options = [];
+        $this->persistentOptions($options);
+
+        $this->sync(self::STORE_A);
+        $cursor = $this->cursorValue($options);
+        $this->assertSame('2026-03-01 10:24:00', $cursor);
+
+        $this->sync(self::STORE_A, ['after' => '2026-03-01T10:10:00', 'per_page' => 2]);
+        $this->assertSame($cursor, $this->cursorValue($options), '`after` must not touch the cursor');
+
+        $this->sync(self::STORE_A, ['modified_after' => '2026-03-01T00:00:00']);
+        $this->assertSame($cursor, $this->cursorValue($options), '`modified_after` must not touch the cursor');
+
+        $this->sync(self::STORE_A, ['status' => 'completed']);
+        $this->assertSame($cursor, $this->cursorValue($options), 'a status filter must not touch the cursor');
+    }
+
+    public function test_recently_modified_old_order_in_a_truncated_rescan_does_not_skip_newer_orders(): void
+    {
+        // Order 1 is the oldest by creation date but was edited long after every
+        // other order. A rescan sorted by date_created stops at order 20; deriving
+        // the cursor from the newest date_modified seen (order 1's) would put the
+        // cursor past orders 21-25, which were never imported.
+        $orders = $this->catalog25();
+        $orders[0]['date_modified'] = '2026-03-02T09:00:00';
+        $requests = [];
+        $this->fakeCatalog($orders, $requests);
+        $options = [];
+        $this->persistentOptions($options);
+
+        $this->sync(self::STORE_A, ['per_page' => 2, 'after' => '2026-03-01T09:00:00']);
+        $this->assertCount(20, $this->db->orders);
+
+        for ($run = 0; $run < 5; $run++) {
+            if (!$this->sync(self::STORE_A, ['per_page' => 2])['truncated']) {
+                break;
+            }
+        }
+
+        $this->assertCount(25, $this->db->orders,
+            'orders created after the rescan stopped must still be imported by later runs');
+    }
+
+    public function test_more_than_one_budget_of_orders_sharing_a_timestamp_does_not_stall_the_import(): void
+    {
+        // 25 orders bulk-updated in the same second: every run re-reads the same
+        // modified_after window, so without a resume marker the 10-page budget
+        // would fetch the same first 20 orders forever.
+        $orders = [];
+        for ($i = 1; $i <= 25; $i++) {
+            $orders[] = $this->order($i, ['date_created' => '2026-03-01T10:00:00']);
+        }
+        $requests = [];
+        $this->fakeCatalog($orders, $requests);
+        $options = [];
+        $this->persistentOptions($options);
+
+        $first = $this->sync(self::STORE_A, ['per_page' => 2]);
+        $this->assertTrue($first['truncated']);
+        $this->assertCount(20, $this->db->orders);
+
+        $runs = 1;
+        $first_pages = [];
+        do {
+            $requests = [];
+            $result = $this->sync(self::STORE_A, ['per_page' => 2]);
+            $first_pages[] = (int) ($requests[0]['page'] ?? 0);
+            $runs++;
+        } while ($result['truncated'] && $runs < 6);
+
+        $this->assertCount(25, $this->db->orders,
+            'orders past the budget must arrive even when the cursor cannot move');
+        $this->assertContains(11, $first_pages,
+            'a run that follows a stalled run must continue at the next page instead of page 1');
+        $this->assertFalse($result['truncated']);
+        $this->assertNull($this->optionByPrefix($options, 'wc_mss_remote_order_resume_'),
+            'reaching the end of the stream clears the resume marker');
+    }
+
+    public function test_resume_marker_is_ignored_once_the_cursor_has_moved(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $options = [];
+        $this->persistentOptions($options);
+
+        // Truncated run → cursor 10:19, marker for the (cursor-less) first request.
+        $this->sync(self::STORE_A, ['per_page' => 2]);
+        $this->assertNotNull($this->optionByPrefix($options, 'wc_mss_remote_order_resume_'));
+
+        $requests = [];
+        $this->sync(self::STORE_A, ['per_page' => 2]);
+
+        $this->assertSame(1, (int) $requests[0]['page'],
+            'a different modified_after window is a different result set: start at page 1');
+        $this->assertArrayHasKey('modified_after', $requests[0]);
+        $this->assertCount(25, $this->db->orders);
+    }
+
+    // ── failed-order retry list ───────────────────────────────────
+
+    public function test_failed_order_missing_from_the_store_counts_as_an_attempt(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $options = [$this->failedOptionName() => [999 => 1]];
+        $this->persistentOptions($options);
+
+        $this->sync(self::STORE_A);
+
+        $include_requests = array_values(array_filter($requests, static fn(array $q): bool => isset($q['include'])));
+        $this->assertCount(1, $include_requests, 'failed orders are re-requested by ID');
+        $this->assertSame([999 => 2], $options[$this->failedOptionName()],
+            'an ID the store no longer returns must age out instead of being retried forever');
+    }
+
+    public function test_failed_orders_are_dropped_after_the_retry_limit(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $options = [$this->failedOptionName() => [999 => 4, 998 => 1]];
+        $this->persistentOptions($options);
+
+        $this->sync(self::STORE_A);
+
+        $this->assertSame([998 => 2], $options[$this->failedOptionName()]);
+    }
+
+    public function test_failed_order_that_imports_on_retry_leaves_the_list(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $options = [$this->failedOptionName() => [7 => 3]];
+        $this->persistentOptions($options);
+
+        $result = $this->sync(self::STORE_A);
+
+        $this->assertSame([], $options[$this->failedOptionName()]);
+        $this->assertSame(25, $result['synced']);
+    }
+
+    public function test_retry_list_is_capped_dropping_the_oldest_entries(): void
+    {
+        $requests = [];
+        $this->fakeCatalog($this->catalog25(), $requests);
+        $failed = [];
+        for ($i = 1; $i <= 620; $i++) {
+            $failed[10000 + $i] = 1;
+        }
+        $options = [$this->failedOptionName() => $failed];
+        $this->persistentOptions($options);
+
+        $this->sync(self::STORE_A);
+
+        $remaining = $options[$this->failedOptionName()];
+        $this->assertLessThanOrEqual(500, count($remaining));
+        // The 100 IDs just attempted were rotated to the end of the list, so the
+        // overflow is taken from the entries that have waited the longest.
+        $this->assertArrayHasKey(10001, $remaining);
+        $this->assertArrayNotHasKey(10101, $remaining, 'the oldest untried entries are dropped first');
+        $this->assertArrayHasKey(10620, $remaining);
     }
 
     // ── per-order failure isolation ───────────────────────────────

@@ -115,7 +115,7 @@ class WC_Multi_Store_Queue_Table {
         // Include 'processing' to prevent duplicates when items are stuck processing
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition. Operation predicate is either a fixed literal or a separately prepared sync type/source pair; product and store values are prepared.
         $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT id, status FROM {$table_name} WHERE product_id = %d AND store_url = %s AND status IN ('pending', 'processing'){$operation_filter}",
+            "SELECT id, status, sync_type FROM {$table_name} WHERE product_id = %d AND store_url = %s AND status IN ('pending', 'processing'){$operation_filter}",
             $product_id,
             $store_url
         ), ARRAY_A);
@@ -158,6 +158,15 @@ class WC_Multi_Store_Queue_Table {
             // Also update SKU and extra_data if provided (for deletion operations)
             $update_data = [];
             $update_format = [];
+
+            // A pending row must not absorb a request with a wider sync_type
+            // (e.g. a 'quantity' row swallowing a later 'full_product'): the
+            // merged run would send only the narrow payload and silently drop
+            // the wider request. Keep the broader of the two.
+            if (self::sync_type_rank($sync_type) > self::sync_type_rank((string) ($existing['sync_type'] ?? ''))) {
+                $update_data['sync_type'] = $sync_type;
+                $update_format[] = '%s';
+            }
 
             if ($priority < 5) {
                 $update_data['priority'] = $priority;
@@ -217,12 +226,33 @@ class WC_Multi_Store_Queue_Table {
     }
 
     /**
+     * Payload breadth of a sync_type, used when merging a new request into an
+     * existing pending row so the merged run sends the broader payload.
+     *
+     * quantity < price_quantity < price_quantity_categories < full_product.
+     * Unknown types fall through Product_Extractor's default case and build a
+     * full payload, so they rank with full_product.
+     *
+     * @param string $sync_type Sync type
+     * @return int Breadth rank
+     */
+    private static function sync_type_rank(string $sync_type): int {
+        return match ($sync_type) {
+            'quantity' => 1,
+            'price_quantity' => 2,
+            'price_quantity_categories' => 3,
+            default => 4,
+        };
+    }
+
+    /**
      * Get next batch of items to process
      *
-     * @param int $limit Number of items to get
+     * @param int   $limit          Number of items to get
+     * @param array $exclude_stores Store URLs to exclude (e.g. inactive stores)
      * @return array Queue items
      */
-    public static function get_next_batch($limit = 10): array {
+    public static function get_next_batch($limit = 10, array $exclude_stores = []): array {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
@@ -230,23 +260,29 @@ class WC_Multi_Store_Queue_Table {
         // LIMIT 0 would make the queue look permanently empty and a negative LIMIT is a SQL error.
         $limit = max(1, (int) $limit);
 
-        // Get items that are:
-        // - status = pending
-        // - scheduled_at is null or in the past
-        // - attempts < 3
-        // Order by priority (ASC), then store_url (ASC) for HTTP keep-alive optimization,
-        // then created_at (ASC)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
-        $items = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_name}
+        $clean_exclude = array_values(array_filter(array_unique($exclude_stores), 'is_string'));
+
+        $sql = "SELECT * FROM {$table_name}
             WHERE status = 'pending'
             AND (scheduled_at IS NULL OR scheduled_at <= %s)
-            AND attempts < 3
-            ORDER BY priority ASC, store_url ASC, created_at ASC
-            LIMIT %d",
-            $current_time,
-            $limit
-        ), ARRAY_A);
+            AND attempts < 3";
+        $params = [$current_time];
+
+        if (!empty($clean_exclude)) {
+            $placeholders = implode(', ', array_fill(0, count($clean_exclude), '%s'));
+            $sql .= " AND store_url NOT IN ({$placeholders})";
+            $params = array_merge($params, $clean_exclude);
+        }
+
+        $sql .= " ORDER BY priority ASC, store_url ASC, created_at ASC LIMIT %d";
+        $params[] = $limit;
+
+        // InterpolatedNotPrepared and UnfinishedPrepare are disabled file-wide (see the top of
+        // this file); only NotPrepared needs a local exception for the assembled $sql string.
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- The placeholders are dynamically generated %s tokens; values are passed to prepare().
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition. The SQL is assembled from the trusted table name, fixed literals and a dynamically sized list of %s placeholders whose values are bound by prepare().
+        $items = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
+        // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
         // $wpdb returns null when the query fails; treat that as "nothing to do" instead of a TypeError.
         return is_array($items) ? $items : [];
@@ -310,6 +346,11 @@ class WC_Multi_Store_Queue_Table {
      */
     public static function mark_failed(int $id, string $error = '', bool $no_retry = false): int|false {
         global $wpdb;
+
+        // Error text can embed request URLs that carry the API credentials
+        // (query-string auth). Never persist those into the queue table, the
+        // dead-letter copy, or the admin screens that read them.
+        $error = WC_Multi_Store_API_Client::sanitize_error_message($error);
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
@@ -522,6 +563,18 @@ class WC_Multi_Store_Queue_Table {
         // Every reset counts as an attempt. An item that keeps crashing the worker (fatal error,
         // timeout) never reaches mark_failed(), so without this it would be retried forever; after
         // the third strike it is parked as failed where it is visible and can be retried by hand.
+        // Rows hitting the limit this round are also copied to the dead-letter queue below —
+        // the same path mark_failed() takes — so parked items show up on the dead-letter
+        // screen and retry_item() has a DLQ entry to mark as retried.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
+        $doomed = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name}
+            WHERE status = 'processing'
+            AND started_at < %s
+            AND attempts + 1 >= 3",
+            $cutoff_time
+        ), ARRAY_A);
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue state uses a custom table; cached reads could duplicate work or miss a concurrent status transition.
         $reset_count = $wpdb->query($wpdb->prepare(
             "UPDATE {$table_name}
@@ -540,6 +593,17 @@ class WC_Multi_Store_Queue_Table {
                 $reset_count,
                 $minutes
             ));
+
+            if (is_array($doomed)) {
+                foreach ($doomed as $item) {
+                    $item['attempts']   = (int) ($item['attempts'] ?? 0) + 1; // The UPDATE above has already incremented it.
+                    $item['last_error'] = sprintf(
+                        'Stuck in processing for more than %d minutes (worker crash or timeout)',
+                        max(0, (int) $minutes)
+                    );
+                    WC_Multi_Store_Dead_Letter_Queue::add_from_queue($item);
+                }
+            }
         }
 
         return $reset_count;

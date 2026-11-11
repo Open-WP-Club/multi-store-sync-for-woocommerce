@@ -439,7 +439,12 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             }
         };
 
-        $this->receiver->verify_webhook_signature(new WP_REST_Request());
+        // Credential-bearing failures are still audited with the caller IP;
+        // credential-less requests no longer write audit rows at all (that
+        // flood path is covered in WebhookAuthHardeningTest).
+        $request = new WP_REST_Request();
+        $request->set_header('x-wc-mss-secret', 'not-the-secret');
+        $this->receiver->verify_webhook_signature($request);
 
         $this->assertCount(1, $rows);
         $this->assertSame('auth_failed', $rows[0]['log_type']);
@@ -530,7 +535,10 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
             }
         };
 
-        $this->receiver->verify_webhook_signature(new WP_REST_Request());
+        // Credential-bearing clients hitting the limit are logged as
+        // rate_limited and nothing else (the limiter returns before auth).
+        // Credential-less floods no longer write rows at all.
+        $this->receiver->verify_webhook_signature($this->signed('{}'));
 
         $this->assertSame(['rate_limited'], $types);
     }
@@ -1199,6 +1207,92 @@ class WebhookReceiverHardeningTest extends WC_Multi_Store_TestCase
         parse_str($query, $parsed);
         $this->assertSame(['store_url'], array_keys($parsed));
         $this->assertSame('https://s.example.com/?a=1&b=2#frag', urldecode($parsed['store_url']));
+    }
+
+    public function test_webhook_ping_returns_200_and_does_not_modify_stock(): void
+    {
+        $this->addProduct(10, 'SKU-10', 25);
+        $pingRequest = $this->request(['webhook_id' => 123]);
+        $pingRequest->set_header('user-agent', 'WooCommerce/9.4 Hookshot');
+
+        $res = $this->receiver->handle_order_webhook($pingRequest);
+
+        $this->assertSame(200, $res->get_status());
+        $this->assertTrue($res->get_data()['success']);
+        $this->assertSame(123, $res->get_data()['webhook_id']);
+        $this->assertSame(25, $this->stock[10]);
+        $this->assertEmpty($this->wcStockCalls);
+    }
+
+    public function test_webhook_ping_by_header_returns_200(): void
+    {
+        $this->addProduct(10, 'SKU-10', 25);
+        $pingRequest = $this->request(['webhook_id' => 123]);
+        $pingRequest->set_header('x-wc-webhook-event', 'woocommerce_webhook_ping');
+
+        $res = $this->receiver->handle_order_webhook($pingRequest);
+
+        $this->assertSame(200, $res->get_status());
+        $this->assertTrue($res->get_data()['success']);
+        $this->assertSame(25, $this->stock[10]);
+        $this->assertEmpty($this->wcStockCalls);
+    }
+
+    private function deliverPing(string $route = '/wc-multi-store-sync/v1/webhook/order'): WP_REST_Request
+    {
+        $pingRequest = new WP_REST_Request('POST', $route);
+        $pingRequest->set_header('user-agent', 'WooCommerce/9.4.0 Hookshot (WordPress/6.7)');
+        $pingRequest->set_body('webhook_id=789');
+        $pingRequest->set_param('webhook_id', '789');
+        $pingRequest->set_param('store_url', self::STORE);
+        return $pingRequest;
+    }
+
+    public function test_ping_shaped_request_on_the_test_route_still_needs_credentials(): void
+    {
+        $perm = $this->receiver->verify_webhook_signature($this->deliverPing('/wc-multi-store-sync/v1/webhook/test'));
+
+        $this->assertInstanceOf(WP_Error::class, $perm,
+            'WooCommerce only pings the order route; the unsigned exemption must not widen to other routes');
+        $this->assertSame('missing_auth', $perm->get_error_code());
+    }
+
+    public function test_ping_shaped_request_without_a_route_is_rejected(): void
+    {
+        $perm = $this->receiver->verify_webhook_signature($this->deliverPing(''));
+
+        $this->assertInstanceOf(WP_Error::class, $perm);
+    }
+
+    public function test_ping_shaped_request_for_an_unregistered_store_is_rejected(): void
+    {
+        $ping = $this->deliverPing();
+        $ping->set_param('store_url', 'https://not-registered.example.com');
+
+        $perm = $this->receiver->verify_webhook_signature($ping);
+
+        $this->assertInstanceOf(WP_Error::class, $perm);
+        $this->assertSame('missing_auth', $perm->get_error_code());
+    }
+
+    public function test_unsigned_woocommerce_deliver_ping_passes_permission_callback_and_returns_200(): void
+    {
+        $this->addProduct(10, 'SKU-10', 25);
+        $pingRequest = new WP_REST_Request('POST', '/wc-multi-store-sync/v1/webhook/order');
+        $pingRequest->set_header('user-agent', 'WooCommerce/9.4.0 Hookshot (WordPress/6.7)');
+        $pingRequest->set_body('webhook_id=789');
+        $pingRequest->set_param('webhook_id', '789');
+        $pingRequest->set_param('store_url', self::STORE);
+
+        $perm = $this->receiver->verify_webhook_signature($pingRequest);
+        $this->assertTrue($perm);
+
+        $res = $this->receiver->handle_order_webhook($pingRequest);
+        $this->assertSame(200, $res->get_status());
+        $this->assertTrue($res->get_data()['success']);
+        $this->assertSame('789', (string) $res->get_data()['webhook_id']);
+        $this->assertSame(25, $this->stock[10]);
+        $this->assertEmpty($this->wcStockCalls);
     }
 
     // ── regression: replay marker semantics ────────────────────────────────

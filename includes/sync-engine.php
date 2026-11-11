@@ -177,6 +177,14 @@ class WC_Multi_Store_Sync_Engine {
             $product_name = $args['product_name'] ?? '';
         }
 
+        // Failure text can embed request URLs carrying the API credentials
+        // (query-string auth) — redact before it reaches the history table
+        // and the admin screens that read it. Success text is left intact.
+        $message = (string) ($args['message'] ?? '');
+        if (($args['status'] ?? '') !== 'success') {
+            $message = WC_Multi_Store_API_Client::sanitize_error_message($message);
+        }
+
         // Log to history table
         WC_Multi_Store_Sync_History::log_sync([
             'product_id' => $product_id,
@@ -186,7 +194,7 @@ class WC_Multi_Store_Sync_Engine {
             'sync_type' => $args['sync_type'],
             'sync_source' => $args['sync_source'],
             'status' => $args['status'],
-            'message' => $args['message'],
+            'message' => $message,
             'remote_product_id' => $args['remote_product_id'] ?? null,
             'duration_ms' => $duration_ms,
             'memory_mb' => $memory_mb,
@@ -637,7 +645,16 @@ class WC_Multi_Store_Sync_Engine {
                 $remote_missing_local_categories = !empty($local_category_slugs)
                     && !array_intersect($remote_category_slugs, $local_category_slugs);
 
-                if (!$remote_missing_local_categories && !$this->extractor->have_categories_changed($product, $store_url)) {
+                // A renamed term (same match key, drifted label) must travel
+                // too: sending is what drives the terms_to_rename repair in
+                // ensure_terms_exist(); skipping keeps remote labels stale.
+                $categories_need_repair = $this->remote_terms_need_repair(
+                    $product_data['categories'],
+                    is_array($remote_product['categories'] ?? null) ? $remote_product['categories'] : [],
+                    $settings['category_match_by'] ?? 'slug'
+                );
+
+                if (!$remote_missing_local_categories && !$categories_need_repair && !$this->extractor->have_categories_changed($product, $store_url)) {
                     unset($product_data['categories']);
                     $skipped[] = 'categories';
                 }
@@ -665,7 +682,14 @@ class WC_Multi_Store_Sync_Engine {
                 $remote_missing_local_tags = !empty($local_tag_keys)
                     && !array_intersect($remote_tag_keys, $local_tag_keys);
 
-                if (!$remote_missing_local_tags && !$this->extractor->have_tags_changed($product, $store_url)) {
+                // Same rename-drift guard as categories above.
+                $tags_need_repair = $this->remote_terms_need_repair(
+                    $product_data['tags'],
+                    is_array($remote_product['tags'] ?? null) ? $remote_product['tags'] : [],
+                    $tag_match_by
+                );
+
+                if (!$remote_missing_local_tags && !$tags_need_repair && !$this->extractor->have_tags_changed($product, $store_url)) {
                     unset($product_data['tags']);
                     $skipped[] = 'tags';
                 }
@@ -763,13 +787,14 @@ class WC_Multi_Store_Sync_Engine {
         // remote write cannot be rolled back, and retries must not duplicate it.
         WC_Multi_Store_Remote_Product_Manager::save_remote_product_id($product->get_id(), $store_url, $remote_product_id);
 
-        // Wrap all post-success local DB writes in a transaction so that product sync,
-        // variation sync, hashes, and history log are committed atomically.
-        // Remote API calls inside perform_post_sync_operations() cannot be rolled back,
-        // but local state (hashes, history) stays consistent if any step throws.
+        // Post-success work runs in two phases. The remote half first —
+        // perform_post_sync_operations() and the verification GET dial the
+        // remote store, and a slow remote must never hold InnoDB locks while it
+        // responds. Then a short transaction wraps only the purely local writes
+        // (cache, conflict baseline, hashes, history) so they commit atomically;
+        // if any of those throws, local state (hashes, history) stays consistent.
         global $wpdb;
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
-        $wpdb->query('START TRANSACTION');
+        $transaction_open = false;
         try {
             // Perform post-sync operations (variations, custom fields, stock verification)
             $additional_api_calls = $this->perform_post_sync_operations($product, $remote_product_id, $api, $store_url, $store_config, $sync_type, isset($product_data['stock_quantity']) ? (int) $product_data['stock_quantity'] : null);
@@ -792,6 +817,11 @@ class WC_Multi_Store_Sync_Engine {
             }
             $operation_result['result'] = $verified_product;
             $message .= ' (verified by GET)';
+
+            // All remote calls are done — open the transaction for local writes only.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
+            $wpdb->query('START TRANSACTION');
+            $transaction_open = true;
 
             // Update cache with the new remote product data (refreshes expiration)
             $search_value = ($match_by === 'sku') ? $product->get_sku() : $product->get_slug();
@@ -856,9 +886,14 @@ class WC_Multi_Store_Sync_Engine {
 
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
             $wpdb->query('COMMIT');
+            $transaction_open = false;
         } catch (\Throwable $e) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
-            $wpdb->query('ROLLBACK');
+            if ($transaction_open) {
+                // Only roll back a transaction we opened ourselves — a bare
+                // ROLLBACK here could abort an outer request-level transaction.
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control must execute on the current database connection; WordPress has no transaction API.
+                $wpdb->query('ROLLBACK');
+            }
             // Remote batches cannot roll back; discard any pre-batch cache restored by ROLLBACK.
             WC_Multi_Store_Cache_Manager::set_remote_variations($store_url, $remote_product_id, null);
             WC_Multi_Store_Cache_Manager::delete_remote_product($store_url, $search_value, $match_by);
@@ -914,9 +949,13 @@ class WC_Multi_Store_Sync_Engine {
         $method = strtoupper($store_config['cache_purge_method'] ?? 'GET');
 
         $args = [
-            'timeout'  => 3,
-            'blocking' => false,
-            'headers'  => ['User-Agent' => 'WC-Multi-Store-Sync/' . WC_MSS_VERSION],
+            'timeout'     => 3,
+            'blocking'    => false,
+            // Never follow redirects: each hop would dial a target that
+            // is_safe_remote_url() never got to check (e.g. a public URL
+            // redirecting to a cloud-metadata address).
+            'redirection' => 0,
+            'headers'     => ['User-Agent' => 'WC-Multi-Store-Sync/' . WC_MSS_VERSION],
         ];
 
         if ($method === 'POST') {
@@ -1056,6 +1095,50 @@ class WC_Multi_Store_Sync_Engine {
         }
 
         return $product_data;
+    }
+
+    /**
+     * Whether any local term that exists remotely has drifted in the field
+     * that is not the match key (e.g. a display-name rename in slug-match
+     * mode). Mirrors the repair check in ensure_terms_exist(): when drift is
+     * detected the terms must travel so the remote label gets repaired.
+     *
+     * @param array $local_terms Local terms (name/slug pairs as built for the payload)
+     * @param array $remote_terms Remote terms as returned by the API
+     * @param string $match_by 'slug' or 'name'
+     * @return bool True when a rename repair would be needed
+     */
+    private function remote_terms_need_repair(array $local_terms, array $remote_terms, string $match_by): bool {
+        $map = [];
+        foreach ($remote_terms as $remote_term) {
+            $key = ($match_by === 'name')
+                ? mb_strtolower((string) ($remote_term['name'] ?? ''))
+                : strtolower((string) ($remote_term['slug'] ?? ''));
+            if ($key !== '') {
+                $map[$key] = $remote_term;
+            }
+        }
+
+        foreach ($local_terms as $term) {
+            $term_name = (string) ($term['name'] ?? '');
+            // format_tags() omits 'slug' in name-match mode; leave it empty then
+            // (a slug we cannot see cannot be reported as drifted).
+            $term_slug = (string) ($term['slug'] ?? '');
+            $key = ($match_by === 'name') ? mb_strtolower($term_name) : strtolower($term_slug);
+            if ($key === '' || !isset($map[$key])) {
+                continue; // missing remotely — covered by the missing-terms check
+            }
+            $remote_term = $map[$key];
+            if ($match_by === 'name') {
+                if ($term_slug !== '' && strtolower((string) ($remote_term['slug'] ?? '')) !== strtolower($term_slug)) {
+                    return true;
+                }
+            } elseif ((string) ($remote_term['name'] ?? '') !== $term_name) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

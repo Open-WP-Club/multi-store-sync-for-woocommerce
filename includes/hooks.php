@@ -55,8 +55,12 @@ class WC_Multi_Store_Hooks {
         add_action('woocommerce_product_set_stock', $this->on_stock_change(...), 10, 1);
         add_action('woocommerce_variation_set_stock', $this->on_stock_change(...), 10, 1);
 
-        // Price change hooks (for quick syncs)
-        add_action('woocommerce_product_set_price', $this->on_price_change(...), 10, 1);
+        // Price change hook (for quick syncs). WooCommerce never fires a
+        // woocommerce_product_set_price action (this registration used to be
+        // dead code); the product data store fires
+        // woocommerce_product_object_updated_props with the changed prop
+        // names for products and variations after create/update.
+        add_action('woocommerce_product_object_updated_props', $this->on_price_change(...), 10, 2);
 
         // Capture product data before permanent deletion (post is still in DB at this point)
         add_action('before_delete_post', $this->on_before_delete_post(...), 10, 1);
@@ -338,20 +342,61 @@ class WC_Multi_Store_Hooks {
     /**
      * Handle price change
      *
+     * Runs from woocommerce_product_object_updated_props, which the product
+     * data store fires with the changed prop names after every create/update
+     * (products and variations alike), so a price edit becomes a quick
+     * high-priority sync.
+     *
      * @param WC_Product $product Product object
+     * @param array $updated_props Prop names changed by this save
      */
-    public function on_price_change($product): void {
+    public function on_price_change($product, $updated_props = []): void {
+        // Only saves that actually changed an effective price quick-sync.
+        // (Same prop set handle_updated_props() uses to recompute _price.)
+        $price_props = ['price', 'regular_price', 'sale_price', 'date_on_sale_from', 'date_on_sale_to'];
+        if (!is_array($updated_props) || !array_intersect($price_props, $updated_props)) {
+            return;
+        }
+
         // Check if auto-sync is enabled
         if (!self::get_setting('auto_sync_on_save', false)) {
             return;
         }
 
-        // Only sync prices for published products
-        if ($product->get_status() !== 'publish') {
+        // Don't re-sync during webhook processing (same as on_product_save())
+        if ((defined('WC_MSS_WEBHOOK_PROCESSING') && WC_MSS_WEBHOOK_PROCESSING)
+            || WC_Multi_Store_Webhook_Receiver::$is_processing_webhook) {
+            return;
+        }
+
+        // Don't sync during bulk operations
+        if (self::is_bulk_edit_request()) {
+            return;
+        }
+
+        // Don't sync during imports
+        if (defined('WP_IMPORTING') && WP_IMPORTING) {
             return;
         }
 
         $product_id = $product->get_id();
+
+        // Variations sync through their parent (see on_variation_save());
+        // queueing a variation ID directly would create it as a standalone
+        // simple product on the remote store.
+        if (get_post_type($product_id) === 'product_variation') {
+            $parent_id = wp_get_post_parent_id($product_id);
+            if (!$parent_id) {
+                return;
+            }
+            $product_id = $parent_id;
+        }
+
+        // Only sync prices for published products
+        if (get_post_status($product_id) !== 'publish') {
+            return;
+        }
+
         $sku = $product->get_sku();
 
         WC_Multi_Store_Logger::write(sprintf(
@@ -706,8 +751,11 @@ class WC_Multi_Store_Hooks {
                 $e->getLine()
             ), 'error');
 
-            // Clean up any stale locks so verification can be retried
-            delete_transient(WC_Multi_Store_Weekly_Sync_Verifier::ASYNC_PROGRESS_TRANSIENT);
+            // One failed batch must not cancel the rest of a multi-batch
+            // verification: keep the progress alive and advance the chain to
+            // the next batch (the failed batch's products stay unverified —
+            // logged above).
+            WC_Multi_Store_Weekly_Sync_Verifier::continue_after_failed_batch((int) $batch);
         }
     }
 }

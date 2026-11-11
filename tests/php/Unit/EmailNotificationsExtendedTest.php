@@ -481,4 +481,49 @@ class EmailNotificationsExtendedTest extends WC_Multi_Store_TestCase
         $this->assertTrue($result);
         $this->assertEquals($settings, $saved_value);
     }
+
+    // ── schedule_daily_summary: site timezone ────────────────────
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function test_schedule_daily_summary_timestamp_uses_the_site_timezone(): void
+    {
+        // Separate process: defining ActionScheduler must not leak into
+        // availability tests elsewhere in the suite.
+        class_alias(\stdClass::class, 'ActionScheduler');
+
+        $tz = new DateTimeZone('America/New_York');
+        // Monday 20:00 site time: "today 08:00" has already passed in the
+        // site timezone, so the run must be tomorrow 08:00 *site time*.
+        Functions\when('current_datetime')->justReturn(new DateTimeImmutable('2026-11-02 20:00:00', $tz));
+        Functions\when('get_option')->alias(static function ($option, $default = false) {
+            if ($option === 'wc_multi_store_sync_email_settings') {
+                return [
+                    'enabled' => true,
+                    'daily_summary_enabled' => true,
+                    'daily_summary_time' => '08:00',
+                    'recipient_email' => 'a@example.com',
+                ];
+            }
+            return $default;
+        });
+        Functions\when('as_next_scheduled_action')->justReturn(false);
+        Functions\when('as_schedule_single_action')->justReturn(1);
+
+        $scheduled = [];
+        Functions\when('as_schedule_recurring_action')->alias(function ($timestamp, $interval, $hook) use (&$scheduled) {
+            $scheduled[] = [$timestamp, $interval, $hook];
+            return 1;
+        });
+
+        (new WC_Multi_Store_Email_Notifications())->schedule_daily_summary();
+
+        $this->assertCount(1, $scheduled, 'a daily recurring action must be scheduled');
+        $expected = (new DateTimeImmutable('2026-11-03 08:00:00', $tz))->getTimestamp();
+        $this->assertSame(
+            $expected,
+            $scheduled[0][0],
+            'the summary must fire at 08:00 site time, not 08:00 UTC'
+        );
+    }
 }
