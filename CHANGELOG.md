@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.5.0 — 2026-11-11
+
+- Dependencies: updated Chart.js to 4.6.1 and rebuilt the bundled chart asset.
+- Tests: migrated PHPUnit configuration to the 13.4 schema and explicit dependency resolution; verified 4,528 PHP tests, 166 JavaScript tests and integration scenarios on PHP 8.3/8.4/8.5 with and without Redis.
+- Development: updated WooCommerce stubs to 11.2.2, PHPStan to 2.3.5, PHPUnit to 13.4.6 and compatible transitive dependencies.
+
 ## 5.4.0 — 2026-10-25
 
 - Security: strengthened product-action authorization, webhook stock handling, image fetching, archive storage and CSV exports.

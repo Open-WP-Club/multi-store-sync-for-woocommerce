@@ -1,6 +1,6 @@
 {
   "name": "woocommerce-api-product-sync-with-multiple-woocommerce-stores",
-  "version": "5.4.0",
+  "version": "5.5.0",
   "description": "**Professional multi-store product synchronization for WooCommerce**",
   "main": "index.js",
   "directories": {
@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/MrGKanev/WooCommerce-API-Product-Sync-with-Multiple-WooCommerce-Stores#readme",
   "dependencies": {
-    "chart.js": "^4.5.1"
+    "chart.js": "^4.6.1"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
